@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dash - 개인정보처리방침</title>
+    <style>
+        body {
+            font-family: -apple-system, 'Malgun Gothic', sans-serif;
+            max-width: 720px;
+            margin: 40px auto;
+            padding: 0 20px;
+            color: #333;
+            line-height: 1.8;
+        }
+
+        h1 {
+            font-size: 22px;
+            border-bottom: 2px solid #C2FFA7;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 16px;
+            margin-top: 30px;
+            color: #222;
+        }
+
+        p,
+        li {
+            font-size: 14px;
+        }
+
+        .updated {
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Dash — 개인정보처리방침</h1>
+    <p class="updated">최종 수정일: 2026년 2월 26일</p>
+
+    <h2>1. 수집하는 개인정보</h2>
+    <p><strong>Dash는 어떠한 개인정보도 수집하지 않습니다.</strong></p>
+    <ul>
+        <li>사용자가 업로드하는 엑셀 파일은 <strong>브라우저 내부(로컬)</strong>에서만 처리되며, 외부 서버로 전송되지 않습니다.</li>
+        <li>확장프로그램 사용 기록은 <strong>Chrome 로컬 스토리지</strong>에만 저장되며, 개발자에게 전달되지 않습니다.</li>
+    </ul>
+
+    <h2>2. 데이터 처리 방식</h2>
+    <ul>
+        <li>엑셀 파일 파싱은 브라우저 내 JavaScript(SheetJS 라이브러리)로 수행됩니다.</li>
+        <li>파싱된 데이터는 대상 시스템의 입력 폼에 자동 기입하는 용도로만 사용됩니다.</li>
+        <li>모든 데이터는 브라우저 세션 종료 또는 사용자의 명시적 삭제 시 제거됩니다.</li>
+    </ul>
+
+    <h2>3. 외부 통신</h2>
+    <p>본 확장프로그램은 <strong>어떠한 외부 서버와도 통신하지 않습니다.</strong> 네트워크 요청이 발생하지 않습니다.</p>
+
+    <h2>4. 권한 사용 목적</h2>
+    <ul>
+        <li><strong>tabs</strong>: 대상 시스템 창을 감지하기 위해 사용합니다.</li>
+        <li><strong>activeTab</strong>: 현재 활성 탭에 데이터를 자동 입력하기 위해 사용합니다.</li>
+        <li><strong>scripting</strong>: 대상 페이지의 입력 폼에 값을 채우기 위해 사용합니다.</li>
+        <li><strong>storage</strong>: 사용자의 입력 기록을 로컬에 저장하기 위해 사용합니다.</li>
+        <li><strong>sidePanel</strong>: 사이드 패널 UI를 제공하기 위해 사용합니다.</li>
+    </ul>
+
+    <h2>5. 문의</h2>
+    <p>개인정보 관련 문의는 아래로 연락해 주세요.</p>
+    <p>이메일: <strong>support@example.com</strong></p>
+</body>
+
+</html>
