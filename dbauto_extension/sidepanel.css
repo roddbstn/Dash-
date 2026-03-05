@@ -159,8 +159,8 @@ h3 {
     opacity: 1;
 }
 
-.tooltip-icon:hover::after {
-    content: attr(data-tooltip);
+.tooltip-box {
+    display: none;
     position: fixed;
     left: 12px;
     right: 12px;
@@ -175,6 +175,14 @@ h3 {
     z-index: 100;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     line-height: 1.5;
+}
+
+.tooltip-icon:hover .tooltip-box {
+    display: block;
+}
+
+.tooltip-warn {
+    color: #ffd54f;
 }
 
 /* ─── 리스트 컨테이너 ─── */
