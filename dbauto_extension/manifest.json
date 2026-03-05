@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Dash · 초간단 아동학대정보시스템 DB 입력기",
-    "version": "2.0",
+    "version": "2.1",
     "description": "엑셀 파일 연동·윈도우창 일괄 기입으로 DB 입력 업무를 단순화합니다.",
     "permissions": [
         "storage",
