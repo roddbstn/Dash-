@@ -349,7 +349,7 @@ window.DBAuto.ExcelHandler = {
                     ${r.recipient_val ? `<span class="tag">👤 ${r.recipient_val}</span>` : ''}
                     ${r.provMeansCd_val ? `<span class="tag">📞 ${r.provMeansCd_val}</span>` : ''}
                     ${r.loc_val ? `<span class="tag">📍 ${r.loc_val}</span>` : ''}
-                    ${r.pic_val ? `<span class="tag">👨‍💼 ${r.pic_val}</span>` : ''}
+                    ${r.pic_val ? `<span class="tag">👣 ${r.pic_val}</span>` : ''}
                 </div>
                 ${timestamp ? `<div class="upload-time">업로드: ${window.DBAuto.Utils.getRelativeTime(timestamp)}</div>` : ''}
             </div>
