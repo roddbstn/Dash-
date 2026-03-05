@@ -66,6 +66,7 @@
             border-collapse: collapse;
             margin: 20px 0;
             font-size: 14px;
+            table-layout: fixed;
         }
 
         th,
@@ -73,6 +74,25 @@
             border: 1px solid #ddd;
             padding: 12px;
             text-align: left;
+            vertical-align: top;
+            word-break: keep-all;
+        }
+
+        th:nth-child(1),
+        td:nth-child(1) {
+            width: 22%;
+        }
+
+        th:nth-child(2),
+        td:nth-child(2) {
+            width: 13%;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        th:nth-child(3),
+        td:nth-child(3) {
+            width: 65%;
         }
 
         th {
@@ -140,22 +160,22 @@
         <tbody>
             <tr>
                 <td>회원가입 정보 (이메일, 이름 등)</td>
-                <td>수집 안 함</td>
+                <td>수집 안함</td>
                 <td>회원가입 기능 자체가 없음</td>
             </tr>
             <tr>
                 <td>인증 정보</td>
-                <td>수집 안 함</td>
+                <td>수집 안함</td>
                 <td>별도 인증 과정 없음</td>
             </tr>
             <tr>
                 <td>아동학대 관련 업무 데이터</td>
-                <td>수집 안 함</td>
+                <td>수집 안함</td>
                 <td>엑셀 파일 내용, 입력값, 팝업 데이터 등 전부 로컬 메모리에서만 일시 처리 후 즉시 삭제</td>
             </tr>
             <tr>
                 <td>사용 로그</td>
-                <td>수집 안 함</td>
+                <td>수집 안함</td>
                 <td>서버로 전송되는 로그 없음 (브라우저 콘솔에만 디버깅용 익명 로그 생성 가능)</td>
             </tr>
             <tr>
