@@ -37,3 +37,9 @@ window.DBAuto.HistoryManager.init();
 // 초기 창 스캔 + 3초 주기 갱신
 window.DBAuto.WindowManager.scanTabs();
 setInterval(() => window.DBAuto.WindowManager.scanTabs(), 3000);
+
+// 수동 입력이 기본 탭이므로 초기 폼 렌더링
+window.DBAuto.ManualForm.renderForms();
+// 업로드 전용 요소 숨김
+document.getElementById('status').classList.add('hidden');
+document.getElementById('window-section').classList.add('hidden');
