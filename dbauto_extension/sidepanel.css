@@ -95,6 +95,29 @@ h3 {
     font-weight: 700;
 }
 
+/* ─── 안내 배너 ─── */
+.banner-notice {
+    background: #f9fafb;
+    border: 1px solid #e5e8eb;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+
+.banner-main {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333d4b;
+    line-height: 1.5;
+}
+
+.banner-sub {
+    font-size: 11px;
+    color: #8b95a1;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
 /* ─── 섹션 타이틀 ─── */
 .section-title {
     font-size: 13px;
