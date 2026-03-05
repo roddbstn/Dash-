@@ -82,7 +82,7 @@ window.DBAuto.ExcelHandler = {
 
         // 탭 바
         const tabBarHtml = `<div class="sheet-tab-bar">${sheetResults.map((sr, i) =>
-            `<button class="sheet-tab${i === 0 ? ' active' : ''}" data-sheetidx="${i}">${sr.sheetName} (${sr.records.length})</button>`
+            `<button class="sheet-tab${i === 0 ? ' active' : ''}" data-sheetidx="${i}">${sr.sheetName} (${sr.records.length}개의 열)</button>`
         ).join('')}</div>`;
 
         // 캐러셀 패널

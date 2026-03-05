@@ -219,11 +219,11 @@ window.DBAuto.ManualForm = {
             return name[0] + 'O'.repeat(name.length - 2) + name[name.length - 1];
         };
 
-        // 탭 바 (피해아동 이름 포함)
+        // 탭 바 (피해아동 이름 포함 - 첫 번째 이름만)
         const tabBarHtml = `<div class="window-tab-bar">${tabs.map((tab, i) => {
             const opts = optionsList[i];
             const masked = (opts.victimNames || []).map(maskName).filter(Boolean);
-            const label = masked.length > 0 ? `창 ${i + 1}(${masked.join(',')})` : `창 ${i + 1}`;
+            const label = masked.length > 0 ? `창 ${i + 1}(${masked[0]})` : `창 ${i + 1}`;
             return `<button class="window-tab${i === 0 ? ' active' : ''}" data-tabidx="${i}" data-tabid="${tab.id}">${label}</button>`;
         }).join('')}</div>`;
 

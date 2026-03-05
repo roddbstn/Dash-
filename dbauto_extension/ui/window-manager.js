@@ -13,6 +13,9 @@ window.DBAuto.WindowManager = {
         return name[0] + 'O'.repeat(name.length - 2) + name[name.length - 1];
     },
 
+    // 각 탭의 피해아동 이름을 캐시
+    _victimNameCache: {},
+
     init() {
         document.getElementById('refresh-windows').onclick = () => this.scanTabs();
         document.getElementById('batch-fill-btn').onclick = () => this._handleBatchFill();
@@ -37,15 +40,46 @@ window.DBAuto.WindowManager = {
             if (!State.targetTabs.some(t => t.id === id)) State.collapsedTabs.delete(id);
         }
 
+        // 피해아동 이름 조회
+        await this._fetchVictimNames(State.targetTabs);
+
         // 목록 렌더링
         this._renderList();
+    },
+
+    async _fetchVictimNames(tabs) {
+        const Actions = window.DBAuto.Actions;
+        const results = await Promise.all(tabs.map(tab =>
+            new Promise(resolve => {
+                chrome.tabs.sendMessage(tab.id, { action: Actions.GET_FORM_OPTIONS }, (options) => {
+                    if (chrome.runtime.lastError || !options) {
+                        resolve({ tabId: tab.id, names: [] });
+                    } else {
+                        resolve({ tabId: tab.id, names: options.victimNames || [] });
+                    }
+                });
+            })
+        ));
+        results.forEach(r => {
+            this._victimNameCache[r.tabId] = r.names;
+        });
+    },
+
+    _getDisplayTitle(tab, tabIndex) {
+        const names = this._victimNameCache[tab.id] || [];
+        const firstName = names.length > 0 ? this._maskName(names[0]) : null;
+        const baseTitle = tab.title || '제목 없음';
+        if (firstName) {
+            return `${baseTitle}(${firstName})`;
+        }
+        return baseTitle;
     },
 
     updateStatus() {
         const State = window.DBAuto.State;
         const status = document.getElementById('status');
         if (State.selectedRecords.length > 0 || State.selectedTabs.length > 0) {
-            status.innerText = `케이스 ${State.selectedRecords.length}개, 창 ${State.selectedTabs.length}개 선택됨`;
+            status.innerText = `서비스 ${State.selectedRecords.length}개, 창 ${State.selectedTabs.length}개 선택됨`;
         } else {
             status.innerText = '파일을 대기 중입니다.';
         }
@@ -68,51 +102,31 @@ window.DBAuto.WindowManager = {
         State.targetTabs.forEach((tab, tabIndex) => {
             const orderIndex = State.selectedTabs.findIndex(st => st.id === tab.id);
             const isSelected = orderIndex > -1;
-            const isCollapsed = State.collapsedTabs.has(tab.id);
             const color = isSelected ? cfg.MATCH_COLORS[orderIndex % cfg.MATCH_COLORS.length] : '#ccc';
 
-            const childText = '';
             // 창 번호: ID 정렬 기준 내 순서 (tabIndex + 1)
             const winNum = tabIndex + 1;
+            const displayTitle = this._getDisplayTitle(tab, tabIndex);
 
             const wrapper = document.createElement('div');
 
             // ── 헤더 행: 항상 표시 ──
             const header = document.createElement('div');
-            header.className = `item-row ${isSelected ? 'selected' : ''} ${isCollapsed ? 'collapsed-row' : ''}`;
+            header.className = `item-row ${isSelected ? 'selected' : ''}`;
             header.style.cssText = 'position:relative;';
             header.innerHTML = `
                 <input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''}>
                 ${isSelected
                     ? `<span class="match-badge" style="background:${color}; color:#fff;">${orderIndex + 1}</span>`
                     : `<span class="window-badge">창 ${winNum}</span>`}
-                <div class="item-info" style="${isCollapsed ? 'opacity:0.5;' : ''}">
-                    <div class="item-title" data-tabid="${tab.id}">${tab.title || '제목 없음'}${childText}</div>
-                    ${!isCollapsed ? `<div style="font-size:10px;color:#999;">${tab.url.substring(0, 40)}...</div>` : ''}
+                <div class="item-info">
+                    <div class="item-title" data-tabid="${tab.id}">${displayTitle}</div>
+                    <div style="font-size:10px;color:#999;">${tab.url.substring(0, 40)}...</div>
                 </div>
-                <button class="collapse-btn" title="${isCollapsed ? '펼치기' : '접기 (기입 완료)'}"
-                    style="margin-left:auto; background:none; border:none; cursor:pointer;
-                           font-size:13px; color:#b0b8c1; padding:4px 6px; border-radius:4px;
-                           transition:all 0.15s; flex-shrink:0;">
-                    ${isCollapsed ? '›' : '‹'}
-                </button>
             `;
-
-            // 접기 버튼 클릭: 이벤트 전파 중단 (체크박스 토글 방지)
-            const collapseBtn = header.querySelector('.collapse-btn');
-            collapseBtn.onclick = (e) => {
-                e.stopPropagation();
-                if (State.collapsedTabs.has(tab.id)) {
-                    State.collapsedTabs.delete(tab.id);
-                } else {
-                    State.collapsedTabs.add(tab.id);
-                }
-                this._renderList();
-            };
 
             // 행 클릭: 체크박스(창 선택) 토글
             header.onclick = (e) => {
-                if (e.target === collapseBtn) return;
                 const index = State.selectedTabs.findIndex(st => st.id === tab.id);
                 if (index > -1) {
                     State.selectedTabs.splice(index, 1);
@@ -135,7 +149,7 @@ window.DBAuto.WindowManager = {
         const State = window.DBAuto.State;
         const Actions = window.DBAuto.Actions;
 
-        if (State.selectedRecords.length === 0) return alert('기입할 케이스를 먼저 선택해주세요.');
+        if (State.selectedRecords.length === 0) return alert('기입할 서비스를 먼저 선택해주세요.');
         if (State.selectedTabs.length === 0) return alert('데이터를 넣을 대상 창을 아래 목록에서 클릭해 주세요.');
 
         const confirmMsg = `${State.selectedRecords.length}개의 데이터를 선택한 ${State.selectedTabs.length}개의 창에 입력하시겠습니까?`;
