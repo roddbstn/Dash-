@@ -1079,7 +1079,7 @@ select.styled-select[data-is-hovered="true"] {
     border-radius: 16px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
     padding: 16px;
-    width: 260px;
+    width: max-content;
     user-select: none;
     animation: dpSlideUp 0.2s ease;
 }
@@ -1221,4 +1221,88 @@ select.styled-select[data-is-hovered="true"] {
 
 .dp-today-btn:hover {
     background: #eff5ff;
+}
+
+/* ─── 시간 및 소요시간 선택 UI ─── */
+.dp-container {
+    display: flex;
+    gap: 20px;
+}
+
+.dp-left {
+    width: 250px;
+}
+
+.dp-right {
+    width: 240px;
+    border-left: 1px solid #e5e8eb;
+    padding-left: 16px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.dp-right::-webkit-scrollbar {
+    width: 4px;
+}
+
+.dp-right::-webkit-scrollbar-thumb {
+    background: #d1d6db;
+    border-radius: 4px;
+}
+
+.dp-right-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #333d4b;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #191f28;
+    line-height: 1.4;
+}
+
+.dp-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #4e5968;
+    margin-bottom: 8px;
+    margin-top: 6px;
+}
+
+.dp-section-title:first-child {
+    margin-top: 0;
+}
+
+.dp-time-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.dp-time-btn,
+.dp-duration-btn {
+    padding: 6px 4px;
+    border: 1px solid #d1d6db;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    color: #4e5968;
+    transition: all 0.15s ease;
+}
+
+.dp-time-btn:hover,
+.dp-duration-btn:hover {
+    border-color: #3182f6;
+    color: #3182f6;
+    background: #eff5ff;
+}
+
+.dp-time-btn.active,
+.dp-duration-btn.active {
+    background: #3182f6;
+    color: #fff;
+    border-color: #3182f6;
+    font-weight: bold;
 }
