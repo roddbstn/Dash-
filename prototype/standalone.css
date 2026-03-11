@@ -11,11 +11,11 @@ body {
 
 /* RIGHT PANEL — sidepanel replica */
 .right-panel {
-    width: 480px; min-width: 450px; max-width: 550px;
+    width: 600px; min-width: 500px; max-width: 700px;
     background: #f7f8fa; /* Not pure white */
     border-left: 1px solid #e5e8eb;
     display: flex; flex-direction: column; overflow: hidden;
-    padding: 16px; font-size: 14px; /* Scaled down UI */
+    padding: 20px; font-size: 15px; /* Larger UI */
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s ease;
     position: relative;
 }
@@ -97,15 +97,15 @@ body {
 
 /* Form Group */
 .manual-form-group {
-    padding: 16px; border: 1px solid #e5e8eb; border-radius: 12px;
-    background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 12px;
+    padding: 20px; border: 1px solid #e5e8eb; border-radius: 16px;
+    background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;
 }
 .manual-form-group.hidden-panel { display: none; }
 
 .panel-header {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
 }
-.panel-victim { font-size: 15px; font-weight: 700; color: #333d4b; }
+.panel-victim { font-size: 16px; font-weight: 700; color: #333d4b; }
 .refresh-single-btn {
     font-size: 14px; padding: 4px 8px; cursor: pointer; color: #8b95a1;
     background: transparent; border: none; border-radius: 6px; margin-left: auto;
@@ -113,8 +113,8 @@ body {
 }
 .refresh-single-btn:hover { background: #f2f4f6; color: #333d4b; transform: rotate(90deg); }
 
-.form-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; }
-.form-label { font-size: 13px; color: #6b7684; width: 72px; text-align: right; font-weight: 500; flex-shrink: 0; }
+.form-row { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+.form-label { font-size: 14px; color: #6b7684; width: 80px; text-align: right; font-weight: 500; flex-shrink: 0; }
 
 /* Chip Buttons */
 .chip-group { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
@@ -122,9 +122,9 @@ body {
 .chip-group-2col .chip { width: 100%; justify-content: center; }
 
 .chip {
-    padding: 4px 12px; border-radius: 20px; background: #f2f4f6;
+    padding: 6px 14px; border-radius: 20px; background: #f2f4f6;
     color: #4e5968; border: 1.5px solid #e5e8eb; cursor: pointer;
-    font-size: 13px; font-weight: 500; transition: all 0.15s ease;
+    font-size: 14px; font-weight: 500; transition: all 0.15s ease;
     white-space: nowrap; font-family: inherit; line-height: 1.4;
 }
 .chip:hover { background: #eef4ff; border-color: #3182f6; color: #3182f6; }
@@ -134,11 +134,11 @@ body {
 /* Styled Select */
 select.styled-select {
     appearance: none; -webkit-appearance: none;
-    border: 1.5px solid #e5e8eb; border-radius: 10px;
-    padding: 6px 32px 6px 12px; font-size: 13px; font-family: inherit;
+    border: 1.5px solid #e5e8eb; border-radius: 20px;
+    padding: 6px 32px 6px 16px; font-size: 14px; font-family: inherit;
     background: #f2f4f6 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b95a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
     color: #4e5968; cursor: pointer; font-weight: 500;
-    transition: all 0.15s ease; min-width: 120px; height: 34px; line-height: 1.4;
+    transition: all 0.15s ease; min-width: 120px; height: auto; line-height: 1.4;
 }
 select.styled-select:hover { border-color: #3182f6; color: #3182f6; background-color: #eef4ff; }
 select.styled-select:focus { outline: none; border-color: #3182f6; }
@@ -149,11 +149,11 @@ select.styled-select.has-value {
 
 /* Stepper */
 .stepper { display: inline-flex; align-items: center; gap: 6px; }
-.stepper-val { min-width: 20px; text-align: center; font-size: 14px; font-weight: 700; color: #191f28; user-select: none; }
+.stepper-val { min-width: 24px; text-align: center; font-size: 16px; font-weight: 700; color: #191f28; user-select: none; }
 .stepper-btn {
     display: inline-flex; align-items: center; justify-content: center;
-    min-width: 24px; height: 24px; padding: 0 6px; border: none; border-radius: 6px;
-    background: #3182f6; color: #fff; font-size: 13px; font-weight: 700;
+    min-width: 28px; height: 28px; padding: 0 8px; border: none; border-radius: 8px;
+    background: #3182f6; color: #fff; font-size: 14px; font-weight: 700;
     cursor: pointer; transition: all 0.12s ease; font-family: inherit; line-height: 1;
 }
 .stepper-btn:hover { background: #1b6ce5; }
@@ -163,25 +163,25 @@ select.styled-select.has-value {
 /* Date Trigger */
 .date-trigger {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 12px; border: 1.5px solid #d1d6db; border-radius: 10px;
-    font-size: 13px; color: #191f28; background: #fff; cursor: pointer;
+    padding: 6px 14px; border: 1.5px solid #d1d6db; border-radius: 10px;
+    font-size: 14px; color: #191f28; background: #fff; cursor: pointer;
     transition: all 0.15s ease; white-space: nowrap;
-    min-width: 110px; height: 34px;
+    min-width: 120px; height: 38px;
 }
 .date-trigger:hover { border-color: #b0b8c1; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
 
 /* Form Input */
 .form-input {
-    flex: 1; font-size: 13px; padding: 6px 10px;
+    flex: 1; font-size: 14px; padding: 8px 12px;
     border: 1.5px solid #d1d6db; border-radius: 10px;
-    max-width: 100%; height: 34px; color: #191f28; box-sizing: border-box;
+    max-width: 100%; height: 38px; color: #191f28;
     background: #fff; transition: border-color 0.15s ease;
 }
 .form-input:focus { outline: none; border-color: #3182f6; }
 textarea.form-input {
-    width: 100%; box-sizing: border-box; height: auto; min-height: 52px; resize: none; overflow: hidden;
-    padding: 8px 12px 24px 12px; /* Padding top to align, bottom for +확대 */
-    border: 1px solid #d1d6db; border-radius: 8px; line-height: 1.4;
+    width: 100%; box-sizing: border-box; height: auto; min-height: 70px; resize: none; overflow: hidden;
+    padding: 12px 14px 28px 14px; /* Padding top to align, bottom for +확대 */
+    border: 1px solid #d1d6db; border-radius: 8px; line-height: 1.5;
 }
 
 /* Expand Button */
