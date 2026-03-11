@@ -179,7 +179,7 @@ select.styled-select.has-value {
 }
 .form-input:focus { outline: none; border-color: #3182f6; }
 textarea.form-input {
-    height: auto; min-height: 64px; resize: none; overflow: hidden;
+    width: 100%; box-sizing: border-box; height: auto; min-height: 70px; resize: none; overflow: hidden;
     padding: 12px 14px 28px 14px; /* Padding top to align, bottom for +확대 */
     border: 1px solid #d1d6db; border-radius: 8px; line-height: 1.5;
 }
