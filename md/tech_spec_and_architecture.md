@@ -59,7 +59,7 @@ async queryTargetTabs() {
     
     // 1. URL 패턴 기반 백그라운드 검색
     // 서브도메인(*.ncads.go.kr)을 포함하여 팝업창이나 모듈별 창도 모두 스캔합니다.
-    // cfg.TARGET_URLS = ["*://localhost/*", "*://ncads.go.kr/*", "*://*.ncads.go.kr/*"]
+    // cfg.TARGET_URLS = ["*://localhost/*",ㅇ
     const tabs = await chrome.tabs.query({ url: cfg.TARGET_URLS });
     
     // 2. 제외 키워드 필터링 및 창 고정 정렬

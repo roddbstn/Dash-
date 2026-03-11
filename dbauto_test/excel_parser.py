@@ -148,3 +148,4 @@ if __name__ == '__main__':
             print(f"\n  [원본 데이터] {label}")
     except Exception as e:
         print(f"❌ 오류: {e}")
+

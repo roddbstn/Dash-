@@ -1237,15 +1237,23 @@ select.styled-select[data-is-hovered="true"] {
     width: 240px;
     border-left: 1px solid #e5e8eb;
     padding-left: 16px;
-    max-height: 280px;
-    overflow-y: auto;
+    height: 330px;
+    display: flex;
+    flex-direction: column;
 }
 
-.dp-right::-webkit-scrollbar {
+.dp-scroll-section {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+    min-height: 0;
+}
+
+.dp-scroll-section::-webkit-scrollbar {
     width: 4px;
 }
 
-.dp-right::-webkit-scrollbar-thumb {
+.dp-scroll-section::-webkit-scrollbar-thumb {
     background: #d1d6db;
     border-radius: 4px;
 }

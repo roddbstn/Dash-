@@ -145,8 +145,10 @@ window.DBAuto.DatePicker = {
                 dateHeader = `${dObj.getMonth() + 1}월 ${dObj.getDate()}일 (${days[dObj.getDay()]})<br>협의된 시간을 알려주세요.`;
             }
 
-            html += `<div class="dp-right-title">${dateHeader}</div>`;
+            html += `<div class="dp-right-title" style="flex-shrink:0;">${dateHeader}</div>`;
 
+            // === 시간 선택 영역 (Scrollable) ===
+            html += `<div class="dp-scroll-section" style="margin-bottom: 8px;">`;
             html += `<div class="dp-section-title">오전</div><div class="dp-time-grid">`;
             for (let h = 8; h < 12; h++) {
                 for (let m = 0; m <= 30; m += 30) {
@@ -166,12 +168,16 @@ window.DBAuto.DatePicker = {
                 }
             }
             html += `</div>`;
+            html += `</div>`;
 
-            html += `<div class="dp-section-title" style="margin-top:16px; border-top:1px dashed #e5e8eb; padding-top:16px;">상담 소요시간</div><div class="dp-time-grid">`;
+            // === 상담 소요시간 영역 (Scrollable) ===
+            html += `<div class="dp-scroll-section" style="border-top:1px dashed #e5e8eb; padding-top:12px;">`;
+            html += `<div class="dp-section-title" style="margin-top:0;">상담 소요시간</div><div class="dp-time-grid">`;
             for (let t = 10; t <= 120; t += 10) {
                 let text = t < 60 ? `${t}분` : (t === 60 ? `1시간` : (t === 120 ? `2시간` : `1시간 ${t - 60}분`));
                 html += `<div class="dp-duration-btn ${this._selectedDuration === t ? 'active' : ''}" data-dur="${t}">${text}</div>`;
             }
+            html += `</div>`;
             html += `</div>`;
             html += `</div>`; // .dp-right
         }
