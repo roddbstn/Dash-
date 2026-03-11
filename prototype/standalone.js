@@ -193,15 +193,15 @@ function createFormHtml() {
             </div>
         </div>
 
-        <div class="form-row" style="align-items:flex-start;"><div class="form-label" style="padding-top:8px;">서비스내용</div>
+        <div class="form-row" style="align-items:flex-start;"><div class="form-label" style="padding-top:12px;">서비스내용</div>
             <div style="flex:1;position:relative;">
-                <textarea class="form-input fi-desc_val" placeholder="서비스 내용 입력" rows="2"></textarea>
+                <textarea class="form-input fi-desc_val" placeholder="서비스  내용  입력" rows="2"></textarea>
                 <div class="expand-btn" data-field="desc_val">+ 확대</div>
             </div>
         </div>
-        <div class="form-row" style="align-items:flex-start;"><div class="form-label" style="padding-top:8px;">상담원 소견</div>
+        <div class="form-row" style="align-items:flex-start;"><div class="form-label" style="padding-top:12px;">상담원 소견</div>
             <div style="flex:1;position:relative;">
-                <textarea class="form-input fi-opn_val" placeholder="상담원 소견 입력" rows="2"></textarea>
+                <textarea class="form-input fi-opn_val" placeholder="상담원  소견  입력" rows="2"></textarea>
                 <div class="expand-btn" data-field="opn_val">+ 확대</div>
             </div>
         </div>
