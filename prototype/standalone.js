@@ -629,6 +629,15 @@ const DP = {
 
     render() {
         const { year, month, selectedDate, selectedTime, selectedDuration, isStart } = this;
+        
+        // Save scroll positions
+        const scrollPositions = [];
+        if (this.picker) {
+            this.picker.querySelectorAll('.dp-scroll-section').forEach(el => {
+                scrollPositions.push(el.scrollTop);
+            });
+        }
+
         const today = new Date();
         const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
         const monthNames = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -692,6 +701,13 @@ const DP = {
         }
         html += `</div>`;
         this.picker.innerHTML = html;
+
+        // Restore scroll positions
+        if (scrollPositions.length > 0) {
+            this.picker.querySelectorAll('.dp-scroll-section').forEach((el, idx) => {
+                if (scrollPositions[idx] !== undefined) el.scrollTop = scrollPositions[idx];
+            });
+        }
 
         this.picker.querySelector('.dp-prev').onclick = () => { this.month--; if (this.month<0){this.month=11;this.year--;} this.render(); };
         this.picker.querySelector('.dp-next').onclick = () => { this.month++; if (this.month>11){this.month=0;this.year++;} this.render(); };
