@@ -343,6 +343,20 @@ function handleSingleFill() {
     autoFillIframe(iframe.contentDocument, rec);
     alert('입력이 완료되었습니다.');
 }
+
+function handleAllFill() {
+    const rec = buildRecord();
+    // 실제 확장에선 크롬 API를 쓰지만, 프로토타입에선 3개 파일을 직접 건드리는 효과 연출
+    const files = ['index_8000.html', 'index_8001.html', 'index_8002.html'];
+    
+    // 현재 활성화된 iframe에 먼저 넣고, 나머지는 백그라운드 처리(알림용)
+    const iframe = document.getElementById('proto-frame');
+    if (iframe?.contentDocument) {
+        autoFillIframe(iframe.contentDocument, rec);
+    }
+    
+    alert('모든 창(3개)에 데이터 입력이 완료되었습니다.');
+}
 function handleExcelAutoFill() {
     if (!selectedRecords.length) { alert('데이터를 선택해주세요.'); return; }
     const iframe = document.getElementById('proto-frame');

@@ -269,13 +269,23 @@ textarea.form-input {
     white-space: nowrap;
 }
 .btn-text-muted:hover { color: #6b7684; }
-.btn-all-send {
-    flex: 1; padding: 14px; border: none; border-radius: 10px;
-    cursor: pointer; font-size: 16px; font-weight: 700;
-    background: #e8ffd9; color: #222; border: 2.5px solid #C2FFA7;
+.btn-single-send {
+    flex: 1; padding: 12px 0; border: none; border-radius: 10px;
+    cursor: pointer; font-size: 14px; font-weight: 600;
+    background: #f2f4f6; color: #8b95a1; border: 1.5px solid #e5e8eb;
     transition: all 0.15s ease; letter-spacing: -0.2px;
 }
-.btn-all-send:hover { background: #C2FFA7; }
+.btn-single-send:hover { background: #e8eaed; color: #4e5968; }
+
+.btn-all-send {
+    flex: 1.2; padding: 12px 0; border: none; border-radius: 10px;
+    cursor: pointer; font-size: 14px; font-weight: 700;
+    background: #C2FFA7; color: #191f28; 
+    box-shadow: 0 4px 12px rgba(194,255,167,0.3);
+    transition: all 0.15s ease; letter-spacing: -0.2px;
+}
+.btn-all-send:hover { background: #abf086; transform: translateY(-1px); }
+.btn-all-send:active { transform: scale(0.97); }
 
 .sp-footer { text-align: center; padding: 14px 0 6px; }
 .sp-footer a { color: #b0b8c1; font-size: 11px; text-decoration: none; }

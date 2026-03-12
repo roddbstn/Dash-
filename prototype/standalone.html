@@ -115,7 +115,10 @@
 
     <div class="sp-sticky-bar">
         <button class="btn-text-muted" onclick="resetAllForms()">전체 새로고침</button>
-        <button class="btn-all-send" onclick="handleSingleFill()">✦ 이 창에 DB 입력</button>
+        <div style="display:flex; gap:8px; flex:1;">
+            <button class="btn-single-send" onclick="handleSingleFill()">이 창에 DB 입력</button>
+            <button class="btn-all-send" onclick="handleAllFill()">전체 창에 DB 입력</button>
+        </div>
     </div>
 
     <div class="sp-footer">
