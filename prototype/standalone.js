@@ -136,6 +136,9 @@ function switchWindow(idx, fromUser = false) {
         if (iframe) iframe.classList.toggle('hidden', i !== idx);
     }
 
+    // Update Navigation UI
+    updateNavButtons(idx);
+
     // Scroll Carousel
     if (fromUser) {
         const carousel = document.querySelector('.manual-carousel');
@@ -144,6 +147,20 @@ function switchWindow(idx, fromUser = false) {
             cards[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         }
     }
+}
+
+function moveCarousel(delta) {
+    const nextIdx = Math.max(0, Math.min(WINDOWS.length - 1, activeWindowIdx + delta));
+    if (nextIdx !== activeWindowIdx) {
+        switchWindow(nextIdx, true);
+    }
+}
+
+function updateNavButtons(idx) {
+    const prevBtn = document.getElementById('nav-prev');
+    const nextBtn = document.getElementById('nav-next');
+    if (prevBtn) prevBtn.disabled = (idx === 0);
+    if (nextBtn) nextBtn.disabled = (idx === WINDOWS.length - 1);
 }
 
 // ═══════════════════════════════════════════
@@ -172,7 +189,11 @@ function renderManualForm() {
                 const dist = Math.abs(center - cardCenter);
                 if (dist < minDist) { minDist = dist; closestIdx = idx; }
             });
-            if (activeWindowIdx !== closestIdx) switchWindow(closestIdx, false);
+            if (activeWindowIdx !== closestIdx) {
+                switchWindow(closestIdx, false);
+            } else {
+                updateNavButtons(closestIdx);
+            }
         }, 100);
     };
 
