@@ -146,13 +146,27 @@ window.DBAuto.ManualForm = {
         });
     },
 
-    // ── 탭 패널 전환 (캐러셀 스크롤) ──
+    // ── 탭 패널 전환 (캐러셀 스크롤 및 실제 브라우저 탭 포커스) ──
     _switchToTab(tabIdx) {
         const container = document.getElementById('manual-form-container');
-        container.querySelectorAll('.window-tab').forEach((t, i) => t.classList.toggle('active', i === tabIdx));
+        const tabs = container.querySelectorAll('.window-tab');
+        tabs.forEach((t, i) => t.classList.toggle('active', i === tabIdx));
+        
         const panels = container.querySelectorAll('.manual-form-group');
         if (panels[tabIdx]) {
             panels[tabIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            
+            // 실제 브라우저 탭 및 창 포커스
+            const activeTab = tabs[tabIdx];
+            const tabId = parseInt(activeTab.dataset.tabid);
+            if (tabId) {
+                chrome.tabs.update(tabId, { active: true });
+                chrome.tabs.get(tabId, (tab) => {
+                    if (tab && !chrome.runtime.lastError) {
+                        chrome.windows.update(tab.windowId, { focused: true });
+                    }
+                });
+            }
         }
     },
 

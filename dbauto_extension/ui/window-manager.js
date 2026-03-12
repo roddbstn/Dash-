@@ -127,6 +127,14 @@ window.DBAuto.WindowManager = {
 
             // 행 클릭: 체크박스(창 선택) 토글
             header.onclick = (e) => {
+                // 정보 영역('.item-info')이나 그 하위 요소를 클릭하면 탭 포커스
+                if (e.target.closest('.item-info')) {
+                    e.stopPropagation();
+                    chrome.tabs.update(tab.id, { active: true });
+                    chrome.windows.update(tab.windowId, { focused: true });
+                    return;
+                }
+                
                 const index = State.selectedTabs.findIndex(st => st.id === tab.id);
                 if (index > -1) {
                     State.selectedTabs.splice(index, 1);
