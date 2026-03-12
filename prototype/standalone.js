@@ -53,6 +53,13 @@ const SERVICE_OPTIONS = [
 
 let selectedRecords = [];
 let currentParsedData = [];
+let activeWindowIdx = 0;
+
+const WINDOWS = [
+    { name: '강화정', masked: '강*정' },
+    { name: '이민수', masked: '이*수' },
+    { name: '박민규', masked: '박*규' },
+];
 
 // ═══════════════════════════════════════════
 // Init
@@ -62,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initExcelUpload();
     loadHistory();
+    initBrowserTabs();
+    renderWindowTabs();
 });
 
 function initTabs() {
@@ -85,6 +94,49 @@ function togglePanel() {
     const btn = document.getElementById('reopen-panel-btn');
     const collapsed = panel.classList.toggle('collapsed');
     btn.style.display = collapsed ? 'flex' : 'none';
+}
+
+// ═══════════════════════════════════════════
+// Browser Tab Bar (왼쪽 패널 상단)
+// ═══════════════════════════════════════════
+function initBrowserTabs() {
+    document.getElementById('browser-tab-bar').addEventListener('click', (e) => {
+        const tab = e.target.closest('.browser-tab');
+        if (!tab) return;
+        const idx = parseInt(tab.dataset.win);
+        switchWindow(idx);
+    });
+}
+
+function switchWindow(idx) {
+    activeWindowIdx = idx;
+    // 브라우저 탭 활성화
+    document.querySelectorAll('.browser-tab').forEach((t, i) => {
+        t.classList.toggle('active', i === idx);
+    });
+    // 확장프로그램 패널 window-tab 활성화
+    document.querySelectorAll('.window-tab').forEach((t, i) => {
+        t.classList.toggle('window-tab-active', i === idx);
+    });
+    // 패널 헤더 이름 갱신
+    document.querySelector('.panel-victim').textContent = `피해아동: ${WINDOWS[idx].name}`;
+}
+
+// ═══════════════════════════════════════════
+// Window Tabs in Extension Panel (Masked)
+// ═══════════════════════════════════════════
+function renderWindowTabs() {
+    const container = document.getElementById('window-tab-container');
+    container.innerHTML = WINDOWS.map((w, i) => `
+        <div class="window-tab ${i === activeWindowIdx ? 'window-tab-active' : ''}" data-win="${i}">
+            창${i+1} · ${w.masked}
+        </div>
+    `).join('');
+    container.addEventListener('click', (e) => {
+        const tab = e.target.closest('.window-tab');
+        if (!tab) return;
+        switchWindow(parseInt(tab.dataset.win));
+    });
 }
 
 // ═══════════════════════════════════════════
@@ -125,7 +177,7 @@ function createFormHtml() {
     return `
     <div class="manual-form-group" id="form-main">
         <div class="panel-header">
-            <span class="panel-victim">피해아동: 강O정</span>
+            <span class="panel-victim">피해아동: ${WINDOWS[activeWindowIdx].name}</span>
             <button class="refresh-single-btn" onclick="resetAllForms()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l5.67-5.67"/></svg>
             </button>
