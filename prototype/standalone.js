@@ -130,11 +130,10 @@ function switchWindow(idx, fromUser = false) {
     document.querySelectorAll('.browser-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
     document.querySelectorAll('.window-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
 
-    // Update Iframe URL
-    const iframe = document.getElementById('proto-frame');
-    if (iframe) {
-        const targetSrc = `index_800${idx}.html`;
-        if (!iframe.src.includes(targetSrc)) iframe.src = targetSrc;
+    // Update Iframes visibility (Simulation of multiple windows)
+    for (let i = 0; i < WINDOWS.length; i++) {
+        const iframe = document.getElementById(`proto-frame-${i}`);
+        if (iframe) iframe.classList.toggle('hidden', i !== idx);
     }
 
     // Scroll Carousel
@@ -370,19 +369,18 @@ function buildRecord(winIdx) {
 function handleSingleFill() {
     const rec = buildRecord(activeWindowIdx);
     if (!rec) return;
-    const iframe = document.getElementById('proto-frame');
+    const iframe = document.getElementById(`proto-frame-${activeWindowIdx}`);
     if (!iframe?.contentDocument) { alert('iframe 접근 오류'); return; }
     autoFillIframe(iframe.contentDocument, rec);
     alert('입력이 완료되었습니다.');
 }
 
 function handleAllFill() {
-    const iframe = document.getElementById('proto-frame');
     for (let i = 0; i < WINDOWS.length; i++) {
         const rec = buildRecord(i);
         if (rec) {
-             // 시뮬레이션: 현재 활성 iframe에만 실제로 넣거나, 실제 배포 시엔 모든 탭 주소 확인 후 전송
-             if (i === activeWindowIdx && iframe?.contentDocument) {
+             const iframe = document.getElementById(`proto-frame-${i}`);
+             if (iframe?.contentDocument) {
                  autoFillIframe(iframe.contentDocument, rec);
              }
         }
@@ -392,7 +390,7 @@ function handleAllFill() {
 
 function handleExcelAutoFill() {
     if (!selectedRecords.length) { alert('데이터를 선택해주세요.'); return; }
-    const iframe = document.getElementById('proto-frame');
+    const iframe = document.getElementById(`proto-frame-${activeWindowIdx}`);
     if (!iframe?.contentDocument) return;
     autoFillIframe(iframe.contentDocument, selectedRecords[0]);
     alert('입력이 완료되었습니다.');
