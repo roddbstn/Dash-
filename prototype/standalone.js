@@ -118,8 +118,13 @@ function switchWindow(idx) {
     document.querySelectorAll('.window-tab').forEach((t, i) => {
         t.classList.toggle('window-tab-active', i === idx);
     });
-    // 패널 헤더 이름 갱신
-    document.querySelector('.panel-victim').textContent = `피해아동: ${WINDOWS[idx].name}`;
+    
+    // iframe 내용 갱신 (index_8000.html, index_8001.html, index_8002.html)
+    const iframe = document.getElementById('proto-frame');
+    iframe.src = `index_800${idx}.html`;
+
+    // 패널 헤더 및 폼 내용 갱신
+    renderManualForm();
 }
 
 // ═══════════════════════════════════════════

@@ -325,7 +325,7 @@
                             </select>
                             <a class="btn_orange" href="javascript:fnAddRecipient();">+</a>
                         </div>
-                        <div id="recipientTyId_view"><span class="added-item">[피해아동] 김민수 <span class="btn-del"
+                        <div id="recipientTyId_view"><span class="added-item">[피해아동] 이민수 <span class="btn-del"
                                     onclick="this.parentElement.remove()">×</span></span></div>
                     </td>
                 </tr>
@@ -433,11 +433,11 @@
             recId.innerHTML = '<option value="">-- 선택 --</option>';
 
             let opts = [];
-            if (tyCd === 'A') opts = [{ v: '1', t: '[피해아동] 김민수' }];
-            else if (tyCd === 'B') opts = [{ v: '3', t: '[사례관리대상자] 김민수' }];
-            else if (tyCd === 'C') opts = [{ v: '4', t: '[가족전체] 김민수' }];
-            else if (tyCd === 'D') opts = [{ v: '7', t: '[가족구성원] 김민수' }];
-            else if (tyCd === 'E') opts = [{ v: '9', t: '[시설] EEE' }];
+            if (tyCd === 'A') opts = [{ v: '1', t: '[피해아동] 이민수' }];
+            else if (tyCd === 'B') opts = [];
+            else if (tyCd === 'C') opts = [];
+            else if (tyCd === 'D') opts = [];
+            else if (tyCd === 'E') opts = [];
 
             opts.forEach(opt => {
                 const el = document.createElement('option');
