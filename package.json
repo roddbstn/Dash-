@@ -1,0 +1,7 @@
+{
+  "name": "dash-proto-vercel",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cp -r prototype/* ./ && mv standalone.html index.html"
+  }
+}
