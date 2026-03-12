@@ -134,19 +134,22 @@ body {
 }
 
 /* Window Tab Bar */
-.window-tab-bar { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+.window-tab-bar { 
+    display: flex; gap: 8px; margin-bottom: 12px; 
+    overflow-x: auto; padding: 8px 4px; /* Added padding to prevent clipping */
+}
 .window-tab-bar::-webkit-scrollbar { display: none; }
 .window-tab {
     flex-shrink: 0; padding: 10px 18px; border-radius: 20px;
     background: #f2f4f6; color: #8b95a1; border: 1.5px solid #e5e8eb;
     cursor: pointer; font-size: 14px; font-weight: 600;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); white-space: nowrap; font-family: inherit;
+    transition: all 0.2s ease; white-space: nowrap; font-family: inherit;
 }
-.window-tab:hover { background: #e8eaed; color: #4e5968; border-color: #d1d6db; transform: translateY(-1px); }
+.window-tab:hover { background: #e8eaed; color: #4e5968; border-color: #d1d6db; }
 .window-tab.window-tab-active { 
     background: #C2FFA7; color: #191f28; font-weight: 700; border-color: #A8F086; 
-    box-shadow: 0 4px 12px rgba(194,255,167,0.4); 
-    transform: scale(1.05);
+    box-shadow: 0 4px 14px rgba(194,255,167,0.5); 
+    /* Removed scale to prevent clipping */
 }
 
 /* Form Group */
