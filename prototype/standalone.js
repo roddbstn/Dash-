@@ -1,6 +1,6 @@
 // =============================================
 // standalone.js — 독립 실행형 프로토타입
-// Chrome 확장 없이 작동, 단일 창(강화정) 전제
+// Chrome 확장 없이 작동, 다중 창 전환 시뮬레이션
 // =============================================
 
 const CFG = {
@@ -65,12 +65,14 @@ const WINDOWS = [
 // Init
 // ═══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-    renderManualForm();
     initTabs();
-    initExcelUpload();
-    loadHistory();
     initBrowserTabs();
     renderWindowTabs();
+    renderManualForm();
+    initExcelUpload();
+    loadHistory();
+    // Default to first window
+    switchWindow(0, true);
 });
 
 function initTabs() {
@@ -97,66 +99,93 @@ function togglePanel() {
 }
 
 // ═══════════════════════════════════════════
-// Browser Tab Bar (왼쪽 패널 상단)
+// Multi-Window Management
 // ═══════════════════════════════════════════
 function initBrowserTabs() {
     document.getElementById('browser-tab-bar').addEventListener('click', (e) => {
         const tab = e.target.closest('.browser-tab');
-        if (!tab) return;
-        const idx = parseInt(tab.dataset.win);
-        switchWindow(idx);
+        if (tab) switchWindow(parseInt(tab.dataset.win), true);
     });
 }
 
-function switchWindow(idx) {
-    activeWindowIdx = idx;
-    // 브라우저 탭 활성화
-    document.querySelectorAll('.browser-tab').forEach((t, i) => {
-        t.classList.toggle('active', i === idx);
-    });
-    // 확장프로그램 패널 window-tab 활성화
-    document.querySelectorAll('.window-tab').forEach((t, i) => {
-        t.classList.toggle('window-tab-active', i === idx);
-    });
-    
-    // iframe 내용 갱신 (index_8000.html, index_8001.html, index_8002.html)
-    const iframe = document.getElementById('proto-frame');
-    iframe.src = `index_800${idx}.html`;
-
-    // 패널 헤더 및 폼 내용 갱신
-    renderManualForm();
-}
-
-// ═══════════════════════════════════════════
-// Window Tabs in Extension Panel (Masked)
-// ═══════════════════════════════════════════
 function renderWindowTabs() {
     const container = document.getElementById('window-tab-container');
     container.innerHTML = WINDOWS.map((w, i) => `
-        <div class="window-tab ${i === activeWindowIdx ? 'window-tab-active' : ''}" data-win="${i}">
+        <div class="window-tab" data-win="${i}">
             창${i+1} · ${w.masked}
         </div>
     `).join('');
-    container.addEventListener('click', (e) => {
+
+    container.onclick = (e) => {
         const tab = e.target.closest('.window-tab');
-        if (!tab) return;
-        switchWindow(parseInt(tab.dataset.win));
-    });
+        if (tab) switchWindow(parseInt(tab.dataset.win), true);
+    };
+}
+
+function switchWindow(idx, fromUser = false) {
+    if (activeWindowIdx === idx && !fromUser) return;
+    activeWindowIdx = idx;
+
+    // Sync Tabs (Browser & Extension)
+    document.querySelectorAll('.browser-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+    document.querySelectorAll('.window-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+
+    // Update Iframe URL
+    const iframe = document.getElementById('proto-frame');
+    if (iframe) {
+        const targetSrc = `index_800${idx}.html`;
+        if (!iframe.src.includes(targetSrc)) iframe.src = targetSrc;
+    }
+
+    // Scroll Carousel
+    if (fromUser) {
+        const carousel = document.querySelector('.manual-carousel');
+        const cards = document.querySelectorAll('.manual-form-group');
+        if (carousel && cards[idx]) {
+            cards[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+    }
 }
 
 // ═══════════════════════════════════════════
-// Manual Form
+// Manual Form (Carousel Layout)
 // ═══════════════════════════════════════════
 function renderManualForm() {
     const container = document.getElementById('manual-form-container');
-    container.innerHTML = createFormHtml();
+    let html = '<div class="manual-carousel">';
+    for (let i = 0; i < WINDOWS.length; i++) {
+        html += createFormHtml(i);
+    }
+    html += '</div>';
+    container.innerHTML = html;
+
+    const carousel = container.querySelector('.manual-carousel');
+    let scrollTimer;
+    carousel.onscroll = () => {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+            const cards = carousel.querySelectorAll('.manual-form-group');
+            const center = carousel.scrollLeft + carousel.clientWidth / 2;
+            let closestIdx = 0;
+            let minDist = Infinity;
+            cards.forEach((card, idx) => {
+                const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+                const dist = Math.abs(center - cardCenter);
+                if (dist < minDist) { minDist = dist; closestIdx = idx; }
+            });
+            if (activeWindowIdx !== closestIdx) switchWindow(closestIdx, false);
+        }, 100);
+    };
+
     container.addEventListener('click', handleClick);
-    container.addEventListener('input', handleInput);
-    container.addEventListener('change', handleChange);
+    container.oninput = handleInput;
+    container.onchange = handleChange;
 }
 
-function createFormHtml() {
+function createFormHtml(winIdx) {
+    const windowData = WINDOWS[winIdx];
     const today = new Date().toISOString().slice(0, 10);
+    
     const chipGroup = (id, items, defaultVal) => {
         const chips = items.map(it => {
             const active = it.value === defaultVal ? ' chip-active' : '';
@@ -164,25 +193,21 @@ function createFormHtml() {
         }).join('');
         return `<input type="hidden" class="form-input fi-${id}" value="${defaultVal || ''}"><div class="chip-group">${chips}</div>`;
     };
-    // 제공장소 2×2 그리드 (기관내/아동가정 위, 유관기관/기타 아래)
+    // 제공장소 2×2 그리드
     const locChipGroup = (id, defaultVal) => {
-        const items = [
-            {value:'A', text:'기관내'}, {value:'B', text:'아동가정'},
-            {value:'C', text:'유관기관'}, {value:'X', text:'기타'}
-        ];
+        const items = [{value:'A', text:'기관내'}, {value:'B', text:'아동가정'}, {value:'C', text:'유관기관'}, {value:'X', text:'기타'}];
         const chips = items.map(it => {
             const active = it.value === defaultVal ? ' chip-active' : '';
             return `<button type="button" class="chip${active}" data-field="${id}" data-value="${it.value}">${it.text}</button>`;
         }).join('');
-        return `<input type="hidden" class="form-input fi-${id}" value="${defaultVal || ''}">
-                <div class="chip-group chip-group-2col">${chips}</div>`;
+        return `<input type="hidden" class="form-input fi-${id}" value="${defaultVal || ''}"><div class="chip-group chip-group-2col">${chips}</div>`;
     };
     const svcSelect = SERVICE_OPTIONS.map(o => `<option value="${o.value}">${o.text}</option>`).join('');
 
     return `
-    <div class="manual-form-group" id="form-main">
+    <div class="manual-form-group" id="form-${winIdx}" data-win="${winIdx}">
         <div class="panel-header">
-            <span class="panel-victim">피해아동: ${WINDOWS[activeWindowIdx].name}</span>
+            <span class="panel-victim">피해아동: ${windowData.name}</span>
             <button class="refresh-single-btn" onclick="resetAllForms()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l5.67-5.67"/></svg>
             </button>
@@ -211,23 +236,23 @@ function createFormHtml() {
         <div class="form-row"><div class="form-label">제공일시</div>
             <div style="display:flex;flex-direction:column;gap:6px;flex:1;font-size:14px;">
                 <div style="display:flex;align-items:center;gap:4px;">
-                    <input type="hidden" class="form-input fi-startDate manual-input-startDate" id="dp-start" value="${today}">
-                    <button type="button" class="date-trigger" data-for="dp-start" data-isstart="true">${today}</button>
-                    <input type="text" class="form-input fi-startHH manual-input-startHH" placeholder="HH" style="width:36px;text-align:center;" maxlength="2">시
-                    <input type="text" class="form-input fi-startMI manual-input-startMI" placeholder="MM" style="width:36px;text-align:center;" maxlength="2">분~
+                    <input type="hidden" class="form-input fi-startDate manual-input-startDate" id="dp-start-${winIdx}" value="${today}">
+                    <button type="button" class="date-trigger" data-for="dp-start-${winIdx}" data-isstart="true">${today}</button>
+                    <input type="text" class="form-input fi-startHH manual-input-startHH" placeholder="HH" style="width:32px;text-align:center;" maxlength="2">시
+                    <input type="text" class="form-input fi-startMI manual-input-startMI" placeholder="MM" style="width:32px;text-align:center;" maxlength="2">분~
                 </div>
                 <div style="display:flex;align-items:center;gap:4px;">
-                    <input type="hidden" class="form-input fi-endDate manual-input-endDate" id="dp-end" value="${today}">
-                    <button type="button" class="date-trigger" data-for="dp-end">${today}</button>
-                    <input type="text" class="form-input fi-endHH manual-input-endHH" placeholder="HH" style="width:36px;text-align:center;" maxlength="2">시
-                    <input type="text" class="form-input fi-endMI manual-input-endMI" placeholder="MM" style="width:36px;text-align:center;" maxlength="2">분
+                    <input type="hidden" class="form-input fi-endDate manual-input-endDate" id="dp-end-${winIdx}" value="${today}">
+                    <button type="button" class="date-trigger" data-for="dp-end-${winIdx}">${today}</button>
+                    <input type="text" class="form-input fi-endHH manual-input-endHH" placeholder="HH" style="width:32px;text-align:center;" maxlength="2">시
+                    <input type="text" class="form-input fi-endMI manual-input-endMI" placeholder="MM" style="width:32px;text-align:center;" maxlength="2">분
                 </div>
             </div>
         </div>
 
         <div class="form-row"><div class="form-label"></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;font-size:14px;">
-                <div style="display:flex;align-items:center;gap:6px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;font-size:13px;">
+                <div style="display:flex;align-items:center;gap:4px;">
                     <span style="white-space:nowrap;">제공횟수</span>
                     <input type="hidden" class="form-input fi-cnt_val" value="1">
                     <span class="stepper" data-field="cnt_val" data-min="1" data-max="100">
@@ -236,7 +261,7 @@ function createFormHtml() {
                         <button type="button" class="stepper-btn stepper-plus">+</button>
                     </span>회
                 </div>
-                <div style="display:flex;align-items:center;gap:6px;">
+                <div style="display:flex;align-items:center;gap:4px;">
                     <span style="white-space:nowrap;">이동소요</span>
                     <input type="hidden" class="form-input fi-mvmnReqreHr_val" value="0">
                     <span class="stepper" data-field="mvmnReqreHr_val" data-min="0" data-max="999">
@@ -250,13 +275,13 @@ function createFormHtml() {
             </div>
         </div>
 
-        <div class="form-row" style="align-items:flex-start;"><div class="form-label" style="padding-top:12px;">서비스내용</div>
+        <div class="form-row" style="align-items:flex-start;"><div class="form-label" style="padding-top:10px;">서비스내용</div>
             <div style="flex:1;position:relative;">
                 <textarea class="form-input fi-desc_val" placeholder="서비스  내용  입력" rows="2"></textarea>
                 <div class="expand-btn" data-field="desc_val">+ 확대</div>
             </div>
         </div>
-        <div class="form-row" style="align-items:flex-start;"><div class="form-label" style="padding-top:12px;">상담원 소견</div>
+        <div class="form-row" style="align-items:flex-start;"><div class="form-label" style="padding-top:10px;">상담원 소견</div>
             <div style="flex:1;position:relative;">
                 <textarea class="form-input fi-opn_val" placeholder="상담원  소견  입력" rows="2"></textarea>
                 <div class="expand-btn" data-field="opn_val">+ 확대</div>
@@ -267,12 +292,16 @@ function createFormHtml() {
 
 // ─── Event Handlers ───
 function handleClick(e) {
+    const group = e.target.closest('.manual-form-group');
+    if (!group) return;
+    const winIdx = group.dataset.win;
+
     const chip = e.target.closest('.chip');
     if (chip) {
         const field = chip.dataset.field;
         chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('chip-active'));
         chip.classList.add('chip-active');
-        const h = document.querySelector(`.fi-${field}`);
+        const h = group.querySelector(`.fi-${field}`);
         if (h) h.value = chip.dataset.value;
         return;
     }
@@ -282,7 +311,7 @@ function handleClick(e) {
         const field = stepper.dataset.field;
         const min = parseInt(stepper.dataset.min) || 0;
         const max = parseInt(stepper.dataset.max) || 999;
-        const h = document.querySelector(`.fi-${field}`);
+        const h = group.querySelector(`.fi-${field}`);
         if (!h) return;
         let val = parseInt(h.value) || 0;
         const delta = stepperBtn.dataset.delta ? parseInt(stepperBtn.dataset.delta) : (stepperBtn.classList.contains('stepper-minus') ? -1 : 1);
@@ -295,7 +324,7 @@ function handleClick(e) {
     }
     const expandBtn = e.target.closest('.expand-btn');
     if (expandBtn) {
-        const ta = document.querySelector(`.fi-${expandBtn.dataset.field}`);
+        const ta = group.querySelector(`.fi-${expandBtn.dataset.field}`);
         if (ta) openExpandModal(ta);
         return;
     }
@@ -320,8 +349,10 @@ function handleChange(e) {
 }
 
 // ─── Build Record & Fill ───
-function buildRecord() {
-    const g = (f) => { const el = document.querySelector(`.fi-${f}`); return el ? el.value : ''; };
+function buildRecord(winIdx) {
+    const group = document.getElementById(`form-${winIdx}`);
+    if (!group) return null;
+    const g = (f) => { const el = group.querySelector(`.fi-${f}`); return el ? el.value : ''; };
     const sd = g('startDate'), sh = g('startHH'), sm = g('startMI');
     const ed = g('endDate'),   eh = g('endHH'),   em = g('endMI');
     let dateTime_val = '';
@@ -337,7 +368,8 @@ function buildRecord() {
 }
 
 function handleSingleFill() {
-    const rec = buildRecord();
+    const rec = buildRecord(activeWindowIdx);
+    if (!rec) return;
     const iframe = document.getElementById('proto-frame');
     if (!iframe?.contentDocument) { alert('iframe 접근 오류'); return; }
     autoFillIframe(iframe.contentDocument, rec);
@@ -345,18 +377,19 @@ function handleSingleFill() {
 }
 
 function handleAllFill() {
-    const rec = buildRecord();
-    // 실제 확장에선 크롬 API를 쓰지만, 프로토타입에선 3개 파일을 직접 건드리는 효과 연출
-    const files = ['index_8000.html', 'index_8001.html', 'index_8002.html'];
-    
-    // 현재 활성화된 iframe에 먼저 넣고, 나머지는 백그라운드 처리(알림용)
     const iframe = document.getElementById('proto-frame');
-    if (iframe?.contentDocument) {
-        autoFillIframe(iframe.contentDocument, rec);
+    for (let i = 0; i < WINDOWS.length; i++) {
+        const rec = buildRecord(i);
+        if (rec) {
+             // 시뮬레이션: 현재 활성 iframe에만 실제로 넣거나, 실제 배포 시엔 모든 탭 주소 확인 후 전송
+             if (i === activeWindowIdx && iframe?.contentDocument) {
+                 autoFillIframe(iframe.contentDocument, rec);
+             }
+        }
     }
-    
     alert('모든 창(3개)에 데이터 입력이 완료되었습니다.');
 }
+
 function handleExcelAutoFill() {
     if (!selectedRecords.length) { alert('데이터를 선택해주세요.'); return; }
     const iframe = document.getElementById('proto-frame');
@@ -380,7 +413,6 @@ function autoFillIframe(doc, data) {
         el.classList.add('dbauto-ok'); setTimeout(() => el.classList.remove('dbauto-ok'), 1500);
     };
 
-    // Radio for 제공구분
     const r = doc.querySelector(`input[name="provCd"][value="${data.provCd_val || 'A'}"]`);
     if (r) r.checked = true;
 
@@ -405,13 +437,14 @@ function autoFillIframe(doc, data) {
     }
 }
 
-function resetAllForms() { renderManualForm(); }
+function resetAllForms() { renderManualForm(); switchWindow(activeWindowIdx, true); }
 
 // ═══════════════════════════════════════════
 // Excel
 // ═══════════════════════════════════════════
 function initExcelUpload() {
     const dz = document.getElementById('drop-zone'), fi = document.getElementById('file-input');
+    if (!dz || !fi) return;
     dz.onclick = () => fi.click();
     fi.onchange = (e) => handleExcelFile(e.target.files[0]);
     dz.ondragover = (e) => { e.preventDefault(); dz.style.background = '#e8ffd9'; };
@@ -443,7 +476,8 @@ function displayExcelRecords(res) {
     const container = document.getElementById('current-records');
     currentParsedData = []; res.forEach(s => currentParsedData.push(...s.records));
     selectedRecords = []; container.innerHTML = '';
-    document.querySelector('.excel-section-title').textContent = `추출된 서비스 목록 (${currentParsedData.length}건)`;
+    const title = document.querySelector('.excel-section-title');
+    if (title) title.textContent = `추출된 서비스 목록 (${currentParsedData.length}건)`;
     currentParsedData.forEach(r => container.appendChild(createRecordElement(r)));
 }
 function createRecordElement(r) {
@@ -522,6 +556,7 @@ function saveHistory(n, r) {
 }
 function loadHistory() {
     const list = document.getElementById('history-list');
+    if (!list) return;
     const h = JSON.parse(localStorage.getItem('dash_history')||'[]');
     if (!h.length) { list.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:14px;">기록이 없습니다.</div>'; return; }
     list.innerHTML = '';
@@ -556,7 +591,7 @@ function openExpandModal(ta) {
 }
 
 // ═══════════════════════════════════════════
-// Date Picker  (원래 디자인 그대로 복원)
+// Date Picker
 // ═══════════════════════════════════════════
 const DP = {
     overlay: null, picker: null,
@@ -583,7 +618,6 @@ const DP = {
         this.picker = document.createElement('div');
         this.picker.className = 'dp-picker';
         this.overlay.appendChild(this.picker);
-        // 오버레이를 right-panel 기준으로 배치
         const panel = document.getElementById('right-panel');
         (panel || document.body).appendChild(this.overlay);
         this.render();
@@ -601,7 +635,7 @@ const DP = {
         const firstDay   = new Date(year, month, 1).getDay();
         const daysInMon  = new Date(year, month+1, 0).getDate();
         const daysInPrev = new Date(year, month, 0).getDate();
-        const offset     = (firstDay + 6) % 7; // 월=0
+        const offset     = (firstDay + 6) % 7;
 
         let html = `<div class="dp-container"><div class="dp-left">`;
         html += `<div class="dp-header">
@@ -633,8 +667,6 @@ const DP = {
             }
             html += `<div class="dp-right">`;
             html += `<div class="dp-right-title">${hdr}</div>`;
-
-            // 오전
             html += `<div class="dp-scroll-section" style="margin-bottom:8px;">`;
             html += `<div class="dp-section-title">오전</div><div class="dp-time-grid">`;
             for (let h = 9; h < 12; h++) for (let m = 0; m <= 30; m += 30) {
@@ -642,8 +674,6 @@ const DP = {
                 html += `<div class="dp-time-btn ${selectedTime===t?'active':''}" data-time="${t}" data-hour="${h}">${t}</div>`;
             }
             html += `</div>`;
-
-            // 오후
             html += `<div class="dp-section-title">오후</div><div class="dp-time-grid">`;
             for (let h = 12; h <= 21; h++) for (let m = 0; m <= 30; m += 30) {
                 if (h===21 && m===30) continue;
@@ -652,16 +682,10 @@ const DP = {
                 html += `<div class="dp-time-btn ${selectedTime===t?'active':''}" data-time="${t}" data-hour="${h}">${t}</div>`;
             }
             html += `</div></div>`;
-
-            // 소요시간
             html += `<div class="dp-scroll-section" style="border-top:1px dashed #e5e8eb;padding-top:12px;">`;
             html += `<div class="dp-section-title" style="margin-top:0;">상담 소요시간</div><div class="dp-time-grid">`;
-            for (let t = 10; t <= 240; t += 10) {
-                let txt;
-                if (t < 60) txt = `${t}분`;
-                else if (t === 60) txt = '1시간';
-                else if (t % 60 === 0) txt = `${t/60}시간`;
-                else txt = `${Math.floor(t/60)}시간 ${t%60}분`;
+            for (let t = 10; t <= 120; t += 10) {
+                let txt = t < 60 ? `${t}분` : (t%60===0 ? `${t/60}시간` : `${Math.floor(t/60)}시간 ${t%60}분`);
                 html += `<div class="dp-duration-btn ${selectedDuration===t?'active':''}" data-dur="${t}">${txt}</div>`;
             }
             html += `</div></div></div>`;
@@ -671,66 +695,35 @@ const DP = {
 
         this.picker.querySelector('.dp-prev').onclick = () => { this.month--; if (this.month<0){this.month=11;this.year--;} this.render(); };
         this.picker.querySelector('.dp-next').onclick = () => { this.month++; if (this.month>11){this.month=0;this.year++;} this.render(); };
-        this.picker.querySelectorAll('.dp-day:not(.dp-other)').forEach(el => el.onclick = () => {
-            this.selectedDate = el.dataset.date;
-            // 날짜 선택 시 스크롤 위치 보존
-            const scrollEls = Array.from(this.picker.querySelectorAll('.dp-scroll-section'));
-            const scrollTops = scrollEls.map(s => s.scrollTop);
-            this.render();
-            this.picker.querySelectorAll('.dp-scroll-section').forEach((s, i) => { s.scrollTop = scrollTops[i] || 0; });
-        });
-        // 시간/소요시간 버튼: active 클래스만 교체 (re-render 없이) → 스크롤 위치 유지
-        this.picker.querySelectorAll('.dp-time-btn').forEach(el => el.onclick = () => {
-            this.selectedTime = el.dataset.time;
-            this.picker.querySelectorAll('.dp-time-btn').forEach(b => b.classList.remove('active'));
-            el.classList.add('active');
-        });
-        this.picker.querySelectorAll('.dp-duration-btn').forEach(el => el.onclick = () => {
-            this.selectedDuration = parseInt(el.dataset.dur);
-            this.picker.querySelectorAll('.dp-duration-btn').forEach(b => b.classList.remove('active'));
-            el.classList.add('active');
-        });
+        this.picker.querySelectorAll('.dp-day:not(.dp-other)').forEach(el => el.onclick = () => { this.selectedDate = el.dataset.date; this.render(); });
+        this.picker.querySelectorAll('.dp-time-btn').forEach(el => el.onclick = () => { this.selectedTime = el.dataset.time; this.render(); });
+        this.picker.querySelectorAll('.dp-duration-btn').forEach(el => el.onclick = () => { this.selectedDuration = parseInt(el.dataset.dur); this.render(); });
         this.picker.querySelector('.dp-apply-btn').onclick = () => this.apply();
     },
 
     apply() {
         if (!this.selectedDate) { alert('날짜를 선택해주세요.'); return; }
-        if (this.isStart && (!this.selectedTime || !this.selectedDuration)) {
-            alert('시간과 상담 소요시간을 모두 선택해주세요.'); return;
-        }
-        // 날짜 기입
+        if (this.isStart && (!this.selectedTime || !this.selectedDuration)) { alert('시간과 소요시간을 선택해주세요.'); return; }
         if (this.targetEl) this.targetEl.value = this.selectedDate;
         if (this.displayEl) this.displayEl.textContent = this.selectedDate;
-
         if (this.isStart) {
-            const activeBtn = this.picker.querySelector('.dp-time-btn.active');
-            let hInt = 0, mInt = 0;
-            if (activeBtn) {
-                hInt = parseInt(activeBtn.dataset.hour);
-                mInt = parseInt(activeBtn.dataset.time.split(':')[1]);
-            }
-            // 시작 HH/MI 채우기
-            const hhEl = document.querySelector('.manual-input-startHH');
-            const miEl = document.querySelector('.manual-input-startMI');
-            if (hhEl) hhEl.value = String(hInt).padStart(2,'0');
-            if (miEl) miEl.value = String(mInt).padStart(2,'0');
-
-            // 종료 계산
-            const total = hInt*60 + mInt + this.selectedDuration;
-            const endH = Math.floor(total/60), endM = total%60;
-            const edEl = document.querySelector('.manual-input-endDate');
-            const edTrigger = document.querySelector('.date-trigger:not([data-isstart])');
-            if (edEl) edEl.value = this.selectedDate;
-            if (edTrigger) edTrigger.textContent = this.selectedDate;
-            const ehEl = document.querySelector('.manual-input-endHH');
-            const emEl = document.querySelector('.manual-input-endMI');
-            if (ehEl) ehEl.value = String(endH).padStart(2,'0');
-            if (emEl) emEl.value = String(endM).padStart(2,'0');
+             const activeBtn = this.picker.querySelector('.dp-time-btn.active');
+             if (activeBtn) {
+                 const h = parseInt(activeBtn.dataset.hour);
+                 const m = parseInt(activeBtn.dataset.time.split(':')[1]);
+                 const group = this.displayEl.closest('.manual-form-group');
+                 group.querySelector('.manual-input-startHH').value = String(h).padStart(2,'0');
+                 group.querySelector('.manual-input-startMI').value = String(m).padStart(2,'0');
+                 const total = h*60 + m + this.selectedDuration;
+                 const eh = Math.floor(total/60), em = total%60;
+                 group.querySelector('.manual-input-endHH').value = String(eh).padStart(2,'0');
+                 group.querySelector('.manual-input-endMI').value = String(em).padStart(2,'0');
+                 group.querySelector('.manual-input-endDate').value = this.selectedDate;
+                 group.querySelectorAll('.date-trigger')[1].textContent = this.selectedDate;
+             }
         }
         this.close();
-    },
+    }
 };
 
-function openDatePicker(displayEl, inputEl, isStart) {
-    DP.open(displayEl, inputEl, isStart);
-}
+function openDatePicker(displayEl, inputEl, isStart) { DP.open(displayEl, inputEl, isStart); }
