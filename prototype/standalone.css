@@ -272,7 +272,7 @@ textarea.form-input {
 .btn-single-send {
     flex: 1; padding: 12px 0; border: none; border-radius: 10px;
     cursor: pointer; font-size: 14px; font-weight: 600;
-    background: #f2f4f6; color: #8b95a1; border: 1.5px solid #e5e8eb;
+    background: #f2f4f6; color: #191f28; border: 1.5px solid #e5e8eb;
     transition: all 0.15s ease; letter-spacing: -0.2px;
 }
 .btn-single-send:hover { background: #e8eaed; color: #4e5968; }
