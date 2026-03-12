@@ -424,6 +424,7 @@ textarea.form-input {
     border-color: #3182f6; color: #3182f6;
     box-shadow: 0 10px 30px rgba(49,130,246,0.25);
 }
+.carousel-nav-btn:focus { outline: none; }
 .carousel-nav-btn.prev { left: 20px; padding-right: 2px; }
 .carousel-nav-btn.next { right: 20px; padding-left: 2px; }
 .carousel-nav-btn:active { scale: 0.95; }
