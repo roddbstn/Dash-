@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Dash Mobile - Field Recording v1.1</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3182f6;
+            --primary-light: #e8f3ff;
+            --bg: #fafaf8;
+            --card: #ffffff;
+            --text-main: #222222;
+            --text-sub: #4e5968;
+            --border: #e5e8eb;
+            --success: #00d082;
+            --danger: #f04452;
+            --gray-light: #f9fafb;
+            --gray-border: #eef0f3;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            letter-spacing: -0.02em;
+        }
+
+        html, body {
+            background-color: var(--bg);
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 500px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 120px;
+            background-color: var(--bg);
+        }
+
+        header {
+            padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
+            background: var(--bg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .status-badge {
+            background: #e8fcf4;
+            color: var(--success);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 16px;
+        }
+
+        .patient-info {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .patient-name {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 0;
+        }
+
+        .patient-dong {
+            font-size: 14px;
+            color: #8b95a1;
+            font-weight: 400;
+            margin-top: 2px;
+        }
+
+        .sync-time {
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+
+        /* Form Sections */
+        .section {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02);
+            border: 0.5px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .section-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-sub);
+            margin-bottom: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chip-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .chip-grid.two {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .chip {
+            background: #f9fafb;
+            border: 1px solid var(--border);
+            padding: 12px 8px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            color: var(--text-sub);
+        }
+
+        .chip:active {
+            transform: scale(0.95);
+            background: #f2f4f6;
+        }
+
+        .chip.active {
+            background: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* Picker Modal Styles */
+        .picker-modal {
+            position: fixed;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            height: 90vh;
+            background: white;
+            z-index: 2005;
+            transition: bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            border-radius: 24px 24px 0 0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .picker-modal.show {
+            bottom: 0;
+        }
+
+        .modal-header {
+            padding: 20px 20px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* Calendar Mini */
+        .calendar-wrap {
+            background: var(--gray-light);
+            padding: 12px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+        }
+
+        .cal-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            text-align: center;
+        }
+
+        .cal-day {
+            font-size: 12px;
+            color: #adb5bd;
+            padding-bottom: 8px;
+        }
+
+        .cal-date {
+            font-size: 14px;
+            padding: 10px 0;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .cal-date.today {
+            background: var(--primary-light);
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .cal-date.active {
+            background: var(--primary) !important;
+            color: white !important;
+            font-weight: 700;
+            border-radius: 50% !important;
+        }
+
+        .cal-date.range {
+            background: var(--primary-light);
+            border-radius: 0;
+            color: var(--primary);
+        }
+
+        .cal-date.range-start {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .cal-date.range-end {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+
+        .cal-date.disabled {
+            color: #e5e8eb;
+            cursor: default;
+        }
+
+        /* Time Picker (Drum Style) */
+        .time-pickers-container {
+            display: flex;
+            gap: 20px;
+        }
+
+        .time-picker-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .picker-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-sub);
+            margin-bottom: 12px;
+        }
+
+        .drum-wrap {
+            display: flex;
+            gap: 8px;
+            height: 150px;
+            overflow: hidden;
+            position: relative;
+            background: var(--gray-light);
+            border-radius: 12px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .drum-column {
+            width: 40px;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .drum-column::-webkit-scrollbar {
+            display: none;
+        }
+
+        .drum-item {
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            scroll-snap-align: center;
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-main);
+            /* 기본 색상을 검정색으로 변경 */
+            transition: all 0.2s;
+        }
+
+        .drum-item.selected {
+            font-weight: 900;
+            font-size: 22px;
+            color: var(--primary);
+            /* 선택된 항목은 강조색으로 표시 */
+        }
+
+        .drum-center-bar {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            pointer-events: none;
+        }
+
+        .drum-sep {
+            display: flex;
+            align-items: center;
+            font-weight: 900;
+            font-size: 20px;
+        }
+
+        #picker-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 2000;
+            display: none;
+        }
+
+        /* Input Styles */
+        .input-group {
+            margin-top: 10px;
+        }
+
+        .styled-input,
+        .styled-select {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 15px;
+            background-color: #f9fafb;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .styled-input:focus,
+        .styled-select:focus {
+            border-color: var(--primary);
+            background-color: white;
+        }
+
+        .row-2 {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Notes Area */
+        textarea {
+            width: 100%;
+            border: none;
+            outline: none;
+            resize: none;
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--text-main);
+            min-height: 100px;
+            background: transparent;
+            overflow-y: hidden; /* Hide scrollbar while resizing */
+            transition: height 0.1s ease;
+        }
+
+        /* Bottom Floating Bar */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 500px;
+            padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+            background: white;
+            border-top: 1px solid #eef0f3;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            pointer-events: auto;
+            width: 100%;
+            padding: 18px;
+            border-radius: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        .btn:active:not(.disabled) {
+            transform: scale(0.96);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 10px 30px rgba(49, 130, 246, 0.4);
+        }
+
+        .btn-primary:active:not(.disabled) {
+            background: #1a6dff;
+        }
+
+        .btn.disabled {
+            background: #e5e8eb;
+            color: #adb5bd;
+            box-shadow: none;
+            cursor: pointer; /* 클릭 가능하도록 유지 */
+        }
+
+        .btn-sub {
+            background: var(--bg);
+            color: var(--text-sub);
+        }
+
+        /* Toast Message */
+        #toast {
+            position: fixed;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(25, 31, 40, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 3000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        #toast.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Animation Overlay */
+        #sync-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(25, 31, 40, 0.95);
+            color: white;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .lock-animation {
+            font-size: 50px;
+            margin-bottom: 20px;
+            animation: bounce 1s infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <header id="app-header" style="justify-content: space-between;">
+            <div id="btn-back" style="cursor: pointer; display: flex; align-items: center; transition: all 0.2s;" onclick="history.back()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15 18L9 12L15 6" stroke="#222222" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div id="page-title" style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 16px; font-weight: 700; color: var(--text-main);">DB 생성</div>
+            <div id="share-btn-wrap" style="display: none; cursor: pointer; padding: 4px;" onclick="handleShare()">
+                <img src="share-arrow.png" style="width: 20px; height: 20px; display: block;">
+            </div>
+            <style>
+                #btn-back:active { transform: scale(0.95); opacity: 0.7; }
+                #share-btn-wrap:active { transform: scale(0.95); opacity: 0.7; }
+            </style>
+        </header>
+
+        <div class="content">
+            <!-- Patient Info -->
+            <div class="patient-info">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="patient-name" id="display-case-name">이름 로딩중...</div>
+                    <div class="patient-dong" id="display-dong-name"></div>
+                </div>
+            </div>
+
+            <!-- 서비스 내용 (Moved Up) -->
+            <div class="section">
+                <label class="section-label">서비스 내용</label>
+                <textarea id="service-content" placeholder="서비스 제공 내용을 메모하세요" oninput="autoResize(this); enableSaveButton();" enterkeyhint="done" onkeydown="if(event.key==='Enter') this.blur();"></textarea>
+            </div>
+
+            <!-- 상담원 소견 (Moved Up) -->
+            <div class="section">
+                <label class="section-label">상담원 소견</label>
+                <textarea id="agent-opinion" placeholder="소견을 메모하세요" oninput="autoResize(this); enableSaveButton();" enterkeyhint="done" onkeydown="if(event.key==='Enter') this.blur();"></textarea>
+            </div>
+
+            <!-- 0. 대상자 선택 (New) -->
+            <div class="section">
+                <label class="section-label">대상자</label>
+                <div style="font-size: 11px; color: #adb5bd; margin-top: -10px; margin-bottom: 14px;">* 구체적인 대상자는
+                    DB시스템에서 선택해주세요</div>
+                <div class="chip-grid" style="grid-template-columns: repeat(2, 1fr);">
+                    <div class="chip active" onclick="selectChip(this, 'target')">피해아동</div>
+                    <div class="chip" onclick="selectChip(this, 'target')">사례관리대상자</div>
+                    <div class="chip" onclick="selectChip(this, 'target')">가족전체</div>
+                    <div class="chip" onclick="selectChip(this, 'target')">가족구성원</div>
+                    <div class="chip" onclick="selectChip(this, 'target')">시설</div>
+                    <div class="chip" onclick="selectChip(this, 'target', true)">기타관련인</div>
+                </div>
+                <div id="target-etc-wrap" style="display:none; margin-top:10px;">
+                    <input type="text" class="styled-input" placeholder="기타 관련인 직책/관계 입력" enterkeyhint="done">
+                </div>
+            </div>
+
+            <!-- 1. 제공구분 -->
+            <div class="section">
+                <label class="section-label">제공구분</label>
+                <div class="chip-grid">
+                    <div class="chip active" onclick="selectChip(this)">제공</div>
+                    <div class="chip" onclick="selectChip(this)">부가업무</div>
+                    <div class="chip" onclick="selectChip(this)">거부</div>
+                </div>
+            </div>
+
+            <!-- 2. 제공방법 -->
+            <div class="section">
+                <label class="section-label">제공방법</label>
+                <div class="chip-grid">
+                    <div class="chip active" onclick="selectChip(this)">방문</div>
+                    <div class="chip" onclick="selectChip(this)">내방</div>
+                    <div class="chip" onclick="selectChip(this)">전화</div>
+                </div>
+            </div>
+
+            <!-- 3. 서비스유형 -->
+            <div class="section">
+                <label class="section-label">서비스유형</label>
+                <div class="chip-grid">
+                    <div class="chip active" onclick="selectChip(this)">아보전</div>
+                    <div class="chip" onclick="selectChip(this)">연계</div>
+                    <div class="chip" onclick="selectChip(this)">통합</div>
+                </div>
+            </div>
+
+            <!-- 4. 제공서비스 (메뉴 12개) -->
+            <div class="section">
+                <label class="section-label">제공서비스</label>
+                <select class="styled-select">
+                    <option value="010509">의류지원</option>
+                    <option value="060103">성폭력(예방)교육</option>
+                    <option value="060524">사례회의</option>
+                    <option value="060510">아동 양육기술 상담/교육</option>
+                    <option value="010201">식품지원</option>
+                    <option value="060101" selected>아동권리교육</option>
+                    <option value="060534">외부기관연계지원</option>
+                    <option value="010703">복지서비스정보물제공</option>
+                    <option value="060104">안전교육</option>
+                    <option value="060501">아동 안전점검 및 상담</option>
+                    <option value="060522">사건처리 및 절차지원</option>
+                    <option value="060102">학대예방교육</option>
+                </select>
+            </div>
+
+            <!-- 5. 제공장소 -->
+            <div class="section">
+                <label class="section-label">제공장소</label>
+                <div class="chip-grid two">
+                    <div class="chip active" onclick="selectChip(this, 'loc')">기관내</div>
+                    <div class="chip" onclick="selectChip(this, 'loc')">아동가정</div>
+                    <div class="chip" onclick="selectChip(this, 'loc')">유관기관</div>
+                    <div class="chip" onclick="selectChip(this, 'loc', true)">기타</div>
+                </div>
+                <div id="loc-etc-wrap" style="display:none; margin-top:10px;">
+                    <input type="text" class="styled-input" placeholder="기타 장소를 입력하세요" enterkeyhint="done">
+                </div>
+            </div>
+
+            <!-- 6. 제공일시 (Overhauled) -->
+            <div class="section">
+                <label class="section-label">제공일시</label>
+                <button class="styled-input"
+                style="text-align: left; background: white; cursor: pointer; display: flex; align-items: center; gap: 10px;"
+                onclick="showPicker()">
+                <span id="selected-datetime-info" style="color: var(--text-main);">일시 선택</span>
+                <span id="date-warning-msg" style="color: #ff4d4f; font-size: 11px; font-weight: 500; display: none;">일시를 선택해주세요</span>
+            </button>
+            </div>
+
+            <!-- 7. 제공횟수 -->
+            <div class="section">
+                <label class="section-label">제공횟수</label>
+                <input type="number" class="styled-input" value="1">
+            </div>
+
+            <!-- 8. 이동소요시간 (End of Original Grid) -->
+            <div class="section">
+                <label class="section-label">이동소요시간 (분)</label>
+                <div class="chip-grid">
+                    <div class="chip" onclick="selectChip(this)">10분</div>
+                    <div class="chip" onclick="selectChip(this)">20분</div>
+                    <div class="chip active" onclick="selectChip(this)">30분</div>
+                </div>
+                <div class="input-group" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="text" class="styled-input" placeholder="직접 입력" enterkeyhint="done">
+                    <span style="font-weight: 600; color: var(--text-sub); white-space: nowrap;">분</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Actions -->
+        <div class="bottom-bar">
+            <button class="btn btn-primary disabled" id="save-btn" onclick="handleSave()">
+                저장
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast">제공일시를 설정해 주세요</div>
+
+    <div id="picker-backdrop" onclick="hidePicker()"></div>
+    <div id="datetime-picker" class="picker-modal">
+        <div class="modal-header">
+            <span class="modal-title">제공 일시 선택</span>
+            <button onclick="hidePicker()" style="border:none; background:none; font-size: 24px;">×</button>
+        </div>
+        <div class="modal-body">
+            <!-- Calendar Mini -->
+            <div class="calendar-wrap">
+                <div class="cal-header" style="justify-content: center; gap: 20px; align-items: center;">
+                    <button onclick="changeMonth(-1)" id="prev-month-btn"
+                        style="border:none; background:none; color: var(--primary); font-size: 18px; font-weight: 800; cursor: pointer;">〈</button>
+                    <span id="cal-month-title" style="min-width: 120px; text-align: center;">2026년 3월</span>
+                    <button onclick="changeMonth(1)" id="next-month-btn"
+                        style="border:none; background:none; color: var(--primary); font-size: 18px; font-weight: 800; cursor: pointer;">〉</button>
+                </div>
+                <div class="cal-grid" id="calendar-grid">
+                    <!-- Will be filled by JS -->
+                </div>
+            </div>
+
+            <!-- 24h Dual Time Pickers -->
+            <div class="time-pickers-container">
+                <!-- Start Time -->
+                <div class="time-picker-column">
+                    <div class="picker-label">시작</div>
+                    <div class="drum-wrap">
+                        <div class="drum-center-bar"></div>
+                        <div class="drum-column" id="start-h"></div>
+                        <div class="drum-sep">:</div>
+                        <div class="drum-column" id="start-m"></div>
+                    </div>
+                </div>
+                <!-- End Time -->
+                <div class="time-picker-column">
+                    <div class="picker-label">종료</div>
+                    <div class="drum-wrap">
+                        <div class="drum-center-bar"></div>
+                        <div class="drum-column" id="end-h"></div>
+                        <div class="drum-sep">:</div>
+                        <div class="drum-column" id="end-m"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="padding: 10px 20px 30px;">
+            <button class="btn btn-primary" onclick="applyDateTime()">적용하기</button>
+        </div>
+    </div>
+
+    <div id="sync-overlay">
+        <div class="lock-animation">🔐</div>
+        <div id="sync-status" style="font-size:18px; font-weight:600;">데이터 암호화 중...</div>
+    </div>
+
+    <script>
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        function initializeDrums() {
+            const hCols = [document.getElementById('start-h'), document.getElementById('end-h')];
+            const mCols = [document.getElementById('start-m'), document.getElementById('end-m')];
+
+            const now = new Date();
+            const curH = now.getHours();
+            const curM = now.getMinutes();
+
+            // 무한 스크롤을 위해 3세트 반복 생성 (중간 세트에서 시작)
+            const REPEAT = 3;
+
+            mCols.forEach((col) => {
+                col.innerHTML = '';
+                for (let r = 0; r < REPEAT; r++) {
+                    for (let i = 0; i < 60; i++) {
+                        const m = i.toString().padStart(2, '0');
+                        col.innerHTML += `<div class="drum-item" data-val="${i}">${m}</div>`;
+                    }
+                }
+                // 중간 세트의 현재 분 위치로 이동
+                const itemHeight = 50;
+                const totalItemsInSet = 60;
+                col.scrollTop = (totalItemsInSet * itemHeight) + (curM * itemHeight) - 50; // -50 compensates for center alignment
+
+                col.addEventListener('scroll', () => {
+                    handleInfiniteScroll(col, totalItemsInSet, itemHeight);
+                    updateDrumSelection(col);
+                });
+                setTimeout(() => updateDrumSelection(col), 100);
+            });
+
+            hCols.forEach((col) => {
+                col.innerHTML = '';
+                for (let r = 0; r < REPEAT; r++) {
+                    for (let i = 0; i < 24; i++) {
+                        const h = i.toString().padStart(2, '0');
+                        col.innerHTML += `<div class="drum-item" data-val="${i}">${h}</div>`;
+                    }
+                }
+                const itemHeight = 50;
+                const totalItemsInSet = 24;
+                col.scrollTop = (totalItemsInSet * itemHeight) + (curH * itemHeight) - 50;
+
+                col.addEventListener('scroll', () => {
+                    handleInfiniteScroll(col, totalItemsInSet, itemHeight);
+                    updateDrumSelection(col);
+                });
+                setTimeout(() => updateDrumSelection(col), 100);
+            });
+        }
+
+        function handleInfiniteScroll(col, totalInSet, itemHeight) {
+            const scrollTop = col.scrollTop;
+            const setHeight = totalInSet * itemHeight;
+
+            // 상단 끝에 도달하면 중간으로 점프
+            if (scrollTop < itemHeight * 2) {
+                col.scrollTop = scrollTop + setHeight;
+            }
+            // 하단 끝에 도달하면 중간으로 점프
+            else if (scrollTop > (setHeight * 2) - (itemHeight * 3)) {
+                col.scrollTop = scrollTop - setHeight;
+            }
+        }
+
+        function updateDrumSelection(col) {
+            const wrapHeight = 150;
+            const center = col.scrollTop + (wrapHeight / 2);
+            const items = col.querySelectorAll('.drum-item');
+
+            items.forEach(item => {
+                const itemCenter = item.offsetTop + 25;
+                if (Math.abs(center - itemCenter) < 25) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+            // Don't auto-enable here, strictly wait for apply
+        }
+
+
+        let currentViewYear, currentViewMonth;
+        let rangeStart = null;
+        let rangeEnd = null; function initCalendar() {
+            const now = new Date();
+            currentViewYear = now.getFullYear();
+            currentViewMonth = now.getMonth();
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            const title = document.getElementById('cal-month-title');
+            const now = new Date();
+            const realToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            title.innerText = `${currentViewYear}년 ${currentViewMonth + 1}월`;
+
+            // Constraint: Hide next button if looking at current month
+            const isCurrentMonthOrFuture = (currentViewYear > now.getFullYear()) || (currentViewYear === now.getFullYear() && currentViewMonth >= now.getMonth());
+            document.getElementById('next-month-btn').style.visibility = isCurrentMonthOrFuture ? 'hidden' : 'visible';
+
+            grid.innerHTML = '';
+            const days = ['월', '화', '수', '목', '금', '토', '일'];
+            days.forEach(d => grid.innerHTML += `<div class="cal-day">${d}</div>`);
+
+            const firstDay = new Date(currentViewYear, currentViewMonth, 1).getDay(); // 0 is Sun
+            const startOffset = firstDay === 0 ? 6 : firstDay - 1; // Adjust to Mon-start
+            const daysInMonth = new Date(currentViewYear, currentViewMonth + 1, 0).getDate();
+
+            for (let i = 0; i < startOffset; i++) {
+                grid.innerHTML += '<div></div>';
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(currentViewYear, currentViewMonth, d);
+                const time = dateObj.getTime();
+
+                const isToday = time === realToday.getTime();
+                const isStart = rangeStart && time === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
+                const isEnd = rangeEnd && time === new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
+
+                let rangeClass = '';
+                if (rangeStart && rangeEnd) {
+                    const sTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
+                    const eTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
+                    if (time > sTime && time < eTime) rangeClass = 'range';
+                    if (isStart && sTime < eTime) rangeClass = 'range range-start';
+                    if (isEnd && sTime < eTime) rangeClass = 'range range-end';
+                }
+
+                const isFuture = dateObj > realToday;
+
+                grid.innerHTML += `
+                <div class="cal-date ${isToday ? 'today' : ''} ${isStart || isEnd ? 'active' : ''} ${rangeClass} ${isFuture ? 'future' : ''}" 
+                     onclick="selectDate(${d})">${d}</div>
+            `;
+            }
+        }
+
+        function changeMonth(delta) {
+            currentViewMonth += delta;
+            if (currentViewMonth > 11) { currentViewMonth = 0; currentViewYear++; }
+            if (currentViewMonth < 0) { currentViewMonth = 11; currentViewYear--; }
+            renderCalendar();
+        }
+
+        function selectDate(day) {
+            const picked = new Date(currentViewYear, currentViewMonth, day);
+            const now = new Date();
+            if (picked > now) return;
+
+            if (!rangeStart || (rangeStart && rangeEnd)) {
+                rangeStart = picked;
+                rangeEnd = null;
+            } else {
+                if (picked < rangeStart) {
+                    rangeStart = picked;
+                    rangeEnd = null;
+                } else {
+                    rangeEnd = picked;
+                }
+            }
+            renderCalendar();
+        }
+
+        function applyDateTime() {
+            // null 체크 추가: 날짜가 선택되지 않았으면 오늘 날짜를 기본값으로 사용
+            if (!rangeStart) {
+                rangeStart = new Date();
+            }
+
+            const wrapHeight = 150;
+            const centerH = document.getElementById('start-h').scrollTop + (wrapHeight / 2);
+            const centerM = document.getElementById('start-m').scrollTop + (wrapHeight / 2);
+            const centerEH = document.getElementById('end-h').scrollTop + (wrapHeight / 2);
+            const centerEM = document.getElementById('end-m').scrollTop + (wrapHeight / 2);
+
+            const getVal = (col, center) => {
+                let selectedItem;
+                col.querySelectorAll('.drum-item').forEach(item => {
+                    if (Math.abs((item.offsetTop + 25) - center) < 25) selectedItem = item;
+                });
+                return selectedItem ? selectedItem.getAttribute('data-val') : "00";
+            };
+
+            const sh = parseInt(getVal(document.getElementById('start-h'), centerH));
+            const sm = parseInt(getVal(document.getElementById('start-m'), centerM));
+            const eh = parseInt(getVal(document.getElementById('end-h'), centerEH));
+            const em = parseInt(getVal(document.getElementById('end-m'), centerEM));
+
+            // 단일 날짜 선택 시 시간 유효성 검사
+            if (!rangeEnd) {
+                const startTimeMinutes = sh * 60 + sm;
+                const endTimeMinutes = eh * 60 + em;
+                
+                if (endTimeMinutes < startTimeMinutes) {
+                    showToast("종료시간이 시작시간보다 빠를 수 없어요");
+                    return;
+                }
+            }
+
+            const format = (n) => n.toString().padStart(2, '0');
+
+            const startY = rangeStart.getFullYear();
+            const startM = (rangeStart.getMonth() + 1);
+            const startD = format(rangeStart.getDate());
+
+            if (rangeEnd) {
+                const endY = rangeEnd.getFullYear();
+                const endM = (rangeEnd.getMonth() + 1);
+                const endD = format(rangeEnd.getDate());
+                document.getElementById('selected-datetime-info').innerText = `${startY}.${startM}.${startD} ${format(sh)}:${format(sm)} ~ ${endY}.${endM}.${endD} ${format(eh)}:${format(em)}`;
+            } else {
+                document.getElementById('selected-datetime-info').innerText = `${startY}.${startM}.${startD} ${format(sh)}:${format(sm)} ~ ${format(eh)}:${format(em)}`;
+            }
+            document.getElementById('selected-datetime-info').style.color = 'var(--text-main)';
+            enableSaveButton();
+            hidePicker();
+        }
+
+        // Initialize Masked Name
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            const name = params.get('name') || '홍길동';
+            
+            // Masking Logic (Same as other pages)
+            let masked = name.split('');
+            const len = name.length;
+            if (len === 2) masked[1] = 'O';
+            else if (len === 3) masked[1] = 'O';
+            else if (len === 4) { masked[1] = 'O'; masked[2] = 'O'; }
+            else if (len >= 5) {
+                for (let i = 1; i < len - 1; i++) masked[i] = 'O';
+            }
+            
+            document.getElementById('display-case-name').innerText = masked.join('') + ' 아동';
+            
+            // Set Header Title
+            const draftIdParam = params.get('draftId');
+            if (draftIdParam) {
+                document.getElementById('page-title').innerText = 'DB 수정';
+            } else {
+                document.getElementById('page-title').innerText = 'DB 생성';
+            }
+        });
+
+        function showPicker() {
+            document.getElementById('picker-backdrop').style.display = 'block';
+            document.getElementById('datetime-picker').classList.add('show');
+            document.getElementById('date-warning-msg').style.display = 'none'; // 경고 메시지 숨김
+            initCalendar();
+            initializeDrums();
+        }
+
+        function hidePicker() {
+            document.getElementById('picker-backdrop').style.display = 'none';
+            document.getElementById('datetime-picker').classList.remove('show');
+        }
+
+        // URL 파라미터 처리
+        const urlParams = new URLSearchParams(window.location.search);
+        const caseName = urlParams.get('name');
+        const dongName = urlParams.get('dong');
+        const draftId = urlParams.get('draftId');
+        let isInitializing = true; 
+
+        if (caseName) {
+            document.getElementById('display-case-name').innerText = `${caseName} 아동`;
+        }
+        if (dongName) {
+            document.getElementById('display-dong-name').innerText = dongName;
+        }
+
+        // 드래프트 로드 로직
+        if (draftId) {
+            const drafts = JSON.parse(localStorage.getItem('dash_drafts') || '[]');
+            const draft = drafts.find(d => d.id == draftId);
+            if (draft) {
+                // UI에 데이터 복원
+                document.getElementById('selected-datetime-info').innerText = draft.datetime;
+                document.getElementById('selected-datetime-info').style.color = 'var(--text-main)';
+                
+                // 서비스 선택 복원
+                const select = document.querySelector('.styled-select');
+                for(let opt of select.options) {
+                    if(opt.value === draft.service) opt.selected = true;
+                }
+
+                // 대상자 칩 복원 (단순화: 텍스트 매칭)
+                document.querySelectorAll('.chip[onclick*="target"]').forEach(chip => {
+                    if(chip.innerText === draft.target) {
+                        selectChip(chip, 'target');
+                    }
+                });
+                
+            // 수정 시에는 버튼 바로 활성화 및 텍스트 변경
+            document.getElementById('save-btn').innerText = '수정 완료';
+            document.getElementById('share-btn-wrap').style.display = 'block';
+            enableSaveButton();
+        }
+    }
+
+    function handleShare() {
+        if (navigator.share) {
+            navigator.share({
+                title: 'Dash DB 공유',
+                text: `${caseName || '아동'} 사례의 DB 기록입니다.`,
+                url: window.location.href
+            });
+        } else {
+            alert('공유 기능이 지원되지 않는 환경입니다.');
+        }
+    }
+
+    function enableSaveButton() {
+        const info = document.getElementById('selected-datetime-info').innerText;
+        // '일시 선택'이거나 날짜(202x)가 포함되지 않은 경우 비활성화
+        const hasDate = info !== '일시 선택' && (info.includes('202') || info.includes('~'));
+        const saveBtn = document.getElementById('save-btn');
+        
+        if (hasDate) {
+            saveBtn.classList.remove('disabled');
+        } else {
+            saveBtn.classList.add('disabled');
+        }
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.classList.add('show');
+        setTimeout(() => {
+            t.classList.remove('show');
+        }, 2000);
+    }
+
+        // 입력 감지 리스너 등록
+        document.querySelectorAll('select, textarea, input').forEach(el => {
+            el.addEventListener('input', () => {
+                // 기타 필드 입력 시에도 날짜 체크는 상시 수행
+                enableSaveButton();
+            });
+            el.addEventListener('change', () => {
+                enableSaveButton();
+            });
+        });
+
+        function selectChip(el, type, isEtc = false) {
+            if (type === 'target') {
+                // Multi-selection for targets
+                el.classList.toggle('active');
+                
+                // Check if any active target is 'etc' (assuming based on original UI logic or specific chip)
+                const targetEtcActive = Array.from(el.parentElement.querySelectorAll('.chip.active')).some(c => c.getAttribute('onclick').includes('true'));
+                document.getElementById('target-etc-wrap').style.display = targetEtcActive ? 'block' : 'none';
+            } else {
+                // Single selection for others
+                const chips = el.parentElement.querySelectorAll('.chip');
+                chips.forEach(c => c.classList.remove('active'));
+                el.classList.add('active');
+
+                if (type === 'loc') {
+                    document.getElementById('loc-etc-wrap').style.display = isEtc ? 'block' : 'none';
+                }
+            }
+            enableSaveButton();
+        }
+
+        function handleSave() {
+            const overlay = document.getElementById('sync-overlay');
+        const status = document.getElementById('sync-status');
+        
+        // 유효성 검사 (일시가 선택되지 않은 경우)
+        if (!rangeStart) {
+            showToast("제공일시를 설정해 주세요");
+            document.getElementById('date-warning-msg').style.display = 'inline'; // 빨간 경고 텍스트 표시
+            return;
+        }
+
+        // 수정 모드에서 변경사항이 없는 경우 버튼이 'disabled' 상태면 안내
+        if (document.getElementById('save-btn').classList.contains('disabled')) {
+            showToast("변경사항이 없습니다");
+            return;
+        }
+        
+        // 데이터 수집
+            const selectedTargets = Array.from(document.querySelectorAll('.chip.active[onclick*="target"]')).map(c => c.innerText);
+            
+            const draftData = {
+                id: draftId ? parseInt(draftId) : Date.now(),
+                caseName: caseName || "미지정",
+                target: selectedTargets.length > 0 ? selectedTargets.join(', ') : "미지정",
+                service: document.querySelector('.styled-select').value,
+                datetime: document.getElementById('selected-datetime-info').innerText,
+                savedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            // LocalStorage 저장 (수정 혹은 추가)
+            let drafts = JSON.parse(localStorage.getItem('dash_drafts') || '[]');
+            if (draftId) {
+                drafts = drafts.map(d => d.id == draftId ? draftData : d);
+            } else {
+                drafts.push(draftData);
+            }
+            localStorage.setItem('dash_drafts', JSON.stringify(drafts));
+
+            overlay.style.display = 'flex';
+            status.innerText = '로컬에 안전하게 저장 중...';
+
+            setTimeout(() => {
+                status.innerText = draftId ? '수정 완료!' : '비공개 저장 완료!';
+                document.querySelector('.lock-animation').innerText = '✅';
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1000);
+            }, 1200);
+        }
+    </script>
+
+</body>
+
+</html>

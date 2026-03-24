@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dash | Reviewer Board</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-left">
+                <span class="logo">✦ Dash</span>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator">
+                    <span class="pulse-dot"></span>
+                    <span class="status-text">검토 대기</span>
+                </div>
+                <div id="save-status" class="save-status">방금 저장됨</div>
+                <button class="btn btn-action" onclick="openNotifyModal()">완료 알림</button>
+            </div>
+        </header>
+
+        <main class="content-wrapper">
+            <!-- Sidebar / Info Panel (PC) -->
+            <aside class="info-sidebar">
+                <div class="sidebar-content">
+                    <section class="info-section">
+                        <h3>MAPPING CONTEXT</h3>
+                        <div class="meta-grid">
+                            <div class="meta-item">
+                                <label>제공구분</label>
+                                <span>제공 (A)</span>
+                            </div>
+                            <div class="meta-item">
+                                <label>서비스유형</label>
+                                <span>아보전 (A)</span>
+                            </div>
+                            <div class="meta-item">
+                                <label>제공서비스</label>
+                                <span>아동 안전점검 및 상담</span>
+                            </div>
+                            <div class="meta-item">
+                                <label>제공장소</label>
+                                <span>아동가정 (B)</span>
+                            </div>
+                            <div class="meta-item">
+                                <label>제공일시</label>
+                                <span>03.12 14:30</span>
+                            </div>
+                            <div class="meta-item">
+                                <label>이동시간</label>
+                                <span>30분</span>
+                            </div>
+                            <div class="meta-item">
+                                <label>제공횟수</label>
+                                <span>1회</span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </aside>
+
+            <!-- Main Editor Area -->
+            <section class="editor-area">
+                <!-- Mobile Info Accordion -->
+                <div class="mobile-info-trigger" onclick="toggleMobileInfo()">
+                    <div class="trigger-top">
+                        <span class="child-tag">강*수 아동</span>
+                        <span class="info-label">서비스 상세 정보 ▾</span>
+                    </div>
+                </div>
+                <div id="mobile-info-content" class="mobile-info-content">
+                    <div class="meta-grid">
+                        <div class="meta-item"><label>제공구분</label><span>제공 (A)</span></div>
+                        <div class="meta-item"><label>서비스유형</label><span>아보전 (A)</span></div>
+                        <div class="meta-item"><label>제공서비스</label><span>아동 안전점검...</span></div>
+                        <div class="meta-item"><label>제공장소</label><span>아동가정 (B)</span></div>
+                    </div>
+                </div>
+
+                <div class="editor-container">
+                    <div class="editor-header">
+                        <h1 id="page-title">강*수 (Child Case)</h1>
+                        <div class="editor-meta">
+                            <span>강윤수 간사 작성</span>
+                            <span class="divider">|</span>
+                            <span>3월 12일 17:45</span>
+                        </div>
+                    </div>
+
+                    <div class="writing-workspace">
+                        <textarea id="main-editor" placeholder="상담 내용을 입력하세요..." oninput="handleTyping()">강*수 아동은 가정 방문 시 밝은 얼굴로 맞이해주었으며, 최근 학교 생활에 대해 적극적으로 이야기함. 
+어머니(Sarah)와의 상호작용은 원활해 보였으나, 다가올 학업 성취도 평가에 대해 다소 불안함을 보임. 
+아동의 정서적 안정을 위해 지속적인 모니터링이 필요하며, 다음 방문 시 심층 상담 진행 예정.</textarea>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom CTA Button (Mobile) -->
+        <div class="mobile-cta-container">
+            <button class="btn btn-primary-full" onclick="openNotifyModal()">검토 완료 알림 보내기</button>
+        </div>
+
+        <!-- Notifications & Modals -->
+        <div id="modal-container" class="modal-backdrop">
+            <div class="modal">
+                <h2>검토 리포트 알림</h2>
+                <p>수정된 내용을 담당자에게 알리고 검토를 완료할까요?</p>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+                    <button class="btn btn-primary" onclick="confirmNotify()">알림 보내기</button>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dash Collaborative Editor - Professional View</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3182f6;
+            --primary-light: #e8f3ff;
+            --bg: #fafaf8;
+            --card: #ffffff;
+            --text-main: #222222;
+            --text-sub: #4e5968;
+            --border: #e5e8eb;
+            --success: #00d082;
+            --warning: #ff9500;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Pretendard', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--card); /* Mobile usually white like a note */
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 100%; /* Edge-to-edge */
+            background: var(--card);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Header - Notion Style */
+        header {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand-logo {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-sub);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .share-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--success);
+            font-weight: 500;
+        }
+
+        .badge-live {
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        /* Mobile Meta Bar (Hidden on Desktop) */
+        .mobile-meta-trigger {
+            display: none;
+            padding: 12px 20px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-sub);
+            cursor: pointer;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Main Content */
+        main {
+            display: flex;
+            flex: 1;
+            min-height: calc(100vh - 54px); /* Changed from height to min-height */
+        }
+
+        /* Left Panel (Context) */
+        .specs-panel {
+            width: 300px;
+            border-right: 1px solid var(--border);
+            padding: 24px;
+            background: #fbfbfb;
+            position: sticky; /* Make left panel stick while writing */
+            top: 54px;
+            align-self: flex-start;
+            height: calc(100vh - 54px);
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #adb5bd;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .field-card {
+            margin-bottom: 18px;
+        }
+
+        .field-label {
+            font-size: 12px;
+            color: var(--text-sub);
+            margin-bottom: 2px;
+        }
+
+        .field-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        /* Mobile Expandable Area */
+        .mobile-specs-accordion {
+            display: none;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease-out;
+            background: #fbfbfb;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .mobile-specs-accordion.expanded {
+            max-height: 500px; /* Large enough to fit content */
+        }
+
+        .accordion-content {
+            padding: 12px 20px 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .accordion-item .field-label {
+            font-size: 11px;
+            color: #adb5bd;
+            margin-bottom: 2px;
+        }
+
+        .accordion-item .field-value {
+            font-size: 13px;
+            color: var(--text-main);
+        }
+
+        /* Right Panel (Editor) */
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center; 
+            padding: 100px 40px; 
+            background: white;
+            /* Removed overflow-y: auto to allow natural page scroll */
+        }
+
+        .writing-area {
+            width: 100%;
+            max-width: 900px; /* Restored to 900px as requested */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-header {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+
+        .patient-title {
+            font-size: 36px; /* Increased from 28px */
+            font-weight: 700;
+            margin-bottom: 0;
+            border: none;
+            outline: none;
+            width: auto;
+            color: var(--text-main);
+        }
+
+        .auto-save-status {
+            font-size: 16px; /* Reduced to 16px as requested */
+            font-weight: 400;
+            color: #888888;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: opacity 0.3s;
+        }
+
+        .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #eee;
+            border-top-color: #888;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .agent-info {
+            font-size: 18px; /* Increased from 14px */
+            color: #adb5bd;
+            margin-bottom: 36px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .editor-container {
+            flex: 1;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            border: none;
+            font-size: 18px; /* Matched to .agent-info (18px) */
+            line-height: 1.6;
+            color: var(--text-main);
+            outline: none;
+            resize: none;
+            padding: 0;
+            background: transparent;
+            overflow: hidden; /* Hide textarea scrollbar */
+        }
+
+        /* Floating Mobile FAB */
+        .mobile-action-bar {
+            display: none;
+            position: fixed;
+            bottom: 24px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .fab {
+            background: var(--primary);
+            color: white;
+            width: 56px;
+            height: 56px;
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px rgba(49, 130, 246, 0.4);
+            border: none;
+            font-size: 24px;
+        }
+
+        /* Desktop Bottom Bar */
+        .bottom-bar {
+            padding: 16px 60px;
+            background: #fff;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-sub);
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-sub);
+            border: none;
+            font-weight: 500;
+        }
+
+        /* Center Modal */
+        .center-modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 3000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .center-modal {
+            background: white;
+            padding: 32px 24px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .btn-primary-full {
+            background: var(--primary);
+            color: white;
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(49, 130, 246, 0.2);
+        }
+
+        /* Responsive Mobile Layout */
+        @media (max-width: 768px) {
+            main {
+                height: auto;
+                flex-direction: column;
+                padding-bottom: 100px;
+            }
+
+            .specs-panel {
+                display: none; 
+            }
+
+            .mobile-meta-trigger {
+                display: flex;
+            }
+
+            .mobile-specs-accordion {
+                display: block;
+            }
+
+            .editor-panel {
+                padding: 24px 20px;
+            }
+
+            .patient-title {
+                font-size: 26px;
+            }
+
+            textarea {
+                font-size: 16px;
+                min-height: 50vh;
+            }
+        }
+
+        /* Removed old fixed bottom bars */
+        .bottom-bar-unified { display: none; }
+
+        /* Metadata Overlay for Mobile */
+        #meta-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 2000;
+            align-items: flex-end;
+        }
+
+        .meta-sheet {
+            width: 100%;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            padding: 30px 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        /* Success Overlay */
+        #sync-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--primary);
+            color: white;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+
+        .done-icon { font-size: 60px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="brand-logo" style="cursor: pointer;" onclick="location.href='index.html'">✦ Dash</div>
+        <div class="header-actions">
+            <button class="btn btn-primary" style="background: #f2f4f6; color: var(--text-main);" onclick="openRestoreModal()">원본 되돌리기</button>
+            <button class="btn btn-primary" onclick="openNotifyModal()">🔔 사례 담당자 알림 보내기</button>
+        </div>
+    </header>
+
+    <!-- Mobile Metadata Trigger -->
+    <div class="mobile-meta-trigger" onclick="toggleMeta()">
+        <span>📋 서비스 제공 상세</span>
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <span id="trigger-text" style="font-size: 12px; font-weight: 600;">더 보기</span>
+            <span id="trigger-icon" style="font-size: 10px; transition: transform 0.2s;">▼</span>
+        </div>
+    </div>
+
+    <!-- Mobile Accordion Content -->
+    <div id="mobile-accordion" class="mobile-specs-accordion">
+        <div class="accordion-content">
+            <div class="accordion-item"><div class="field-label">제공구분</div><div class="field-value">제공 (A)</div></div>
+            <div class="accordion-item"><div class="field-label">서비스유형</div><div class="field-value">아보전 (A)</div></div>
+            <div class="accordion-item"><div class="field-label">제공서비스</div><div class="field-value">아동 안전점검 및 상담</div></div>
+            <div class="accordion-item"><div class="field-label">제공장소</div><div class="field-value">아동가정 (B)</div></div>
+            <div class="accordion-item"><div class="field-label">일시</div><div class="field-value">2026.3.12 14:30</div></div>
+            <div class="accordion-item"><div class="field-label">이동시간</div><div class="field-value">30분</div></div>
+        </div>
+    </div>
+
+    <main>
+        <!-- Desktop Context (Hidden on Mobile, moved to sheet) -->
+        <aside class="specs-panel">
+            <div class="section-title">Mapping Context</div>
+            <div class="field-card"><div class="field-label">제공구분</div><div class="field-value">제공 (A)</div></div>
+            <div class="field-card"><div class="field-label">서비스유형</div><div class="field-value">아보전 (A)</div></div>
+            <div class="field-card"><div class="field-label">제공서비스</div><div class="field-value">아동 안전점검 및 상담</div></div>
+            <div class="field-card"><div class="field-label">제공장소</div><div class="field-value">아동가정 (B)</div></div>
+            <div class="field-card"><div class="field-label">이동시간</div><div class="field-value">30분</div></div>
+        </aside>
+
+        <!-- The Professional Editor -->
+        <section class="editor-panel">
+            <div class="writing-area">
+                <div class="editor-header">
+                    <div class="patient-title">강*정 (Child A)</div>
+                    <div id="save-status" class="auto-save-status">
+                        <!-- Dynamic -->
+                        방금 저장됨
+                    </div>
+                </div>
+                <div class="agent-info">
+                    <span>강윤수 간사 사례</span>
+                    <span>|</span>
+                    <span>3월 12일 17:45</span>
+                </div>
+
+                <div class="editor-container">
+                    <textarea id="final-note" oninput="handleTyping()" spellcheck="false" placeholder="여기에 내용을 입력하세요...">Child A는 가정 방문 시 밝은 얼굴로 맞이해주었으며, 최근 학교 생활에 대해 적극적으로 이야기함. 
+어머니(Sarah)와의 상호작용은 원활해 보였으나, 다가올 학업 성취도 평가에 대해 다소 불안함을 보임. 
+아동의 정서적 안정을 위해 지속적인 모니터링이 필요하며, 다음 방문 시 심층 상담 진행 예정.</textarea>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Bottom Actions are now in Header -->
+</div>
+
+<!-- Mobile Meta Sheet -->
+<div id="meta-overlay" onclick="toggleMeta()">
+    <div class="meta-sheet" onclick="event.stopPropagation()">
+        <div style="width:40px; height:4px; background:#ddd; border-radius:2px; margin: 0 auto 20px;"></div>
+        <div class="section-title">Mapping Context</div>
+        <div class="field-card"><div class="field-label">제공구분</div><div class="field-value">제공 (A)</div></div>
+        <div class="field-card"><div class="field-label">서비스유형</div><div class="field-value">아보전 (A)</div></div>
+        <div class="field-card"><div class="field-label">제공방법</div><div class="field-value">방문 (C)</div></div>
+        <div class="field-card"><div class="field-label">제공서비스</div><div class="field-value">아동 안전점검 및 상담</div></div>
+        <div class="field-card"><div class="field-label">제공장소</div><div class="field-value">아동가정 (B)</div></div>
+        <div class="field-card"><div class="field-label">일시</div><div class="field-value">2026.3.12 14:30</div></div>
+        <div class="field-card"><div class="field-label">이동시간</div><div class="field-value">30분</div></div>
+        <button class="btn" style="width:100%; margin-top:20px;" onclick="toggleMeta()">닫기</button>
+    </div>
+</div>
+
+<!-- Restore Confirmation Modal -->
+<div id="restore-modal-backdrop" class="center-modal-backdrop">
+    <div class="center-modal">
+        <div style="font-size: 18px; font-weight: 700; color: var(--text-main);">원본 되돌리기</div>
+        <div style="font-size: 15px; color: var(--text-sub); margin-top: 12px; line-height: 1.5;">
+            최초 작성된 원본 내용으로 되돌리시겠습니까?
+        </div>
+        <div class="modal-btns" style="display: flex; gap: 10px; margin-top: 24px;">
+            <button class="btn-no" style="flex:1; border: none; background: #f2f4f6; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer;" onclick="closeRestoreModal()">아니오</button>
+            <button class="btn-yes" style="flex:1; border: none; background: #ff4d4f; color: white; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer;" onclick="confirmRestore()">되돌리기</button>
+        </div>
+    </div>
+</div>
+
+<!-- Notify Confirmation Modal -->
+<div id="notify-modal-backdrop" class="center-modal-backdrop">
+    <div class="center-modal">
+        <div style="font-size: 18px; font-weight: 700; color: var(--text-main);">알림 보내기</div>
+        <div style="font-size: 15px; color: var(--text-sub); margin-top: 12px; line-height: 1.5;">
+            담당자에게 수정 완료 알림을 보내겠습니까?
+        </div>
+        <div class="modal-btns" style="display: flex; gap: 10px; margin-top: 24px;">
+            <button class="btn-no" style="flex:1; border: none; background: #f2f4f6; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer;" onclick="closeNotifyModal()">아니오</button>
+            <button class="btn-yes" style="flex:1; border: none; background: var(--primary); color: white; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer;" onclick="confirmNotification()">예</button>
+        </div>
+    </div>
+</div>
+
+<div id="sync-overlay">
+    <div class="done-icon">💾</div>
+    <div style="font-size: 20px; font-weight: 700;">저장 완료</div>
+    <div style="margin-top: 8px; opacity: 0.8; font-size: 14px;">수정내용이 안전하게 저장되었습니다.</div>
+</div>
+
+<script>
+    let isMetaExpanded = false;
+
+    function toggleMeta() {
+        const accordion = document.getElementById('mobile-accordion');
+        const text = document.getElementById('trigger-text');
+        const icon = document.getElementById('trigger-icon');
+        
+        isMetaExpanded = !isMetaExpanded;
+
+        if (isMetaExpanded) {
+            accordion.classList.add('expanded');
+            text.innerText = '간략히';
+            icon.style.transform = 'rotate(180deg)';
+        } else {
+            accordion.classList.remove('expanded');
+            text.innerText = '더 보기';
+            icon.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    let originalContent = "";
+
+    window.onload = function() {
+        const textarea = document.getElementById('final-note');
+        originalContent = textarea.value; // Store initial content
+        // Initial height adjustment
+        autoResize(textarea);
+    };
+
+    function openRestoreModal() {
+        const backdrop = document.getElementById('restore-modal-backdrop');
+        backdrop.style.display = 'flex';
+        setTimeout(() => backdrop.style.opacity = '1', 10);
+    }
+
+    function closeRestoreModal() {
+        const backdrop = document.getElementById('restore-modal-backdrop');
+        backdrop.style.opacity = '0';
+        setTimeout(() => backdrop.style.display = 'none', 300);
+    }
+
+    function confirmRestore() {
+        const textarea = document.getElementById('final-note');
+        textarea.value = originalContent;
+        autoResize(textarea);
+        handleTyping();
+        closeRestoreModal();
+    }
+
+    function openNotifyModal() {
+        const backdrop = document.getElementById('notify-modal-backdrop');
+        backdrop.style.display = 'flex';
+        setTimeout(() => backdrop.style.opacity = '1', 10);
+    }
+
+    function closeNotifyModal() {
+        const backdrop = document.getElementById('notify-modal-backdrop');
+        backdrop.style.opacity = '0';
+        setTimeout(() => backdrop.style.display = 'none', 300);
+    }
+
+    function confirmNotification() {
+        // 알림 전송 로직 (실제로는 API 호출 등)
+        alert("사례 담당자에게 알림을 보냈습니다.");
+        closeNotifyModal();
+    }
+
+    function autoResize(el) {
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+    }
+
+    let saveTimeout = null;
+
+    function handleTyping() {
+        const textarea = document.getElementById('final-note');
+        autoResize(textarea); // Adjust height while typing
+
+        const status = document.getElementById('save-status');
+        
+        // 상태: 저장 중...
+        status.innerHTML = '<div class="spinner"></div> 저장 중...';
+        status.style.opacity = '1';
+
+        // 이전 타이머 취소 (Debounce)
+        if (saveTimeout) clearTimeout(saveTimeout);
+
+        // 1.5초 후 자동 저장 수행
+        saveTimeout = setTimeout(() => {
+            performAutoSave();
+        }, 1500);
+    }
+
+    function performAutoSave() {
+        const status = document.getElementById('save-status');
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        
+        // 실제로는 여기서 localStorage나 API 저장을 수행합니다.
+        console.log("Auto-saving content...");
+
+        // 상태 업데이트: 저장 완료
+        status.innerHTML = `✓ ${timeStr} 저장됨`;
+        
+        // 3초 후 은근히 흐릿하게 (옵션)
+        setTimeout(() => {
+            status.style.opacity = '0.7';
+        }, 2000);
+    }
+
+    function handleSave() {
+        const overlay = document.getElementById('sync-overlay');
+        overlay.style.display = 'flex';
+        
+        // 수동 저장 시에도 상태 즉시 업데이트
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        document.getElementById('save-status').innerHTML = `✓ ${timeStr} 저장됨`;
+
+        setTimeout(() => {
+            overlay.style.display = 'none';
+        }, 1500);
+    }
+</script>
+
+</body>
+</html>

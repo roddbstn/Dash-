@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dash | Reviewer Board</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-left">
+                <span class="logo">✦ Dash</span>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator">
+                    <span class="pulse-dot"></span>
+                    <span class="status-text">검토 대기</span>
+                </div>
+                <button class="btn btn-action" onclick="openNotifyModal()">완료 알림</button>
+            </div>
+        </header>
+
+        <main class="content-wrapper">
+            <!-- Sidebar / Info Panel (PC) -->
+            <aside class="info-sidebar">
+                <div class="sidebar-content">
+                    <section class="info-section">
+                        <h3>서비스 상세정보</h3>
+                        <div class="meta-grid" id="pc-meta-grid">
+                            <!-- Dynamic items injected here via app.js -->
+                            <div class="meta-item">
+                                <label>대상자</label>
+                                <span id="val-target">불러오는 중...</span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </aside>
+
+            <!-- Main Editor Area -->
+            <section class="editor-area">
+                <!-- Mobile Info Accordion -->
+                <div class="mobile-info-trigger" onclick="toggleMobileInfo()" style="padding: 16px 24px;">
+                    <div class="trigger-top"
+                        style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <div id="mobile-child-tag"></div>
+                        <span class="info-label"
+                            style="display: flex; align-items: center; gap: 4px; font-weight: 600;">서비스 상세 정보 <span
+                                style="font-size: 1.4em; position: relative; top: -1px;">▾</span></span>
+                    </div>
+                </div>
+                <div id="mobile-info-content" class="mobile-info-content">
+                    <div class="meta-grid" id="mobile-meta-grid">
+                        <!-- Dynamic items injected here via app.js -->
+                    </div>
+                </div>
+
+                <div class="editor-container">
+                    <div class="editor-header">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                            <h1 id="page-title" style="font-size: 26px;">강O수 아동 사례</h1>
+                            <!-- Status moved here -->
+                            <div id="save-status" class="save-status">방금 저장됨</div>
+                        </div>
+                        <div class="editor-meta">
+                            <span id="author-name">강윤수 상담원 작성</span>
+                        </div>
+                    </div>
+
+                    <div class="writing-workspace">
+                        <h4 style="margin-bottom: 12px; color: #4e5968; font-weight: 700; font-size: 14px;">서비스 내용</h4>
+                        <textarea id="main-editor" placeholder="서비스 내용을 입력하세요..." oninput="handleTyping()"></textarea>
+
+                        <h4
+                            style="margin-top: 32px; margin-bottom: 12px; color: #4e5968; font-weight: 700; font-size: 14px;">
+                            상담원 소견</h4>
+                        <textarea id="opinion-editor" placeholder="상담원 소견을 입력하세요..."
+                            oninput="handleTyping()"></textarea>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom CTA Button (Mobile) -->
+        <div class="mobile-cta-container">
+            <button class="btn btn-primary-full" onclick="openNotifyModal()">검토 완료 알림 보내기</button>
+        </div>
+
+        <!-- Notifications & Modals -->
+        <div id="modal-container" class="modal-backdrop">
+            <div class="modal">
+                <h2>검토 리포트 알림</h2>
+                <p>수정된 내용을 담당자에게 알리고 검토를 완료할까요?</p>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+                    <button class="btn btn-primary" onclick="confirmNotify()">알림 보내기</button>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

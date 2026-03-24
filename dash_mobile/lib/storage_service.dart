@@ -1,0 +1,65 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+class StorageService {
+  static const String _casesKey = 'dash_cases';
+  static const String _draftsKey = 'dash_drafts';
+
+  static Future<void> initInitialData() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('dash_v1_2_init')) {
+      final initialCase = {
+        'id': 111,
+        'realName': '강윤수',
+        'maskedName': '강O수',
+        'dong': '선화동',
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+      await prefs.setString(_casesKey, jsonEncode([initialCase]));
+      await prefs.setBool('dash_v1_2_init', true);
+    }
+  }
+
+  static Future<String> getUserId() async {
+    // Firebase Auth에서 현재 로그인한 유저의 UID를 직접 가져옴
+    return FirebaseAuth.instance.currentUser?.uid ?? 'GUEST_USER';
+  }
+
+  static Future<List<dynamic>> getCases() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(_casesKey);
+    if (data == null) return [];
+    return jsonDecode(data);
+  }
+
+  static Future<List<dynamic>> getDrafts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(_draftsKey);
+    if (data == null) return [];
+    return jsonDecode(data);
+  }
+
+  static Future<void> saveCases(List<dynamic> cases) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_casesKey, jsonEncode(cases));
+  }
+
+  static Future<void> saveDrafts(List<dynamic> drafts) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_draftsKey, jsonEncode(drafts));
+  }
+  static const String _pendingSyncKey = 'dash_pending_sync';
+
+  static Future<List<dynamic>> getPendingSyncs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(_pendingSyncKey);
+    if (data == null) return [];
+    return jsonDecode(data);
+  }
+
+  static Future<void> savePendingSyncs(List<dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingSyncKey, jsonEncode(data));
+  }
+}

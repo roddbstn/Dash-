@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Dash - Home</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3182f6;
+            --primary-light: #e8f3ff;
+            --bg: #fafaf8;
+            --card: #ffffff;
+            --text-main: #222222;
+            --text-sub: #4e5968;
+            --border: #e5e8eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            letter-spacing: -0.02em;
+        }
+
+        html, body {
+            background-color: var(--bg);
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .app-container {
+            max-width: 500px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 120px;
+            background-color: var(--bg);
+        }
+
+        header {
+            padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
+            background: var(--bg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 0;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .header-title:active {
+            transform: scale(0.96);
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .section-label {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        /* Pending DB Section */
+        .card {
+            background: var(--card);
+            padding: 16px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+            border: 0.5px solid rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .draft-info {
+            flex: 1;
+        }
+
+        .draft-title {
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .draft-meta {
+            font-size: 12px;
+            color: var(--text-sub);
+        }
+
+        /* Blue styling for drafts */
+        .draft-card {
+            border-color: var(--primary) !important;
+            background-color: #fafdff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .draft-card:active {
+            background: #f0f7ff;
+            transform: scale(0.98);
+        }
+
+        .draft-card .draft-title {
+            color: var(--primary);
+        }
+
+        .draft-card .draft-meta {
+            color: var(--primary);
+            opacity: 0.7;
+        }
+
+        .draft-card .arrow-blue {
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+
+        .empty-state {
+            text-align: center;
+            padding: 30px 0;
+            color: #adb5bd;
+            font-size: 14px;
+        }
+
+        /* Case Grid */
+        .case-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding-bottom: 40px;
+        }
+
+        .case-item {
+            background: var(--card);
+            padding: 20px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+            min-height: 90px;
+        }
+
+        .case-item:active {
+            background: #f2f4f6;
+            transform: scale(0.95);
+        }
+
+        .case-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .case-dong {
+            font-size: 12px;
+            color: var(--text-sub);
+            opacity: 0.6;
+            font-weight: 400;
+        }
+
+        .fab-container {
+            position: fixed !important;
+            bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+            right: 20px !important;
+            z-index: 1001 !important;
+            left: auto !important;
+            transform: none !important;
+            display: block !important;
+        }
+
+        /* Responsive placement for FAB within 500px max-width container */
+        @media (min-width: 501px) {
+            .fab-container {
+                right: calc(50% - 250px + 20px) !important;
+            }
+        }
+
+        .btn-fab {
+            background: var(--primary);
+            color: white;
+            padding: 14px 22px;
+            border-radius: 100px;
+            font-size: 16px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(49, 130, 246, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-fab:active {
+            transform: scale(0.95);
+            background: #1a6dff;
+            box-shadow: 0 4px 12px rgba(49, 130, 246, 0.2);
+        }
+
+        .btn-fab svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .instruction-container {
+            margin-top: 24px;
+            margin-bottom: 24px;
+            padding-top: 4px;
+        }
+
+        .instruction-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+
+        .instruction-sub-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0;
+        }
+
+        .instruction-sub {
+            font-size: 14px;
+            color: var(--text-sub);
+        }
+
+        .btn-select-mode {
+            background: transparent;
+            color: var(--text-sub);
+            border: none;
+            padding: 4px 0;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: underline;
+            transition: opacity 0.2s;
+            opacity: 0.6;
+        }
+
+        .btn-select-mode:active {
+            opacity: 1;
+            transform: scale(0.98);
+        }
+
+        .btn-delete-mode {
+            background: transparent;
+            color: #ff4d4f;
+            border: none;
+            padding: 4px 0;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .selection-badge {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: white;
+            border: 1.5px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            color: white;
+            transition: all 0.2s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+
+        .selection-badge.selected {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        /* Swipe to Delete */
+        .swipe-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            touch-action: pan-y;
+        }
+
+        .swipe-content {
+            position: relative;
+            z-index: 2;
+            background: var(--card);
+            transition: transform 0.3s ease;
+            margin-bottom: 0px;
+            border-radius: 20px;
+            /* Overriding card margin */
+        }
+
+        .swipe-action {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 120px;
+            /* 넉넉하게 늘려서 둥근 모서리 가림 */
+            height: 100%;
+            background: #ff4d4f;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 28px;
+            /* 80px 노출 영역의 중앙쯤 위치하도록 */
+            z-index: 1;
+            border-radius: 0 20px 20px 0;
+        }
+
+        /* Delete Modal */
+        #delete-modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .bottom-modal {
+            position: fixed;
+            bottom: -100%;
+            /* Fully hidng regardless of height */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            padding: 24px 20px 40px;
+            border-radius: 24px 24px 0 0;
+            z-index: 2001;
+            transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-align: center;
+        }
+
+        .bottom-modal.show {
+            bottom: 0;
+        }
+
+        .modal-btns {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn-no {
+            background: #f2f4f6;
+            color: var(--text-sub);
+            flex: 1;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-no:active {
+            background: #e5e8eb;
+            transform: scale(0.96);
+        }
+
+        .btn-yes {
+            background: #ff4d4f;
+            color: white;
+            flex: 1;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-yes:active {
+            background: #e04345;
+            transform: scale(0.96);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <header>
+            <h1 class="header-title" onclick="location.href='index.html'">Dash</h1>
+            <div style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%;" onclick="showToast('준비 중인 기능입니다')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 22C13.1 22 14 21.1 14 20H10C10 21.1 10.9 22 12 22ZM18 16V11C18 7.93 16.37 5.36 13.5 4.68V4C13.5 3.17 12.83 2.5 12 2.5C11.17 2.5 10.5 3.17 10.5 4V4.68C7.64 5.36 6 7.92 6 11V16L4 18V19H20V18L18 16ZM16 17H8V11C8 8.52 9.51 6.5 12 6.5C14.49 6.5 16 8.52 16 11V17Z" fill="#222222"/>
+                </svg>
+            </div>
+        </header>
+
+        <div class="content">
+            <!-- 1. 대기 중인 DB 목록 (Should be at the very top) -->
+            <div id="draft-section" style="display: none;">
+                <div class="section-header">
+                    <label class="section-label">대기 중인 DB 목록</label>
+                </div>
+                <div id="draft-list-container" style="margin-bottom: 30px;">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+
+            <!-- Instruction Text -->
+            <div id="instruction-area" class="instruction-container">
+                <h2 class="instruction-title">어떤 사례의 DB를 생성할까요?</h2>
+                <div class="instruction-sub-container">
+                    <p class="instruction-sub">DB를 작성할 아동을 선택해주세요.</p>
+                    <button id="mode-toggle-btn" class="btn-select-mode" onclick="toggleSelectionMode()">선택</button>
+                </div>
+            </div>
+
+            <!-- 2. 사례 목록 -->
+            <div id="case-list-container" class="case-list">
+                <!-- Dynamic Content -->
+            </div>
+    </div>
+
+    <!-- Bottom Action -->
+    <div class="fab-container">
+        <button class="btn-fab" onclick="location.href='create_case.html'">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 5V19M5 12H19" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            사례 생성
+        </button>
+    </div>
+
+
+        <!-- Delete Confirmation Modal -->
+        <div id="delete-modal-backdrop" onclick="closeDeleteModal()"></div>
+        <div id="delete-modal" class="bottom-modal">
+            <div style="font-size: 18px; font-weight: 700;">정말 삭제할까요?</div>
+            <div style="font-size: 14px; color: var(--text-sub); margin-top: 8px;">삭제하면 복구할 수 없습니다.</div>
+            <div class="modal-btns">
+                <button class="btn-no" onclick="closeDeleteModal()">아니오</button>
+                <button class="btn-yes" onclick="confirmDelete()">네</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deletingId = null;
+        let isSelectionMode = false;
+        let selectedCaseIds = [];
+        let touchStartX = 0;
+        let currentSwipeEl = null;
+
+        window.onload = function () {
+            initData();
+            renderDrafts();
+            renderCases();
+        };
+
+        function initData() {
+            // Simulation Reset Logic (Requirement 8)
+            // One-time reset to version 1.2 initial state
+            const RESET_KEY = 'dash_v1_2_simulation_v1';
+            if (!localStorage.getItem(RESET_KEY)) {
+                localStorage.removeItem('dash_cases');
+                localStorage.removeItem('dash_drafts');
+
+                // Initial 가상 데이터 생성
+                const initialCase = {
+                    id: 111,
+                    realName: "강윤수",
+                    maskedName: "강O수",
+                    dong: "선화동",
+                    createdAt: new Date().toISOString()
+                };
+                localStorage.setItem('dash_cases', JSON.stringify([initialCase]));
+                localStorage.setItem(RESET_KEY, 'true');
+            }
+        }
+
+        function renderDrafts() {
+            const drafts = JSON.parse(localStorage.getItem('dash_drafts') || '[]');
+            const container = document.getElementById('draft-list-container');
+            const section = document.getElementById('draft-section');
+
+            if (drafts.length > 0) {
+                section.style.display = 'block';
+                section.style.marginBottom = '30px';
+                document.getElementById('instruction-area').style.marginTop = '0';
+
+                container.innerHTML = drafts.map(d => {
+                    const maskedName = d.caseName.replace(/\*/g, 'O');
+                    const cases = JSON.parse(localStorage.getItem('dash_cases') || '[]');
+                    const foundCase = cases.find(c => c.realName === d.caseName);
+                    const dong = foundCase ? foundCase.dong : '미지정';
+
+                    // Format datetime: 2026-03-15 14:30 ~ 15:30 -> 03.15 14:30 ~ 03.15 15:30
+                    let displayTime = "시각 미지정";
+                    if (d.datetime && d.datetime !== '시각 미지정') {
+                        try {
+                            const parts = d.datetime.split(' ~ ');
+                            const startStr = parts[0]; // "2026-03-15 14:30"
+                            const endStr = parts[1];   // "15:30" or "2026-03-15 15:30"
+
+                            const startM = parseInt(startStr.substring(5, 7)); // "03" -> 3
+                            const startD = startStr.substring(8, 10);
+                            const startMD = `${startM}.${startD}`;
+                            const startHM = startStr.substring(11, 16);
+                            
+                            let endMD = startMD;
+                            let endHM = endStr;
+                            
+                            if (endStr.includes('-')) {
+                                const endM = parseInt(endStr.substring(5, 7));
+                                const endD = endStr.substring(8, 10);
+                                endMD = `${endM}.${endD}`;
+                                endHM = endStr.substring(11, 16);
+                            }
+                            
+                            displayTime = `${startMD} ${startHM} ~ ${endMD} ${endHM}`;
+                        } catch(e) {
+                            displayTime = d.datetime;
+                        }
+                    }
+
+                    return `
+                <div class="swipe-container" id="swipe-${d.id}">
+                    <div class="swipe-action">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 6H21M19 6V20C19 21.1046 18.1046 22 17 22H7C5.89543 22 5 21.1046 5 20V6M8 6V4C8 2.89543 8.89543 2 10 2H14C15.1046 2 16 2.89543 16 4V6M10 11V17M14 11V17" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div class="swipe-content card draft-card" 
+                         onclick="goToForm('${d.caseName}', '${dong}', ${d.id})"
+                         ontouchstart="handleTouchStart(event)"
+                         ontouchmove="handleTouchMove(event)"
+                         ontouchend="handleTouchEnd(event, ${d.id})">
+                        <div class="draft-info">
+                            <div class="draft-title">${maskedName} 아동 사례</div>
+                            <div class="draft-meta">대상: ${d.target} | 일시: ${displayTime}</div>
+                        </div>
+                        <div class="arrow-blue">〉</div>
+                    </div>
+                </div>
+            `}).join('');
+            } else {
+                section.style.display = 'none';
+                section.style.marginBottom = '0';
+                // Pull up items when no drafts
+                document.getElementById('instruction-area').style.marginTop = '-10px';
+            }
+        }
+
+        function renderCases() {
+            const cases = JSON.parse(localStorage.getItem('dash_cases') || '[]');
+            const container = document.getElementById('case-list-container');
+
+            cases.sort((a, b) => a.realName.localeCompare(b.realName, 'ko'));
+
+            if (cases.length > 0) {
+                container.innerHTML = cases.map(c => {
+                    const isSelected = selectedCaseIds.includes(c.id);
+                    const selIndex = selectedCaseIds.indexOf(c.id) + 1;
+                    
+                    return `
+                    <div class="case-item" style="position: relative;" onclick="handleCaseClick(event, ${c.id}, '${c.realName}', '${c.dong}')">
+                        <div class="case-name">${c.maskedName}</div>
+                        <div class="case-dong">${c.dong}</div>
+                        ${isSelectionMode ? `
+                            <div class="selection-badge ${isSelected ? 'selected' : ''}">
+                                ${isSelected ? selIndex : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `}).join('');
+            } else {
+                container.innerHTML = '<div style="grid-column: 1 / span 2; padding: 40px; color: #adb5bd; text-align: center;">등록된 사례가 없습니다.</div>';
+            }
+        }
+
+        function toggleSelectionMode() {
+            isSelectionMode = !isSelectionMode;
+            const btn = document.getElementById('mode-toggle-btn');
+            
+            if (isSelectionMode) {
+                btn.innerText = '삭제';
+                btn.className = 'btn-delete-mode';
+                selectedCaseIds = [];
+            } else {
+                // If were in selection mode and had items, trigger delete
+                if (selectedCaseIds.length > 0) {
+                    openDeleteModal('batch');
+                } else {
+                    btn.innerText = '선택';
+                    btn.className = 'btn-select-mode';
+                }
+            }
+            renderCases();
+        }
+
+        function handleCaseClick(event, id, name, dong) {
+            if (isSelectionMode) {
+                toggleCaseSelection(id);
+            } else {
+                goToForm(name, dong);
+            }
+        }
+
+        function toggleCaseSelection(id) {
+            const idx = selectedCaseIds.indexOf(id);
+            if (idx > -1) {
+                selectedCaseIds.splice(idx, 1);
+            } else {
+                selectedCaseIds.push(id);
+            }
+            renderCases();
+        }
+
+                // Touch Handlers for Swipe
+        function handleTouchStart(e) {
+            touchStartX = e.touches[0].clientX;
+            currentSwipeEl = e.currentTarget;
+            currentSwipeEl.style.transition = 'none';
+        }
+
+        function handleTouchMove(e) {
+            let x = e.touches[0].clientX;
+            let diff = x - touchStartX;
+            if (diff < 0 && diff > -100) {
+                currentSwipeEl.style.transform = `translateX(${diff}px)`;
+            }
+        }
+
+        function handleTouchEnd(e, id) {
+            currentSwipeEl.style.transition = 'transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+            let x = e.changedTouches[0].clientX;
+            let diff = x - touchStartX;
+
+            // Trigger modal if swiped significantly
+            if (diff < -120) {
+                openDeleteModal(id);
+                currentSwipeEl.style.transform = 'translateX(0)';
+            } else if (diff < -50) {
+                currentSwipeEl.style.transform = 'translateX(-80px)';
+            } else {
+                currentSwipeEl.style.transform = 'translateX(0)';
+            }
+        }
+
+        function openDeleteModal(id) {
+            deletingId = id;
+            document.getElementById('delete-modal-backdrop').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('delete-modal-backdrop').style.opacity = '1';
+                document.getElementById('delete-modal').classList.add('show');
+            }, 10);
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal-backdrop').style.opacity = '0';
+            document.getElementById('delete-modal').classList.remove('show');
+            setTimeout(() => {
+                document.getElementById('delete-modal-backdrop').style.display = 'none';
+                // Reset swipe
+                if (currentSwipeEl) currentSwipeEl.style.transform = 'translateX(0)';
+            }, 300);
+        }
+
+        function confirmDelete() {
+            if (deletingId === 'batch') {
+                let cases = JSON.parse(localStorage.getItem('dash_cases') || '[]');
+                cases = cases.filter(c => !selectedCaseIds.includes(c.id));
+                localStorage.setItem('dash_cases', JSON.stringify(cases));
+                
+                isSelectionMode = false;
+                selectedCaseIds = [];
+                const btn = document.getElementById('mode-toggle-btn');
+                btn.innerText = '선택';
+                btn.className = 'btn-select-mode';
+                
+                renderCases();
+            } else if (deletingId) {
+                let drafts = JSON.parse(localStorage.getItem('dash_drafts') || '[]');
+                drafts = drafts.filter(d => d.id !== deletingId);
+                localStorage.setItem('dash_drafts', JSON.stringify(drafts));
+                renderDrafts();
+            }
+            closeDeleteModal();
+        }
+
+
+
+        function goToForm(name, dong = null, draftId = null) {
+            let url = 'form.html';
+            const params = [];
+            if (name) params.push(`name=${encodeURIComponent(name)}`);
+            if (dong) params.push(`dong=${encodeURIComponent(dong)}`);
+            if (draftId) params.push(`draftId=${draftId}`);
+
+            if (params.length > 0) {
+                url += '?' + params.join('&');
+            }
+            window.location.href = url;
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,61 @@
+{
+    "manifest_version": 3,
+    "name": "Dash",
+    "version": "3.1",
+    "description": "모바일에서 작성한 상담 기록을 아동학대정보시스템에 1초 만에 주입합니다.",
+    "permissions": [
+        "storage",
+        "tabs",
+        "sidePanel",
+        "identity"
+    ],
+    "host_permissions": [
+        "*://localhost:*/*",
+        "*://ncads.go.kr/*",
+        "*://*.ncads.go.kr/*"
+    ],
+    "oauth2": {
+        "client_id": "893541530756-3u37iv22m0ivj7on65vmof2gln8uun5f.apps.googleusercontent.com",
+        "scopes": [
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
+        ]
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "action": {
+        "default_title": "Dash",
+        "default_icon": {
+            "16": "icon16.png",
+            "32": "icon32.png",
+            "48": "icon48.png",
+            "128": "icon128.png"
+        }
+    },
+    "icons": {
+        "16": "icon16.png",
+        "32": "icon32.png",
+        "48": "icon48.png",
+        "128": "icon128.png"
+    },
+    "side_panel": {
+        "default_path": "sidepanel.html"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "http://localhost:8080/*",
+                "*://localhost:*/*",
+                "*://localhost/*",
+                "*://ncads.go.kr/*",
+                "*://*.ncads.go.kr/*"
+            ],
+            "js": [
+                "core/config.js",
+                "core/message-types.js",
+                "content.js"
+            ]
+        }
+    ]
+}

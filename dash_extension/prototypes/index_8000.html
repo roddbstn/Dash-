@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>아동학대정보시스템 프로토타입</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .pop-layer {
+            background-color: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            border-radius: 12px;
+            width: 70%;
+            min-width: 800px;
+        }
+
+        .pop-h3 {
+            color: #333;
+            border-left: 5px solid #7b1fa2;
+            padding-left: 15px;
+            margin-bottom: 25px;
+            font-size: 20px;
+        }
+
+        .view_table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+        }
+
+        .view_table th {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: left;
+            font-size: 14px;
+            color: #495057;
+        }
+
+        .view_table td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            font-size: 14px;
+            position: relative;
+        }
+
+        .required {
+            color: #e91e63;
+            margin-left: 4px;
+            font-weight: bold;
+        }
+
+        .se_selec {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .se_selec:focus {
+            border-color: #7b1fa2;
+        }
+
+        input[type="text"],
+        textarea {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            width: calc(100% - 20px);
+            outline: none;
+            font-size: 14px;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            border-color: #7b1fa2;
+        }
+
+        .btn_right {
+            text-align: right;
+            margin-top: 20px;
+        }
+
+        .btn_purple {
+            background-color: #7b1fa2;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-block;
+            margin-left: 8px;
+            border: none;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        .btn_purple:hover {
+            background-color: #6a1b9a;
+        }
+
+        .btn_orange {
+            background-color: #ff9800;
+            color: white;
+            padding: 4px 10px;
+            text-decoration: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-block;
+            font-weight: bold;
+            font-size: 16px;
+            border: none;
+            vertical-align: middle;
+        }
+
+        #picId_view,
+        #recipientTyId_view {
+            margin-top: 12px;
+            padding: 12px;
+            background: #fdfdfd;
+            border: 1px dashed #ced4da;
+            min-height: 30px;
+            border-radius: 8px;
+        }
+
+        .added-item {
+            background: #7b1fa214;
+            color: #7b1fa2;
+            padding: 6px 12px;
+            margin: 4px;
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid #7b1fa240;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .added-item .btn-del {
+            margin-left: 8px;
+            cursor: pointer;
+            color: #ff5252;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .added-item .btn-del:hover {
+            color: #d32f2f;
+        }
+
+        /* Simple Calendar Modal */
+        #calendar-modal {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            padding: 10px;
+            display: none;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            text-align: center;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .calendar-day {
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .calendar-day:hover {
+            background: #7b1fa2;
+            color: white;
+        }
+
+        .calendar-day.sun {
+            color: red;
+        }
+
+        .calendar-day.sat {
+            color: blue;
+        }
+
+        .proto-banner {
+            background-color: #f1f8ff;
+            border: 1px solid #cce5ff;
+            color: #004085;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            line-height: 1.5;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .proto-banner b { color: #007bff; }
+    </style>
+</head>
+
+<body>
+
+    <div id="calendar-modal">
+        <div class="calendar-header">
+            <span id="cal-prev" style="cursor:pointer">&lt;</span>
+            <span id="cal-title">2025년 2월</span>
+            <span id="cal-next" style="cursor:pointer">&gt;</span>
+        </div>
+        <div class="calendar-grid">
+            <div style="color:red">일</div>
+            <div>월</div>
+            <div>화</div>
+            <div>수</div>
+            <div>목</div>
+            <div>금</div>
+            <div style="color:blue">토</div>
+        </div>
+    </div>
+
+    <div class="pop-layer">
+        <div class="proto-banner">
+            <div>
+                DB 입력시간 단축을 도와주는 <b>'Dash'</b> 프로그램의 테스트 페이지입니다.<br>
+                평소 DB 업무를 할 때처럼 이용해보세요.
+            </div>
+        </div>
+        <div class="bg_back">
+            <h4 class="pop-h3">서비스 제공 내용</h4>
+        </div>
+
+        <table class="view_table">
+            <colgroup>
+                <col style="width:150px">
+                <col style="width:400px">
+                <col style="width:150px">
+                <col style="width:150px">
+                <col style="width:auto">
+            </colgroup>
+            <tbody>
+                <tr>
+                    <th>제공구분<span class="required">*</span></th>
+                    <td>
+                        <input type="radio" id="provCd_A" name="provCd" value="A" checked="checked">
+                        제공&nbsp;&nbsp;&nbsp;
+                        <input type="radio" id="provCd_B" name="provCd" value="B"> 부가업무&nbsp;&nbsp;&nbsp;
+                        <input type="radio" id="provCd_C" name="provCd" value="C"> 거부&nbsp;&nbsp;&nbsp;
+                    </td>
+                    <th>서비스제공방법</th>
+                    <td colspan="2">
+                        <select id="provMeansCd" name="provMeansCd" class="se_selec">
+                            <option value="">--선택--</option>
+                            <option value="A">전화</option>
+                            <option value="B">내방</option>
+                            <option value="C">방문</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th>서비스제공유형<span class="required">*</span></th>
+                    <td>
+                        <select id="provTyCd" name="provTyCd" class="se_selec" style="width:160px;">
+                            <option value="">--선택--</option>
+                            <option value="A">아보전서비스</option>
+                            <option value="B">연계서비스</option>
+                            <option value="C">통합서비스</option>
+                        </select>
+                    </td>
+                    <th>서비스제공기관<span class="required">*</span></th>
+                    <td colspan="2">
+                        <input type="text" id="provInstList" name="provInstList" style="width:210px;"
+                            readonly="readonly" value="대전광역시아동보호전문기관">
+                        <a href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg></a>
+                    </td>
+                </tr>
+                <tr>
+                    <th>제공서비스<span class="required">*</span></th>
+                    <td>
+                        <select id="svcClassDetailCd" name="svcClassDetailCd" class="se_selec">
+                            <option value="">-- 선택 --</option>
+                            <option value="010509">생활용품 지원 :: 의류지원</option>
+                            <option value="060103">안전 및 인권교육 :: 성폭력(예방)교육</option>
+                            <option value="060524">아동학대대상자 및 가족 지원 :: 사례회의</option>
+                            <option value="060510">아동학대대상자 및 가족 지원 :: 아동 양육기술 상담 및 교육</option>
+                            <option value="010201">식사(식품) 지원 :: 식품지원</option>
+                            <option value="060101">안전 및 인권교육 :: 아동권리교육</option>
+                            <option value="060534">아동학대대상자 및 가족 지원 :: 외부기관연계지원</option>
+                            <option value="010703">복합지원 :: 복지서비스정보물제공</option>
+                            <option value="060104">안전 및 인권교육 :: 안전교육</option>
+                            <option value="060501">아동학대대상자 및 가족 지원 :: 아동 안전점검 및 상담</option>
+                            <option value="060522">아동학대대상자 및 가족 지원 :: 사건처리 및 절차지원</option>
+                            <option value="010501">생활용품 지원 :: 기타생활용품지원</option>
+                            <option value="060102">안전 및 인권교육 :: 학대예방교육</option>
+                        </select>
+                    </td>
+                    <th> 홈케어플래너서포터즈</th>
+                    <td colspan="2"><input type="checkbox" name="svcHomeCare" id="svcHomeCare" value="Y"> </td>
+                </tr>
+                <tr>
+                    <th scope="row">대상자<span class="required">*</span></th>
+                    <td colspan="4">
+                        <div style="padding-bottom:8px;color:olive;font-size:12px;">※'가족구성원'은 [피해아동명] [아동과의 관계] [구성원명]으로
+                            입력해주세요.</div>
+                        <div>
+                            <select id="svcExecRecipientTyCd" name="svcExecRecipientTyCd" class="se_selec"
+                                onchange="fnUpdateRecipientOptions()">
+                                <option value="">-- 선택 --</option>
+                                <option value="A">피해아동</option>
+                                <option value="B">사례관리대상자</option>
+                                <option value="C">가족전체</option>
+                                <option value="D">가족구성원</option>
+                                <option value="E">시설</option>
+                                <option value="F">기타관련인</option>
+                            </select>
+                            <select id="svcExecRecipientId" name="svcExecRecipientId" class="se_selec">
+                                <option value="">-- 선택 --</option>
+                            </select>
+                            <a class="btn_orange" href="javascript:fnAddRecipient();">+</a>
+                        </div>
+                        <div id="recipientTyId_view"><span class="added-item">[피해아동] 강화정 <span class="btn-del"
+                                    onclick="this.parentElement.remove()">×</span></span></div>
+                    </td>
+                </tr>
+                <tr>
+                    <th>서비스제공장소<span class="required">*</span></th>
+                    <td colspan="2">
+                        <select id="svcProvLocCd" name="svcProvLocCd" class="se_selec" style="width:160px;">
+                            <option value="">--선택--</option>
+                            <option value="A">기관내</option>
+                            <option value="B">아동가정</option>
+                            <option value="C">유관기관</option>
+                            <option value="X">기타</option>
+                        </select>
+                        <input type="text" id="svcProvLocEtc" name="svcProvLocEtc"
+                            style="width: 100px; margin-left: 5px;" placeholder="기타 장소">
+                    </td>
+                    <th>서비스제공횟수<span class="required">*</span></th>
+                    <td>
+                        <input id="svcProvCnt" name="svcProvCnt" style="width:50px;text-align:center;" type="text"
+                            value="1" maxlength="3"> 회
+                    </td>
+                </tr>
+                <tr>
+                    <th>서비스제공일시<span class="required">*</span></th>
+                    <td colspan="2">
+                        <input id="svcProvStartDate" name="svcProvStartDate" type="text" style="width:90px;"
+                            placeholder="날짜 선택" readonly onclick="showCalendar(this)">
+                        <input id="svcProvStartHH" name="svcProvStartHH" style="width:30px; text-align:center"
+                            type="text" value="14" maxlength="2">시
+                        <input id="svcProvStartMI" name="svcProvStartMI" style="width:30px; text-align:center"
+                            type="text" value="00" maxlength="2">분
+                        ~
+                        <input id="svcProvEndDate" name="svcProvEndDate" type="text" style="width:90px;"
+                            placeholder="날짜 선택" readonly onclick="showCalendar(this)">
+                        <input id="svcProvEndHH" name="svcProvEndHH" style="width:30px; text-align:center" type="text"
+                            value="15" maxlength="2">시
+                        <input id="svcProvEndMI" name="svcProvEndMI" style="width:30px; text-align:center" type="text"
+                            value="00" maxlength="2">분
+                    </td>
+                    <th>이동소요시간<span class="required">*</span></th>
+                    <td>
+                        <input id="mvmnReqreHr" name="mvmnReqreHr" style="width:50px;text-align:center;" type="text"
+                            value="0" maxlength="3">분
+                    </td>
+                </tr>
+                <tr>
+                    <th>서비스 제공자<span class="required">*</span></th>
+                    <td colspan="4">
+                        <select id="picId" name="picId" class="se_selec" style="width:180px;">
+                            <option value="">--제공자선택--</option>
+                            <option value="HPC01">클린턴</option>
+                            <option value="HPC02">오바마</option>
+                            <option value="HPC03">트럼프</option>
+                            <option value="HPC04">일론</option>
+                            <option value="HPC05">주커버그</option>
+                            <option value="HPC06">알렉스카프</option>
+                        </select>
+                        <a class="btn_orange" href="javascript:fnAddPicId();">+</a>
+                        <div id="picId_view"></div>
+                    </td>
+                </tr>
+                <tr>
+                    <th>서비스내용<span class="required">*</span></th>
+                    <td colspan="4">
+                        <textarea id="svcProvDesc" name="svcProvDesc" rows="6" placeholder="자세한 내용을 입력하세요."></textarea>
+                    </td>
+                </tr>
+                <tr>
+                    <th>상담원소견</th>
+                    <td colspan="4">
+                        <textarea id="consOpn" name="consOpn" rows="2" placeholder="상담원 소견 입력"></textarea>
+                    </td>
+                </tr>
+                <tr>
+                    <th>첨부파일</th>
+                    <td colspan="4">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button class="btn_purple" style="background: #007bff; padding: 6px 15px;"
+                                onclick="document.getElementById('file-upload').click()">찾아보기</button>
+                            <input type="file" id="file-upload" style="display: none;">
+                            <button class="btn_purple" style="background: #28a745; padding: 6px 15px;"
+                                onclick="alert('첨부파일이 저장되었습니다.')">첨부파일 저장</button>
+                            <span id="file-name" style="font-size: 12px; color: #666;">선택된 파일 없음</span>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="btn_right">
+            <button class="btn_purple" onclick="fnSaveSvcExec()">저장</button>
+            <button class="btn_purple" style="background: #6c757d" onclick="window.close()">닫기</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('file-upload')?.addEventListener('change', function (e) {
+            document.getElementById('file-name').innerText = e.target.files[0] ? e.target.files[0].name : '선택된 파일 없음';
+        });
+        let targetInput = null;
+
+        function fnUpdateRecipientOptions() {
+            const tyCd = document.getElementById('svcExecRecipientTyCd').value;
+            const recId = document.getElementById('svcExecRecipientId');
+            recId.innerHTML = '<option value="">-- 선택 --</option>';
+
+            let opts = [];
+            if (tyCd === 'A') opts = [{ v: '1', t: '[피해아동] 강화정' }];
+            else if (tyCd === 'B') opts = [];
+            else if (tyCd === 'C') opts = [];
+            else if (tyCd === 'D') opts = [];
+            else if (tyCd === 'E') opts = [];
+
+            opts.forEach(opt => {
+                const el = document.createElement('option');
+                el.value = opt.v; el.text = opt.t;
+                recId.appendChild(el);
+            });
+        }
+
+        function fnAddRecipient() {
+            const select = document.getElementById('svcExecRecipientId');
+            if (!select.value) return;
+            addItem(document.getElementById('recipientTyId_view'), select.options[select.selectedIndex].text);
+        }
+
+        function fnAddPicId() {
+            const select = document.getElementById('picId');
+            if (!select.value) return;
+            addItem(document.getElementById('picId_view'), select.options[select.selectedIndex].text);
+        }
+
+        function addItem(parent, text) {
+            const span = document.createElement('span');
+            span.className = 'added-item';
+            span.innerHTML = `${text} <span class="btn-del" onclick="this.parentElement.remove()">×</span>`;
+            parent.appendChild(span);
+        }
+
+        function fnSaveSvcExec() { alert('성공적으로 저장되었습니다.'); }
+
+        const modal = document.getElementById('calendar-modal');
+        const calTitle = document.getElementById('cal-title');
+        const calGrid = document.querySelector('.calendar-grid');
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth();
+
+        function showCalendar(input) {
+            targetInput = input;
+            const rect = input.getBoundingClientRect();
+            modal.style.display = 'block';
+            modal.style.left = rect.left + 'px';
+            modal.style.top = (rect.top + window.scrollY - 200) + 'px'; // Simplified positioning
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            calTitle.innerText = `${currentYear}년 ${currentMonth + 1}월`;
+            const headers = ['일', '월', '화', '수', '목', '금', '토'];
+            calGrid.innerHTML = headers.map(h => `<div style="font-weight:bold; color:${h === '일' ? 'red' : h === '토' ? 'blue' : 'inherit'}">${h}</div>`).join('');
+
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const lastDate = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) calGrid.appendChild(document.createElement('div'));
+
+            for (let date = 1; date <= lastDate; date++) {
+                const div = document.createElement('div');
+                div.className = 'calendar-day';
+                const dayOfWeek = new Date(currentYear, currentMonth, date).getDay();
+                if (dayOfWeek === 0) div.style.color = 'red';
+                if (dayOfWeek === 6) div.style.color = 'blue';
+                div.innerText = date;
+                div.onclick = () => {
+                    targetInput.value = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                    modal.style.display = 'none';
+                };
+                calGrid.appendChild(div);
+            }
+        }
+
+        document.getElementById('cal-prev').onclick = (e) => { e.stopPropagation(); if (--currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar(); };
+        document.getElementById('cal-next').onclick = (e) => { e.stopPropagation(); if (++currentMonth > 11) { currentMonth = 0; currentYear++; } renderCalendar(); };
+        document.addEventListener('click', (e) => { if (targetInput && !modal.contains(e.target) && e.target !== targetInput) modal.style.display = 'none'; });
+    </script>
+</body>
+
+</html>

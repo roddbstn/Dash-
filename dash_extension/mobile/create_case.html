@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Dash - 사례 생성</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3182f6;
+            --bg: #fafaf8;
+            --card: #ffffff;
+            --text-main: #222222;
+            --text-sub: #4e5968;
+            --border: #e5e8eb;
+            --error: #f04452;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Pretendard', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        html, body {
+            background-color: var(--bg);
+            min-height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--bg);
+        }
+
+        .btn-back {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            color: var(--text-main);
+        }
+
+        .container {
+            flex: 1;
+            padding: 40px 20px; /* 24px에서 20px로 통일 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            background-color: var(--bg);
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: var(--text-sub);
+            margin-bottom: 48px;
+        }
+
+        .input-wrapper {
+            width: 100%;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .input-field {
+            width: 100%;
+            border: none;
+            border-bottom: 2px solid var(--border);
+            font-size: 28px;
+            font-weight: 600;
+            padding: 12px 0;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.3s;
+            background: transparent; /* Changed from default white */
+        }
+
+        .input-field:focus {
+            border-color: var(--primary);
+        }
+
+        .input-field::placeholder {
+            color: #d1d6db;
+        }
+
+
+        .bottom-bar {
+            position: fixed !important;
+            bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            width: 100% !important;
+            max-width: 500px !important;
+            padding: 0 20px !important;
+            background: transparent !important;
+            border-top: none !important;
+            box-shadow: none !important;
+            z-index: 1000 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            pointer-events: none !important;
+        }
+
+        .btn-next {
+            pointer-events: auto;
+            width: 100%;
+            padding: 18px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 100px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 10px 30px rgba(49, 130, 246, 0.4);
+        }
+
+        .btn-next:disabled {
+            background-color: #d1d6db; /* 회색 배경 */
+            color: #ffffff;            /* 흰색 글자 */
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-next:active:not(:disabled) {
+            transform: scale(0.98);
+            background-color: #1a6dff;
+        }
+
+        /* Step transitions */
+        .step {
+            display: none;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .step.active {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <button class="btn-back" onclick="handleBack()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 18L9 12L15 6" stroke="#222222" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+</header>
+
+<div class="container">
+    <!-- Step 1: Name Input -->
+    <div id="step-1" class="step active">
+        <h1 class="title">아동의 이름을 입력해주세요</h1>
+        <p class="subtitle">마스킹 처리하여 실명은 저장되지 않아요</p>
+        
+        <div class="input-wrapper">
+            <input type="text" id="child-name" class="input-field" placeholder="이름 입력" autocomplete="off" autofocus enterkeyhint="next">
+        </div>
+    </div>
+
+    <!-- Step 2: Dong Input -->
+    <div id="step-2" class="step">
+        <h1 class="title">아동이 사는 동의 이름을<br>입력해주세요</h1>
+        <p class="subtitle">예) 선화동, 유천동</p>
+        
+        <div class="input-wrapper">
+            <input type="text" id="dong-name" class="input-field" placeholder="동 이름 입력" autocomplete="off" enterkeyhint="done">
+        </div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button id="btn-next" class="btn-next" disabled onclick="handleNext()">다음</button>
+</div>
+
+<script>
+    let currentStep = 1;
+    let realName = "";
+    let dongName = "";
+
+    const nameInput = document.getElementById('child-name');
+    const maskOverlay = document.getElementById('mask-overlay');
+    const dongInput = document.getElementById('dong-name');
+    const nextBtn = document.getElementById('btn-next');
+
+    nameInput.addEventListener('input', (e) => {
+        const val = e.target.value;
+        const masked = getMaskedName(val);
+        
+        if (val !== masked) {
+            const start = e.target.selectionStart;
+            const end = e.target.selectionEnd;
+            e.target.value = masked;
+            // Restore cursor position if possible
+            e.target.setSelectionRange(start, end);
+        }
+
+        realName = e.target.value; // Now realName literally contains 'O'
+        nextBtn.disabled = realName.length < 1;
+    });
+
+    dongInput.addEventListener('input', (e) => {
+        dongName = e.target.value;
+        nextBtn.disabled = dongName.length < 1;
+    });
+
+    // Handle Enter key for next/done
+    nameInput.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter' && !nextBtn.disabled) handleNext();
+    });
+    dongInput.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter' && !nextBtn.disabled && currentStep === 2) handleNext();
+    });
+
+    function getMaskedName(name) {
+        if (!name) return "";
+        const len = name.length;
+        if (len <= 1) return name;
+        
+        let chars = name.split('');
+        if (len === 2) {
+            chars[1] = 'O';
+        } else if (len === 3) {
+            chars[1] = 'O';
+        } else if (len === 4) {
+            chars[1] = 'O';
+            chars[2] = 'O';
+        } else {
+            // 5 chars or more: mask all but first and last
+            for (let i = 1; i < len - 1; i++) {
+                chars[i] = 'O';
+            }
+        }
+        return chars.join('');
+    }
+
+    function handleNext() {
+        if (currentStep === 1) {
+            currentStep = 2;
+            document.getElementById('step-1').classList.remove('active');
+            document.getElementById('step-2').classList.add('active');
+            nextBtn.innerText = "저장";
+            nextBtn.disabled = true;
+            setTimeout(() => dongInput.focus(), 100);
+        } else {
+            saveCase();
+        }
+    }
+
+    function handleBack() {
+        window.location.href = 'index.html';
+    }
+
+    function saveCase() {
+        const cases = JSON.parse(localStorage.getItem('dash_cases') || '[]');
+        const newCase = {
+            id: Date.now(),
+            realName: realName, // This is already masked
+            maskedName: realName, 
+            dong: dongName,
+            createdAt: new Date().toISOString()
+        };
+        cases.push(newCase);
+        localStorage.setItem('dash_cases', JSON.stringify(cases));
+        window.location.href = 'index.html';
+    }
+
+    // Handle Enter key
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !nextBtn.disabled) {
+            handleNext();
+        }
+    });
+
+</script>
+
+</body>
+</html>

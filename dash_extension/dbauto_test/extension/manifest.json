@@ -1,0 +1,44 @@
+{
+    "manifest_version": 3,
+    "name": "dbauto — 라벨 자동 입력기",
+    "version": "1.0.0",
+    "description": "엑셀 파일을 드래그하면 labelmaker.kr에 자동으로 입력합니다",
+    "permissions": [
+        "tabs",
+        "scripting",
+        "activeTab"
+    ],
+    "host_permissions": [
+        "*://labelmaker.kr/*",
+        "*://www.labelmaker.kr/*"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "icons/icon16.png",
+            "48": "icons/icon48.png",
+            "128": "icons/icon128.png"
+        },
+        "default_title": "dbauto — 라벨 자동 입력기"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://labelmaker.kr/*",
+                "*://www.labelmaker.kr/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "icons": {
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    }
+}

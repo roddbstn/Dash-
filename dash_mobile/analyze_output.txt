@@ -1,0 +1,21 @@
+Analyzing dash_mobile...                                        
+
+   info • The imported package 'intl' isn't a dependency of the importing package • lib/form_screen.dart:4:8 • depend_on_referenced_packages
+  error • Target of URI doesn't exist: 'package:intl/intl.dart' • lib/form_screen.dart:4:8 • uri_does_not_exist
+   info • The private field _provisionCount could be 'final' • lib/form_screen.dart:30:7 • prefer_final_fields
+warning • The value of the field '_provisionCount' isn't used • lib/form_screen.dart:30:7 • unused_field
+  error • The method 'DateFormat' isn't defined for the type '_FormScreenState' • lib/form_screen.dart:77:14 • undefined_method
+  error • The method 'DateFormat' isn't defined for the type '_FormScreenState' • lib/form_screen.dart:77:70 • undefined_method
+   info • Don't use 'BuildContext's across async gaps • lib/form_screen.dart:116:9 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/form_screen.dart:121:11 • use_build_context_synchronously
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/form_screen.dart:251:17 • deprecated_member_use
+  error • The method 'DateFormat' isn't defined for the type '_FormScreenState' • lib/form_screen.dart:295:28 • undefined_method
+  error • The method 'DateFormat' isn't defined for the type '_FormScreenState' • lib/form_screen.dart:295:79 • undefined_method
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/form_screen.dart:345:48 • deprecated_member_use
+   info • Unnecessary 'const' keyword • lib/home_screen.dart:197:28 • unnecessary_const
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/home_screen.dart:256:113 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/home_screen.dart:360:65 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/home_screen.dart:363:50 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/home_screen.dart:419:111 • deprecated_member_use
+   info • 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre • lib/theme.dart:22:9 • deprecated_member_use
+
