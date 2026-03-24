@@ -5,10 +5,10 @@ import 'package:dash_mobile/storage_service.dart';
 
 class ApiService {
   // --- Deployment Settings ---
-  static const bool isProduction = false; // 🔄 Change to true for deployment
+  static const bool isProduction = true; // 🚀 Set to true for Final Launch!
 
   // Production: Enter your Cloud Domain here (e.g. railway/supabase url)
-  static const String prodUrl = 'https://YOUR_PRODUCTION_API.com';
+  static const String prodUrl = 'https://dash-production-3aba.up.railway.app';
   
   // Local (Android Emulator 10.0.2.2 points to localhost:3000)
   static const String localUrl = 'http://10.0.2.2:3000';

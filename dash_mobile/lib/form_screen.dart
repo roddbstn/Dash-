@@ -371,8 +371,9 @@ class _FormScreenState extends State<FormScreen> {
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
               child: Row(
                 children: [
-                  Expanded(child: Text("${widget.caseName} 아동", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-                  Text(widget.dong, style: const TextStyle(color: Colors.grey)),
+                  Text("${widget.caseName} 아동", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  Text(widget.dong, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 13)),
                 ],
               ),
             ),
@@ -420,11 +421,36 @@ class _FormScreenState extends State<FormScreen> {
             _buildSection(label: '서비스 제공횟수', child: Row(children: [SizedBox(width: 40, child: TextField(controller: _serviceCountController, textAlign: TextAlign.center)), const Text('회')])),
             _buildSection(
               label: '이동소요시간',
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                   Wrap(spacing: 5, children: [5, 10, 15, 20, 30].map((t) => _buildChip("$t분", _travelTime == t, (val) => setState(() { _travelTime = t; _isManualTravelTime = false; }))).toList()),
-                   const SizedBox(width: 8),
-                   if (_isManualTravelTime) SizedBox(width: 40, child: TextField(controller: _travelTimeController, onChanged: (v) => setState(() => _travelTime = int.tryParse(v) ?? 0))),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...[5, 10, 15, 20, 30].map((t) => _buildChip("$t분", (!_isManualTravelTime && _travelTime == t), (val) => setState(() { _travelTime = t; _isManualTravelTime = false; }))),
+                      _buildChip("직접 입력", _isManualTravelTime, (val) => setState(() => _isManualTravelTime = true)),
+                    ],
+                  ),
+                  if (_isManualTravelTime) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 80,
+                          child: TextField(
+                            controller: _travelTimeController,
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            decoration: const InputDecoration(hintText: '0'),
+                            onChanged: (v) => setState(() => _travelTime = int.tryParse(v) ?? 0),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('분', style: TextStyle(fontSize: 14, color: AppColors.textSub)),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
