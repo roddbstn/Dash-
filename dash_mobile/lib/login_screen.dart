@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.primary,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -63,89 +63,61 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
-              // 로고 영역 (나중에 대시 로고 넣기)
+              // 로고 영역
               Container(
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.flash_on_rounded, color: AppColors.primary, size: 40),
+                child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 40),
               ),
               const SizedBox(height: 24),
               const Text(
                 'Dash',
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.textMain),
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
               ),
               const SizedBox(height: 8),
-              const Text(
-                '현장 활동 기록의 혁신, 대시',
-                style: TextStyle(fontSize: 16, color: AppColors.textSub, fontWeight: FontWeight.w500),
+              Text(
+                '모바일로 DB 기록하세요',
+                style: TextStyle(fontSize: 16, color: Colors.white.withValues(alpha: 0.85), fontWeight: FontWeight.w500),
               ),
               const Spacer(),
               if (_isLoading)
-                const CircularProgressIndicator(color: AppColors.primary)
+                const CircularProgressIndicator(color: Colors.white)
               else
                   SizedBox(
                     width: double.infinity,
-                    height: 40,
-                    child: OutlinedButton(
+                    height: 44,
+                    child: ElevatedButton(
                       onPressed: _signInWithGoogle,
-                      style: OutlinedButton.styleFrom(
+                      style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFF1F1F1F),
-                        side: const BorderSide(color: Color(0xFF747775)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)), // Google Guideline radius
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                      ).copyWith(
-                        elevation: WidgetStateProperty.resolveWith<double>((Set<WidgetState> states) {
-                          if (states.contains(WidgetState.hovered)) return 1.0;
-                          if (states.contains(WidgetState.pressed)) return 0.0;
-                          return 0.0;
-                        }),
-                        backgroundColor: WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
-                          if (states.contains(WidgetState.hovered) || states.contains(WidgetState.pressed)) {
-                            return const Color(0xFF303030).withValues(alpha: 0.08);
-                          }
-                          return Colors.white;
-                        }),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
+                          Image.asset(
+                            'assets/icons/google_logo.png',
                             width: 20,
                             height: 20,
-                            margin: const EdgeInsets.only(right: 10),
-                            child: Center(
-                              child: Text(
-                                'G',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
-                                  fontFamily: 'Roboto', 
-                                  foreground: Paint()..shader = const LinearGradient(
-                                    colors: [Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335)],
-                                  ).createShader(const Rect.fromLTWH(0, 0, 20, 20)),
-                                ),
-                              ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Text(
+                            '구글 아이디로 계속하기',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1F1F1F),
+                              letterSpacing: -0.2,
                             ),
                           ),
-                          const Expanded(
-                            child: Text(
-                              'Continue with Google', 
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14, 
-                                fontFamily: 'Roboto',
-                                fontWeight: FontWeight.w500, 
-                                color: Color(0xFF1F1F1F),
-                                letterSpacing: 0.25,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 30), // visually balance the icon width + margin
                         ],
                       ),
                     ),
