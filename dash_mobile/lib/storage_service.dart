@@ -9,14 +9,7 @@ class StorageService {
   static Future<void> initInitialData() async {
     final prefs = await SharedPreferences.getInstance();
     if (!prefs.containsKey('dash_v1_2_init')) {
-      final initialCase = {
-        'id': 111,
-        'realName': '강윤수',
-        'maskedName': '강O수',
-        'dong': '선화동',
-        'createdAt': DateTime.now().toIso8601String(),
-      };
-      await prefs.setString(_casesKey, jsonEncode([initialCase]));
+      await prefs.setString(_casesKey, jsonEncode([]));
       await prefs.setBool('dash_v1_2_init', true);
     }
   }

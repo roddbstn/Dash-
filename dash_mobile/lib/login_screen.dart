@@ -49,21 +49,16 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const Spacer(),
               // 로고 영역
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 40),
-              ),
-              const SizedBox(height: 24),
               const Text(
-                'Dash',
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
+                'DASH',
+                style: TextStyle(
+                  fontSize: 54,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: -1.2,
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
                 '모바일로 DB 기록하세요',
                 style: TextStyle(fontSize: 16, color: Colors.white.withValues(alpha: 0.85), fontWeight: FontWeight.w500),

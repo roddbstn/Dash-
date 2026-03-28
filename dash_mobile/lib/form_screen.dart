@@ -242,29 +242,64 @@ class _FormScreenState extends State<FormScreen> {
   }
 
   void _showSuccessDialog(bool isOffline) {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      barrierDismissible: false,
       builder: (context) => PopScope(
         canPop: false,
-        child: SafeArea(
+        child: Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(isOffline ? Icons.wifi_off : Icons.check_circle, color: isOffline ? Colors.orange : AppColors.primary, size: 60),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: (isOffline ? Colors.orange : AppColors.primary).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isOffline ? Icons.wifi_off_rounded : Icons.check_circle_rounded,
+                    color: isOffline ? Colors.orange : AppColors.primary,
+                    size: 48,
+                  ),
+                ),
                 const SizedBox(height: 24),
-                Text(isOffline ? '오프라인 임시저장' : 'DB 준비 끝!', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                Text(
+                  isOffline ? '오프라인 임시저장' : 'DB 준비 끝!',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textMain),
+                ),
                 const SizedBox(height: 12),
-                Text(isOffline ? '네트워크 연결 시 자동 동기화됩니다.' : '리뷰 링크를 공유해보세요.', textAlign: TextAlign.center),
+                Text(
+                  isOffline ? '네트워크 연결 시 자동 동기화됩니다.' : '리뷰 링크를 공유해보세요.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textSub, fontSize: 15),
+                ),
                 const SizedBox(height: 32),
-                if (!isOffline) DashButton(onTap: () { Navigator.pop(context); _showShareModal(); }, text: '공유하기', backgroundColor: AppColors.primary, height: 56),
-                const SizedBox(height: 12),
-                TextButton(onPressed: () { Navigator.pop(context); Navigator.pop(this.context, true); }, child: const Text('홈으로 가기')),
+                if (!isOffline) 
+                  DashButton(
+                    onTap: () { 
+                      Navigator.pop(context); 
+                      _showShareModal(); 
+                    }, 
+                    text: '공유하기', 
+                    backgroundColor: AppColors.primary, 
+                    height: 54
+                  ),
+                if (!isOffline) const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () { 
+                      Navigator.pop(context); 
+                      Navigator.pop(this.context, true); 
+                    }, 
+                    child: const Text('홈으로 가기', style: TextStyle(color: Color(0xFF8B95A1), fontWeight: FontWeight.w600)),
+                  ),
+                ),
               ],
             ),
           ),
@@ -301,7 +336,7 @@ class _FormScreenState extends State<FormScreen> {
                     final String key = _currentDraft?['encryption_key'] ?? '';
                     final String host = ApiService.baseUrl.replaceAll('/api', '');
                     final url = "$host/?token=$token${key.isNotEmpty ? '#$key' : ''}";
-                    Share.share('[${widget.caseName} 상담 기록]\n\n$url');
+                    Share.share('[${widget.caseName} 서비스 제공 DB]\n\n$url');
                   }),
                   _buildShareItem(label: '링크 복사', icon: Icons.link, color: const Color(0xFFF2F4F6), iconColor: AppColors.textMain, onTap: () {
                     Navigator.pop(context);
@@ -362,7 +397,7 @@ class _FormScreenState extends State<FormScreen> {
         title: Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
-          if (widget.draftId != null) IconButton(icon: const Icon(Icons.share_outlined), onPressed: _showShareModal),
+          if (widget.draftId != null) IconButton(icon: const Icon(Icons.ios_share, size: 22), onPressed: _showShareModal),
         ],
       ),
       body: _isLoading ? const Center(child: CircularProgressIndicator()) : Column(
@@ -434,12 +469,10 @@ class _FormScreenState extends State<FormScreen> {
                       children: ['피해아동', '사례관리대상자', '가족구성원', '가족전체', '시설', '기타'].map((t) => _buildChip(t, _selectedTargets.contains(t), (val) {
                         setState(() {
                           if (_selectedTargets.contains(val)) _selectedTargets.remove(val); else _selectedTargets.add(val);
-                          _showOtherTargetField = _selectedTargets.contains('기타');
                         });
                       })).toList(),
                     ),
                   ),
-                  if (_showOtherTargetField) _buildSection(label: '기타 대상자', child: TextField(controller: _otherTargetController)),
                   _buildSection(label: '제공구분', child: Wrap(spacing: 8, children: ['제공', '부가업무', '거부'].map((t) => _buildChip(t, _selectedProvisionType == t, (val) => setState(() => _selectedProvisionType = val))).toList())),
                   _buildSection(label: '제공방법', child: Wrap(spacing: 8, children: ['방문', '내방', '전화'].map((t) => _buildChip(t, _selectedMethod == t, (val) => setState(() => _selectedMethod = val))).toList())),
                   _buildSection(label: '서비스유형', child: Wrap(spacing: 8, children: ['아보전', '연계', '통합'].map((t) => _buildChip(t, _selectedServiceType == t, (val) => setState(() => _selectedServiceType = val))).toList())),

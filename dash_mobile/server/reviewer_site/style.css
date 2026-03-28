@@ -24,7 +24,7 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    background: var(--bg);
+    background: var(--surface);
 }
 
 * {
@@ -198,16 +198,17 @@ body {
     background: var(--bg);
     display: flex;
     flex-direction: column;
-    padding: 0 0 32px 110px; /* Double standard gap for more breathing room */
+    padding: 32px 48px 120px 48px;
+    align-items: center;
 }
 
 .editor-container {
-    max-width: 1200px;
+    max-width: 900px;
     margin: 0;
     width: 100%;
     background: var(--surface);
-    border-radius: 28px;
-    padding: 12px 0 100px 0;
+    border-radius: 32px;
+    padding: 60px 80px;
     box-shadow: var(--shadow);
     min-height: auto;
 }
@@ -235,15 +236,16 @@ body {
 
 .writing-workspace textarea {
     width: 100%;
-    min-height: 150px;
+    min-height: 200px;
     border: none;
     outline: none;
-    font-size: 15px;
-    line-height: 1.6;
+    font-size: 16px;
+    line-height: 1.8;
     color: var(--text-main);
     resize: none;
     font-family: inherit;
     background: transparent;
+    padding: 12px 0;
 }
 
 /* Buttons */

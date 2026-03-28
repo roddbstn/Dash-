@@ -711,12 +711,15 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: AppColors.bg,
         elevation: 0,
         scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 20,
         title: const Text(
-          'Dash',
+          'DASH',
           style: TextStyle(
             color: AppColors.primary,
-            fontWeight: FontWeight.w800,
-            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            fontSize: 22,
+            letterSpacing: -0.4,
           ),
         ),
       ),
@@ -733,7 +736,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: _currentIndex != 0 ? null : Container(
-        margin: const EdgeInsets.only(bottom: 20),
+        margin: const EdgeInsets.only(bottom: 12),
         child: ElevatedButton(
           onPressed: () async {
             final result = await Navigator.push(
@@ -1008,7 +1011,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  _userName ?? '사용자',
+                  '${_userName ?? '사용자'}님',
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 24, color: AppColors.textMain),
                 ),
                 const SizedBox(width: 8),
@@ -1095,17 +1098,13 @@ class _HomeScreenState extends State<HomeScreen> {
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: IntrinsicHeight(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 child: Column(
                   children: [
-                    const SizedBox(height: 8),
                     _InfoBanner(),
-                      const SizedBox(height: 20),
-                      Container(
-                        width: double.infinity,
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
                         padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(24),
@@ -1376,7 +1375,7 @@ class _InfoBanner extends StatelessWidget {
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
-              'Dash에서 DB를 어떻게 작성할까요?',
+              '앱에서 DB를 어떻게 작성하나요?',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
