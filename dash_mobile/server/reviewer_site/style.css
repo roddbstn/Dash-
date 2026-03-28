@@ -122,10 +122,11 @@ body {
 }
 
 .logo {
-    font-size: 22px;
-    font-weight: 900;
+    font-size: 24px;
+    font-weight: 950;  /* Thick weighting like mobile logo */
     color: var(--primary);
-    letter-spacing: -0.8px;
+    letter-spacing: -1.2px;
+    opacity: 1;
 }
 
 .info-section {
@@ -195,21 +196,20 @@ body {
 /* Editor Area */
 .editor-area {
     flex: 1;
-    background: var(--bg);
+    background: var(--surface); /* All white! */
     display: flex;
     flex-direction: column;
-    padding: 32px 48px 120px 48px;
-    align-items: center;
+    padding: 0 0 32px 110px; /* Original padding */
 }
 
 .editor-container {
-    max-width: 900px;
+    max-width: 1200px; /* Wider again */
     margin: 0;
     width: 100%;
     background: var(--surface);
-    border-radius: 32px;
-    padding: 60px 80px;
-    box-shadow: var(--shadow);
+    border-radius: 0;   /* No card rounded corners */
+    padding: 24px 0 100px 0;
+    box-shadow: none;   /* No card shadow */
     min-height: auto;
 }
 
