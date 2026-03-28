@@ -276,7 +276,6 @@ app.post('/api/records', async (req, res) => {
       }
     }
 
-    console.log(`👤 대상자      : ${target}`);
     console.log(`🔋 제공구분/방법: ${provision_type} / ${method}`);
     console.log(`📂 유형/서비스  : ${service_type} / ${service_name}`);
     console.log(`📍 장소        : ${location}`);
@@ -297,7 +296,6 @@ app.post('/api/records', async (req, res) => {
         await pool.query(
           `UPDATE service_drafts SET 
             status='Synced', 
-            target=?, 
             provision_type=?, 
             method=?, 
             service_type=?, 
@@ -311,7 +309,7 @@ app.post('/api/records', async (req, res) => {
             agent_opinion=?,
             encrypted_blob=? 
           WHERE id=?`,
-          [target, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, recordId]
+          [provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, recordId]
         );
         console.log(`🔄 Record updated successfully (DB ID: ${recordId})`);
       }
@@ -321,9 +319,9 @@ app.post('/api/records', async (req, res) => {
       share_token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
       const [result] = await pool.query(
         `INSERT INTO service_drafts 
-        (case_id, target, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, share_token, status) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
-        [case_id, target, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, share_token]
+        (case_id, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, share_token, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
+        [case_id, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, share_token]
       );
       recordId = result.insertId;
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);
