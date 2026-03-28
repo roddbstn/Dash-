@@ -115,29 +115,39 @@ app.get('/api/users/:id', async (req, res) => {
 });
 
 app.post('/api/users/update_profile', async (req, res) => {
-  const { id, name } = req.body;
-  console.log(`\n👤 [PROFILE UPDATE] User: ${id}, New Name: ${name}`);
+  const { id, name, email } = req.body;
+  console.log(`\n👤 [PROFILE UPDATE] User: ${id}, New Name: ${name}, Email: ${email}`);
   try {
-    const [result] = await pool.query('UPDATE dash_users SET name = ? WHERE id = ?', [name, id]);
-    if (result.affectedRows > 0) {
-      res.json({ message: 'Profile updated' });
-    } else {
-      res.status(404).json({ error: 'User not found' });
-    }
+    const resolvedEmail = email || `user_${id.substring(0, 8)}@gmail.com`;
+    const [result] = await pool.query(
+      `INSERT INTO dash_users (id, email, name, organization_id) 
+       VALUES (?, ?, ?, 'DEFAULT_ORG') 
+       ON DUPLICATE KEY UPDATE name = VALUES(name)`,
+      [id, resolvedEmail, name]
+    );
+    res.json({ message: 'Profile updated' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('❌ Profile Update Error:', err);
+    res.status(500).json({ error: err.message || err.toString() });
   }
 });
 
 // [Mobile] FCM 토큰 저장
 app.post('/api/users/fcm_token', async (req, res) => {
-  const { id, token } = req.body;
-  console.log(`\n📱 [FCM TOKEN] User: ${id}, Token: ${token.substring(0, 10)}...`);
+  const { id, token, email } = req.body;
+  console.log(`\n📱 [FCM TOKEN] User: ${id}, Token: ${token.substring(0, 10)}..., Email: ${email}`);
   try {
-    await pool.query('UPDATE dash_users SET fcm_token = ? WHERE id = ?', [token, id]);
+    const resolvedEmail = email || `user_${id.substring(0, 8)}@gmail.com`;
+    await pool.query(
+      `INSERT INTO dash_users (id, email, fcm_token, organization_id) 
+       VALUES (?, ?, ?, 'DEFAULT_ORG') 
+       ON DUPLICATE KEY UPDATE fcm_token = VALUES(fcm_token)`,
+      [id, resolvedEmail, token]
+    );
     res.json({ message: 'FCM token saved' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('❌ FCM Token Save Error:', err);
+    res.status(500).json({ error: err.message || err.toString() });
   }
 });
 

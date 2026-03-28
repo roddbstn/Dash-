@@ -349,11 +349,15 @@ class _FormScreenState extends State<FormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Status color and label logic
+    final bool isReviewed = (_currentDraft?['status']?.toString().toLowerCase() == 'reviewed');
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 20), onPressed: () => Navigator.pop(context)),
         title: Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         centerTitle: true,
@@ -361,101 +365,147 @@ class _FormScreenState extends State<FormScreen> {
           if (widget.draftId != null) IconButton(icon: const Icon(Icons.share_outlined), onPressed: _showShareModal),
         ],
       ),
-      body: _isLoading ? const Center(child: CircularProgressIndicator()) : SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-        child: Column(
-          children: [
-            // Case Info
-            Container(
+      body: _isLoading ? const Center(child: CircularProgressIndicator()) : Column(
+        children: [
+          // Case Info (Pinned to top)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black.withOpacity(0.05)),
+              ),
               child: Row(
                 children: [
                   Text("${widget.caseName} 아동", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(width: 8),
                   Text(widget.dong, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 13)),
+                  const Spacer(),
+                  // Status Tag added at the right end (Only shows in Edit mode)
+                  if (widget.draftId != null) 
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isReviewed ? AppColors.successLight : AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: isReviewed ? AppColors.success : AppColors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isReviewed ? '검토 완료' : '검토 대기',
+                            style: TextStyle(
+                              color: isReviewed ? AppColors.success : AppColors.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            _buildSection(label: '서비스 내용', child: TextField(controller: _serviceController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none))),
-            _buildSection(label: '상담원 소견', child: TextField(controller: _opinionController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none))),
-            _buildSection(
-              label: '대상자',
-              child: Wrap(
-                spacing: 8,
-                children: ['피해아동', '사례관리대상자', '가족전체', '기타'].map((t) => _buildChip(t, _selectedTargets.contains(t), (val) {
-                  setState(() {
-                    if (_selectedTargets.contains(val)) _selectedTargets.remove(val); else _selectedTargets.add(val);
-                    _showOtherTargetField = _selectedTargets.contains('기타');
-                  });
-                })).toList(),
-              ),
-            ),
-            if (_showOtherTargetField) _buildSection(label: '기타 대상자', child: TextField(controller: _otherTargetController)),
-            _buildSection(label: '제공구분', child: Wrap(spacing: 8, children: ['제공', '부가업무', '거부'].map((t) => _buildChip(t, _selectedProvisionType == t, (val) => setState(() => _selectedProvisionType = val))).toList())),
-            _buildSection(label: '제공방법', child: Wrap(spacing: 8, children: ['방문', '내방', '전화'].map((t) => _buildChip(t, _selectedMethod == t, (val) => setState(() => _selectedMethod = val))).toList())),
-            _buildSection(label: '서비스유형', child: Wrap(spacing: 8, children: ['아보전', '연계', '통합'].map((t) => _buildChip(t, _selectedServiceType == t, (val) => setState(() => _selectedServiceType = val))).toList())),
-            _buildSection(label: '제공서비스', child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: _selectedService, items: _serviceOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => setState(() => _selectedService = v!)))),
-            _buildSection(
-              label: '제공장소',
-              child: Wrap(
-                spacing: 8,
-                children: ['기관내', '아동가정', '유관기관', '기타'].map((t) => _buildChip(t, _selectedLocation == t, (val) {
-                  setState(() { _selectedLocation = val; _showOtherLocationField = val == '기타'; });
-                })).toList(),
-              ),
-            ),
-            if (_showOtherLocationField) _buildSection(label: '기타 장소', child: TextField(controller: _otherLocationController)),
-            _buildSection(
-              label: '제공일시',
-              child: InkWell(
-                onTap: _selectDateTime,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(border: Border.all(color: (_showDateTimeError && _startDate == null) ? Colors.red : Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
-                  child: Text(_startDate == null ? '일시 선택' : "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}"),
-                ),
-              ),
-            ),
-            _buildSection(label: '서비스 제공횟수', child: Row(children: [SizedBox(width: 40, child: TextField(controller: _serviceCountController, textAlign: TextAlign.center)), const Text('회')])),
-            _buildSection(
-              label: '이동소요시간',
+          ),
+          
+          // Form Sections (Scrollable)
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      ...[5, 10, 15, 20, 30].map((t) => _buildChip("$t분", (!_isManualTravelTime && _travelTime == t), (val) => setState(() { _travelTime = t; _isManualTravelTime = false; }))),
-                      _buildChip("직접 입력", _isManualTravelTime, (val) => setState(() => _isManualTravelTime = true)),
-                    ],
+                  _buildSection(label: '서비스 내용', child: TextField(controller: _serviceController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none))),
+                  _buildSection(label: '상담원 소견', child: TextField(controller: _opinionController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none))),
+                  _buildSection(
+                    label: '대상자',
+                    child: Wrap(
+                      spacing: 8,
+                      children: ['피해아동', '사례관리대상자', '가족구성원', '가족전체', '시설', '기타'].map((t) => _buildChip(t, _selectedTargets.contains(t), (val) {
+                        setState(() {
+                          if (_selectedTargets.contains(val)) _selectedTargets.remove(val); else _selectedTargets.add(val);
+                          _showOtherTargetField = _selectedTargets.contains('기타');
+                        });
+                      })).toList(),
+                    ),
                   ),
-                  if (_isManualTravelTime) ...[
-                    const SizedBox(height: 12),
-                    Row(
+                  if (_showOtherTargetField) _buildSection(label: '기타 대상자', child: TextField(controller: _otherTargetController)),
+                  _buildSection(label: '제공구분', child: Wrap(spacing: 8, children: ['제공', '부가업무', '거부'].map((t) => _buildChip(t, _selectedProvisionType == t, (val) => setState(() => _selectedProvisionType = val))).toList())),
+                  _buildSection(label: '제공방법', child: Wrap(spacing: 8, children: ['방문', '내방', '전화'].map((t) => _buildChip(t, _selectedMethod == t, (val) => setState(() => _selectedMethod = val))).toList())),
+                  _buildSection(label: '서비스유형', child: Wrap(spacing: 8, children: ['아보전', '연계', '통합'].map((t) => _buildChip(t, _selectedServiceType == t, (val) => setState(() => _selectedServiceType = val))).toList())),
+                  _buildSection(label: '제공서비스', child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: _selectedService, items: _serviceOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => setState(() => _selectedService = v!)))),
+                  _buildSection(
+                    label: '제공장소',
+                    child: Wrap(
+                      spacing: 8,
+                      children: ['기관내', '아동가정', '유관기관', '기타'].map((t) => _buildChip(t, _selectedLocation == t, (val) {
+                        setState(() { _selectedLocation = val; _showOtherLocationField = val == '기타'; });
+                      })).toList(),
+                    ),
+                  ),
+                  if (_showOtherLocationField) _buildSection(label: '기타 장소', child: TextField(controller: _otherLocationController)),
+                  _buildSection(
+                    label: '제공일시',
+                    child: InkWell(
+                      onTap: _selectDateTime,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(border: Border.all(color: (_showDateTimeError && _startDate == null) ? Colors.red : Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
+                        child: Text(_startDate == null ? '일시 선택' : "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}"),
+                      ),
+                    ),
+                  ),
+                  _buildSection(label: '서비스 제공횟수', child: Row(children: [SizedBox(width: 40, child: TextField(controller: _serviceCountController, textAlign: TextAlign.center)), const Text('회')])),
+                  _buildSection(
+                    label: '이동소요시간',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(
-                          width: 80,
-                          child: TextField(
-                            controller: _travelTimeController,
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            decoration: const InputDecoration(hintText: '0'),
-                            onChanged: (v) => setState(() => _travelTime = int.tryParse(v) ?? 0),
-                          ),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ...[5, 10, 15, 20, 30].map((t) => _buildChip("$t분", (!_isManualTravelTime && _travelTime == t), (val) => setState(() { _travelTime = t; _isManualTravelTime = false; }))),
+                            _buildChip("직접 입력", _isManualTravelTime, (val) => setState(() => _isManualTravelTime = true)),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        const Text('분', style: TextStyle(fontSize: 14, color: AppColors.textSub)),
+                        if (_isManualTravelTime) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 80,
+                                child: TextField(
+                                  controller: _travelTimeController,
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  decoration: const InputDecoration(hintText: '0'),
+                                  onChanged: (v) => setState(() => _travelTime = int.tryParse(v) ?? 0),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('분', style: TextStyle(fontSize: 14, color: AppColors.textSub)),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(20),

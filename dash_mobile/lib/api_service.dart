@@ -137,12 +137,12 @@ class ApiService {
     return null;
   }
 
-  static Future<bool> updateUserProfile(String userId, String name) async {
+  static Future<bool> updateUserProfile(String userId, String name, String? email) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/users/update_profile'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id': userId, 'name': name}),
+        body: jsonEncode({'id': userId, 'name': name, 'email': email}),
       );
       return response.statusCode == 200;
     } catch (e) {
@@ -171,12 +171,12 @@ class ApiService {
     }
   }
 
-  static Future<void> saveFcmToken(String userId, String token) async {
+  static Future<void> saveFcmToken(String userId, String token, String? email) async {
     try {
       await http.post(
         Uri.parse('$baseUrl/users/fcm_token'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id': userId, 'token': token}),
+        body: jsonEncode({'id': userId, 'token': token, 'email': email}),
       );
     } catch (e) {
       print('❌ Error saving FCM token: $e');

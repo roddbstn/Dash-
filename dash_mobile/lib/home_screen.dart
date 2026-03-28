@@ -253,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final token = await messaging.getToken();
       final user = FirebaseAuth.instance.currentUser;
       if (token != null && user != null) {
-        await ApiService.saveFcmToken(user.uid, token);
+        await ApiService.saveFcmToken(user.uid, token, user.email);
         print('🔥 FCM Token Registered: ${token.substring(0, 8)}...');
       }
     }
@@ -967,7 +967,8 @@ class _HomeScreenState extends State<HomeScreen> {
               if (newName.isEmpty) return;
               Navigator.pop(context);
               setState(() { _isProfileLoading = true; });
-              final success = await ApiService.updateUserProfile(FirebaseAuth.instance.currentUser!.uid, newName);
+              final user = FirebaseAuth.instance.currentUser;
+              final success = await ApiService.updateUserProfile(user?.uid ?? '', newName, user?.email);
               if (success) {
                 setState(() { _userName = newName; });
                 _showToast('이름이 수정되었습니다.');

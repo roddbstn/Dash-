@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/home_screen.dart';
 
@@ -17,25 +16,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      // 다시 안정적인 버전의 기본 생성자 사용
-      final googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
+      // signInWithProvider를 사용하면 별도 SignInHubActivity 없이
+      // Chrome Custom Tab 방식으로 처리 → Android 16 창 밀림 현상 방지
+      final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+      await FirebaseAuth.instance.signInWithProvider(googleProvider);
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      // Firebase 인증용 Credential 생성
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      
-      await FirebaseAuth.instance.signInWithCredential(credential);
-      
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
