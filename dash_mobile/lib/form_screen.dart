@@ -190,9 +190,7 @@ class _FormScreenState extends State<FormScreen> {
     await StorageService.saveDrafts(drafts);
     setState(() => _isLoading = true);
     
-    final String targetSummary = finalTargets.length > 1 
-        ? "${finalTargets[0]} 외 ${finalTargets.length - 1}" 
-        : (finalTargets.isNotEmpty ? finalTargets[0] : '-');
+    final String targetFullList = finalTargets.isNotEmpty ? finalTargets.join(', ') : '-';
 
     final userId = await StorageService.getUserId();
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
@@ -213,7 +211,7 @@ class _FormScreenState extends State<FormScreen> {
       'dong': widget.dong,
       'user_id': userId,
       'user_email': userEmail,
-      'target': targetSummary, // ✅ 목록 조회를 위한 요약 정보만 전송
+      'target': targetFullList, // ✅ 모든 대상자가 리뷰어 사이트에서 보이도록 전체 전송
       'provision_type': _selectedProvisionType,
       'method': _selectedMethod,
       'service_type': _selectedServiceType,
