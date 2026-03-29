@@ -162,20 +162,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 로컬 데이터와 서버 데이터 병합 및 삭제 처리
         List<Map<String, dynamic>> updatedDrafts = [];
         
-        for (var local in localDrafts) {
-          final String? localToken = local['share_token'];
+        // 1. 서버에 있는 데이터를 기준으로 로컬과 대조하여 병합
+        for (var s in serverRecords) {
+          final String? serverToken = s['share_token'];
+          final String serverId = s['id'].toString();
           
-          final serverIdx = serverRecords.indexWhere((s) {
-            final String serverId = s['id'].toString();
-            final String? serverToken = s['share_token'];
-            final String localId = local['id'].toString();
-            return (serverId == localId) || (serverToken != null && serverToken == localToken);
+          final localIdx = localDrafts.indexWhere((l) {
+            final String? localToken = l['share_token'];
+            final String localId = l['id'].toString();
+            return (serverToken != null && serverToken == localToken) || (serverId == localId);
           });
           
-          if (serverIdx != -1) {
-            // 서버에 존재하면 업데이트해서 유지
-            final s = serverRecords[serverIdx];
-            // Use server's raw data ONLY if it's not empty (E2EE sync records are empty)
+          if (localIdx != -1) {
+            // 로컬에 이미 있으면 병합 (상태 업데이트 및 데이터 보정)
+            final local = localDrafts[localIdx];
             String finalDescription = local['serviceDescription'] ?? '';
             String finalOpinion = local['agentOpinion'] ?? '';
             
@@ -186,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               finalOpinion = s['agent_opinion'];
             }
 
-            // [E2EE] Support decryption of blob from server if provided
+            // [E2EE] 복호화 로직 (동일)
             final String? blob = s['encrypted_blob'];
             final String? keyStr = local['encryption_key'];
             if (blob != null && keyStr != null && blob.contains(':')) {
@@ -198,11 +198,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 final encrypter = encrypt.Encrypter(encrypt.AES(key));
                 final decrypted = encrypter.decrypt(encrypted, iv: iv);
                 final decryptedData = jsonDecode(decrypted) as Map<String, dynamic>;
-                
-                // Content priority:
-                // 1. Decrypted data from blob (contains reviewer edits)
-                // 2. Server raw data (if any)
-                // 3. Local data ( counselor's original)
                 finalDescription = decryptedData['serviceDescription'] ?? decryptedData['service_description'] ?? finalDescription;
                 finalOpinion = decryptedData['agentOpinion'] ?? decryptedData['agent_opinion'] ?? finalOpinion;
               } catch (e) {
@@ -210,13 +205,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               }
             }
 
-            // Priority merge for 'Synced' (draft) records:
-            // Always trust local for metadata and encrypted content to prevent data loss or server lag reverts.
             updatedDrafts.add({
               ...local,
               'status': s['status'],
               'share_token': s['share_token'],
               'treatment': s['target_system_code'] ?? local['treatment'],
+              'caseName': s['case_name'] ?? local['caseName'],
+              'dong': s['dong'] ?? local['dong'],
               'serviceDescription': finalDescription,
               'agentOpinion': finalOpinion,
               'startTime': (s['status'] == 'Reviewed' && s['start_time'] != null) ? s['start_time'] : (local['startTime'] ?? s['start_time']),
@@ -225,15 +220,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               'travelTime': (s['status'] == 'Reviewed') ? (s['travel_time'] ?? local['travelTime']) : (local['travelTime'] ?? s['travel_time']),
             });
           } else {
-            // 서버에 없는데 token이 있다면, 다른 곳에서 삭제된 것으로 간주하고 로컬에서도 제거
+            // 로컬에 없는데 서버에만 있는 경우 (다른 기기에서 작성했거나 재설치 등)
+            // 비암호화 정보들만이라도 복구하여 목록에 표시
+            updatedDrafts.add({
+              'id': s['id'],
+              'caseName': s['case_name'],
+              'dong': s['dong'],
+              'target': s['target'] ?? '',
+              'provision_type': s['provision_type'],
+              'method': s['method'],
+              'service_type': s['service_type'],
+              'service_name': s['service_name'],
+              'location': s['location'],
+              'startTime': s['start_time'],
+              'endTime': s['end_time'],
+              'serviceCount': s['service_count'],
+              'travelTime': s['travel_time'],
+              'serviceDescription': s['service_description'] ?? '',
+              'agentOpinion': s['agent_opinion'] ?? '',
+              'share_token': s['share_token'],
+              'status': s['status'],
+              'is_server_only': true, // 로컬 복구 데이터 표시용
+            });
+          }
+        }
+        
+        // 2. 로컬에만 있는 데이터(동기화 전인 것들)들 보존
+        for (var local in localDrafts) {
+          final String? localToken = local['share_token'];
+          final alreadyAdded = updatedDrafts.any((u) => 
+            (localToken != null && u['share_token'] == localToken) || 
+            (local['id'].toString() == u['id'].toString())
+          );
+          
+          if (!alreadyAdded) {
+            // 서버 목록에는 없지만 로컬에 있는 경우
             if (localToken == null || localToken.isEmpty) {
-              // 아직 동기화 전인 로컬 전용 데이터는 유지
+              // 아직 동기화 전인 데이터는 당연히 유지
               updatedDrafts.add(local);
             } else {
-              // [버그 수정] DB 생성 직후 조회 지연이나 오프라인 통신 지연으로 인해 
-              // 서버 응답 목록에 임시로 누락될 수 있으므로, 로컬 복사본을 함부로 지우지 않고 무조건 안전하게 살려둡니다.
-              // (모바일 앱이 유일한 삭제 권한을 가지므로 서버에서 알아서 지워지는 경우는 없음)
-              print('⚠️ Server record temporary missing for token $localToken. Keeping local copy safely.');
+              // 동기화된 데이터인데 서버에서 안 보인다면, 
+              // 일시적인 지연일 수 있으므로 일단 로컬에서 지우지 않고 유지 (방어적 설계)
+              print('⚠️ Server local mismatch for token $localToken. Keeping local copy safely.');
               updatedDrafts.add(local);
             }
           }

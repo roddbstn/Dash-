@@ -354,7 +354,7 @@ app.delete('/api/records/token/:token', async (req, res) => {
       res.json({ message: 'Record deleted' });
       broadcastEvent('record_deleted', { token, user_email });
     } else {
-      res.status(404).json({ error: 'Record not found' });
+      res.json({ message: 'Record deleted or already non-existent' });
     }
   } catch (err) {
     console.error('❌ Record delete error:', err.message);
