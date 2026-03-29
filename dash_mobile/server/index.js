@@ -311,9 +311,10 @@ app.post('/api/records', async (req, res) => {
             travel_time=?, 
             service_description=?,
             agent_opinion=?,
-            encrypted_blob=? 
+            encrypted_blob=?,
+            target=?
           WHERE id=?`,
-          [provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, recordId]
+          [provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', recordId]
         );
         console.log(`🔄 Record updated successfully (DB ID: ${recordId})`);
       }
@@ -323,9 +324,9 @@ app.post('/api/records', async (req, res) => {
       share_token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
       const [result] = await pool.query(
         `INSERT INTO service_drafts 
-        (case_id, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, share_token, status) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
-        [case_id, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, share_token]
+        (case_id, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
+        [case_id, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token]
       );
       recordId = result.insertId;
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);

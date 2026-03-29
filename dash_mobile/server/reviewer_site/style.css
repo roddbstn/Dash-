@@ -188,9 +188,14 @@ body {
     font-size: 14px;
     font-weight: 700;
     color: var(--text-main);
-    display: block;
-    white-space: nowrap;
-    flex-shrink: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: keep-all;
+    text-align: right;
+    max-width: 70%;
 }
 
 /* Editor Area */

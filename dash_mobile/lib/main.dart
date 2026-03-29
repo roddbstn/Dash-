@@ -1,16 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/home_screen.dart';
 import 'package:dash_mobile/login_screen.dart';
-import 'package:dash_mobile/firebase_options.dart'; // 추가됨
+import 'package:dash_mobile/firebase_options.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // 백그라운드 수신 시 Firebase 초기화 필수
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  print("📩 Background message received: ${message.messageId}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform, // 옵션 추가됨
+    options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // 백그라운드 메시지 핸들러 등록
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  
   runApp(const MyApp());
 }
 

@@ -297,7 +297,7 @@ function updateUI(data) {
     document.getElementById('opinion-editor').dispatchEvent(new Event('input'));
     
     const metaList = [
-        { label: '대상자', value: data.target || '-' },
+        { label: '대상자', value: data.target ? (Array.isArray(data.target) ? data.target.join(' · ') : data.target.replace(/,/g, ' · ')) : '-' },
         { label: '제공구분', value: data.provision_type || '-' },
         { label: '제공방법', value: data.method || '-' },
         { label: '서비스유형', value: data.service_type || '-' },

@@ -8,9 +8,13 @@ import 'package:dash_mobile/api_service.dart';
 import 'package:dash_mobile/widgets/dash_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:encrypt/encrypt.dart' as encrypt;
+
+// 로컬 알림 플러그인 초기화
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -27,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   
   // Real-time event subscription
   StreamSubscription? _eventSub;
+  bool _notificationsEnabled = true;
 
   @override
   void initState() {
@@ -245,11 +250,35 @@ class _HomeScreenState extends State<HomeScreen> {
     
     // 1. 권한 요청
     final settings = await messaging.requestPermission(
-      alert: true, badge: true, sound: true,
+      alert: true,
+      badge: true,
+      sound: true,
     );
     
+    // 2. Android 알림 채널 설정 (포그라운드 팝업용)
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'high_importance_channel', // id
+      'High Importance Notifications', // name
+      description: 'This channel is used for important notifications.',
+      importance: Importance.max,
+    );
+
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
+    // 알림 권한 상태에 따른 토글 초기화
+    setState(() {
+      _notificationsEnabled = settings.authorizationStatus == AuthorizationStatus.authorized;
+    });
+
+    // 3. 플러그인 초기화
+    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+    await flutterLocalNotificationsPlugin.initialize(settings: initializationSettings);
+
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // 2. 토큰 획득 및 서버 저장
+      // 4. 토큰 획득 및 서버 저장
       final token = await messaging.getToken();
       final user = FirebaseAuth.instance.currentUser;
       if (token != null && user != null) {
@@ -258,19 +287,83 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // 3. 포그라운드 메시지 리스너 (앱이 켜져 있을 때)
+    // 5. 포그라운드 메시지 리스너 (앱이 켜져 있을 때)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.notification != null && mounted) {
-        _showToast('📢 ${message.notification!.title}: ${message.notification!.body}');
-        _loadData(); // 알림 리스트 갱신
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
+
+      if (notification != null && android != null && mounted) {
+        // 시스템 알림 팝업 표시
+        flutterLocalNotificationsPlugin.show(
+          id: notification.hashCode,
+          title: notification.title,
+          body: notification.body,
+          notificationDetails: NotificationDetails(
+            android: AndroidNotificationDetails(
+              channel.id,
+              channel.name,
+              channelDescription: channel.description,
+              importance: Importance.max,
+              priority: Priority.high,
+              ticker: 'ticker',
+            ),
+          ),
+        );
+        
+        _loadData(); // 알림 리스트 및 배지 상태 갱신
       }
     });
 
-    // 4. 알림 클릭으로 앱이 열렸을 때 처리 가능 (필요 시)
+    // 6. 알림 클릭으로 앱이 열렸을 때 처리
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print('🚀 Notification opened app: ${message.data}');
-      // 예: 특정 페이지로 바로 이동하는 로직 추가 가능
+      setState(() => _currentIndex = 1); // 알림 탭으로 이동
     });
+  }
+
+  Future<void> _toggleNotifications(bool value) async {
+    if (value == false) {
+      // 알림 끄기 시 확인 모달 노출
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('푸시 알림 off', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          content: const Text(
+            'DB 검토 완료 및 중요 소식에 대한\n푸시 알림을 받지 않으시겠습니까?',
+            style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('확인', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        setState(() => _notificationsEnabled = false);
+        _showToast('알림이 비활성화되었습니다.');
+      }
+    } else {
+      // 알림 켜기
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
+      
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        setState(() => _notificationsEnabled = true);
+        _showToast('푸시 알림이 활성화되었습니다. ✨');
+      } else {
+        _showToast('알림 권한이 거부되어 있습니다. 설정에서 허용해주세요.');
+      }
+    }
   }
 
   void _showCaseDeleteConfirmation(BuildContext modalContext) {
@@ -489,16 +582,15 @@ class _HomeScreenState extends State<HomeScreen> {
     required dynamic caseId,
     int? draftId,
   }) async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) =>
             FormScreen(caseId: caseId, caseName: maskedName, dong: dong, draftId: draftId),
       ),
     );
-    if (result == true) {
-      _loadData();
-    }
+    // 무조건 로드하여 알림 상태 동기화
+    _loadData();
   }
 
   void _showCaseSelectionModal() async {
@@ -729,10 +821,18 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: AppColors.primary,
         unselectedItemColor: const Color(0xFF8B95A1),
         backgroundColor: Colors.white,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: '알림'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
+        items: [
+          const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
+          BottomNavigationBarItem(
+            icon: Badge(
+              label: null, // 숫자 대신 점만 표시
+              isLabelVisible: _notifications.any((n) => n['is_read'] == 0 || n['is_read'] == false),
+              backgroundColor: const Color(0xFFFF4D00), // 주황빛 도는 빨간색
+              child: const Icon(Icons.notifications),
+            ),
+            label: '알림',
+          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
         ],
       ),
       floatingActionButton: _currentIndex != 0 ? null : Container(
@@ -850,9 +950,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     print('🔔 Notification tapped: $notifId');
-                    // 1. 알림 읽음 처리 (서버에만 알림, 블로킹 방지 위해 await 제거)
+                    // 1. 알림 읽음 처리 (서버 및 로컬 즉시 반영)
                     if (notifId != null) {
                       ApiService.markNotificationRead(notifId);
+                      setState(() {
+                        // 로컬 알림 리스트에서 해당 알림 읽음 처리 (배지 점을 즉시 없애기 위함)
+                        final index = _notifications.indexWhere((n) => n['id'] == notifId);
+                        if (index != -1) {
+                          _notifications[index]['is_read'] = 1;
+                        }
+                      });
                     }
 
                     print('🔍 Found drafts length: ${_drafts.length}');
@@ -1033,26 +1140,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: Column(
                 children: [
-                  _buildProfileMenuItem(Icons.notifications_none, '알림 설정', () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        title: const Text('푸시 알림', style: TextStyle(fontWeight: FontWeight.w800)),
-                        content: const Text('DB 검토 완료 및 중요 소식에 대한\n푸시 알림을 받으시겠습니까?'),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD)))),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _showToast('알림 수신 동의가 완료되었습니다. ✨');
-                            },
-                            child: const Text('허용', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+                  _buildNotificationToggleItem(),
                   const Divider(height: 1, indent: 20, endIndent: 20, color: AppColors.border),
                   _buildProfileMenuItem(Icons.lock_outline, '개인정보처리방침', () {
                     _showToast('개인정보처리방침 페이지로 이동합니다.');
@@ -1081,6 +1169,35 @@ class _HomeScreenState extends State<HomeScreen> {
       leading: Icon(icon, color: isDanger ? AppColors.danger : AppColors.textMain, size: 22),
       title: Text(title, style: TextStyle(color: isDanger ? AppColors.danger : AppColors.textMain, fontWeight: FontWeight.w600, fontSize: 16)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.border, size: 20),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    );
+  }
+
+  Widget _buildNotificationToggleItem() {
+    return ListTile(
+      enabled: false, // 영역 터치 피드백 비활성화
+      leading: const Icon(Icons.notifications_none, color: AppColors.textMain, size: 22),
+      title: const Text(
+        '알림 설정',
+        style: TextStyle(
+          color: AppColors.textMain,
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+        ),
+      ),
+      trailing: Transform.scale(
+        scale: 0.85, 
+        child: Switch(
+          value: _notificationsEnabled,
+          onChanged: _toggleNotifications,
+          activeColor: Colors.white,
+          activeTrackColor: AppColors.primary,
+          inactiveThumbColor: Colors.white,
+          inactiveTrackColor: const Color(0xFFE5E8EB),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
