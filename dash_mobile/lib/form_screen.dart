@@ -262,40 +262,65 @@ class _FormScreenState extends State<FormScreen> {
   // [Security] PIN Setup Dialog (Simple 4-digit)
   Future<String?> _showPinSetupDialog() async {
     final controller = TextEditingController();
+    bool obscure = true;
+
     return await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('보안 PIN 설정 (4자리)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('PC 환경과 안전하게 데이터를 동기화하기 위해 사용할 4자리 비밀번호를 설정해 주세요. 서버는 이 핀번호를 알 수 없습니다.', style: TextStyle(fontSize: 13, color: Colors.grey)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              obscureText: true,
-              style: const TextStyle(fontSize: 24, letterSpacing: 10),
-              textAlign: TextAlign.center,
-              decoration: const InputDecoration(hintText: '0000', counterText: ''),
-              autofocus: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('개인정보 보안 설정 (PIN 번호)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '작성한 DB 내용은 서버가 읽을 수 없도록 강력히 암호화돼요.\nPC 환경에서 DB를 자동 기입할 때 PIN 번호가 필요해요. (최초 1회 설정)',
+                style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                maxLength: 4,
+                obscureText: obscure,
+                style: const TextStyle(fontSize: 24, letterSpacing: 10, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.left,
+                decoration: InputDecoration(
+                  counterText: '',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F4F6),
+                  contentPadding: const EdgeInsets.only(left: 20, right: 10, top: 20, bottom: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, color: const Color(0xFFADB5BD)),
+                    onPressed: () => setState(() => obscure = !obscure),
+                  ),
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context), 
+              child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: () async {
+                if (controller.text.length == 4) {
+                  await StorageService.savePin(controller.text);
+                  Navigator.pop(context, controller.text);
+                }
+              },
+              child: const Text('설정 완료', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: Colors.grey))),
-          TextButton(
-            onPressed: () async {
-              if (controller.text.length == 4) {
-                await StorageService.savePin(controller.text);
-                Navigator.pop(context, controller.text);
-              }
-            },
-            child: const Text('설정 완료', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }

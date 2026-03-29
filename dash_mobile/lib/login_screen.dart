@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/home_screen.dart';
 
@@ -16,16 +17,24 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      // signInWithProvider를 사용하면 별도 SignInHubActivity 없이
-      // Chrome Custom Tab 방식으로 처리 → Android 16 창 밀림 현상 방지
-      final GoogleAuthProvider googleProvider = GoogleAuthProvider();
-      await FirebaseAuth.instance.signInWithProvider(googleProvider);
+      // Chrome Custom Tab 방식(signInWithProvider)은 브라우저 세션 저장소 접근 권한 문제
+      // (partitioned storage environment 등)로 인해 신규 로그인 시 오류가 발생할 수 있습니다.
+      // 따라서 가장 안정적인 플러터 네이티브 GoogleSignIn 패키지를 사용하여 인증합니다.
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      
+      // 사용자가 로그인 팝업을 그냥 닫은 경우 중단
+      if (googleUser == null) return;
 
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      }
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // 따로 화면을 이동시키지 않습니다. main.dart의 StreamBuilder가 자동으로 상태를 감지하고
+      // 로그인, 홈 화면을 알아서 라우팅해 줍니다. 그래야 스택이 꼬이지 않습니다.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

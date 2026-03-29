@@ -705,6 +705,31 @@ app.post('/api/users/vault', async (req, res) => {
   }
 });
 
+// [Security] 8. User Deletion (PIPL Compliance)
+app.delete('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { email } = req.query;
+  console.log(`\n🗑️ [USER DEletion] User ID: ${id}, Email: ${email}`);
+  try {
+    let query = 'DELETE FROM dash_users WHERE id = ?';
+    let params = [id];
+    if (email) {
+      query = 'DELETE FROM dash_users WHERE id = ? OR email = ?';
+      params = [id, email];
+    }
+    // 모든 유저 데이터(사례, 볼트, 알림 등)는 Foreign Key ON DELETE CASCADE로 자동 삭제됨
+    const [result] = await pool.query(query, params);
+    if (result.affectedRows > 0) {
+      res.json({ success: true, message: 'User data deleted successfully' });
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (err) {
+    console.error('❌ User deletion error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`\n========================================`);
   console.log(`🚀 Dash Server running on http://localhost:${port}`);

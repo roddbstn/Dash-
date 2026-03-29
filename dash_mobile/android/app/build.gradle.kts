@@ -25,7 +25,7 @@ android {
 
     defaultConfig {
         applicationId = "com.dash.app"
-        minSdk = 23 // Firebase BoM 34.11.0 에서는 23(Android 6.0) 이상을 권장합니다.
+        minSdk = flutter.minSdkVersion // Firebase BoM 34.11.0 에서는 23(Android 6.0) 이상을 권장합니다.
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

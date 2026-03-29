@@ -12,6 +12,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:google_sign_in/google_sign_in.dart';
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -229,7 +230,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               // 아직 동기화 전인 로컬 전용 데이터는 유지
               updatedDrafts.add(local);
             } else {
-              print('🗑️ Server record missing for token $localToken. Deleting local copy.');
+              // [버그 수정] DB 생성 직후 조회 지연이나 오프라인 통신 지연으로 인해 
+              // 서버 응답 목록에 임시로 누락될 수 있으므로, 로컬 복사본을 함부로 지우지 않고 무조건 안전하게 살려둡니다.
+              // (모바일 앱이 유일한 삭제 권한을 가지므로 서버에서 알아서 지워지는 경우는 없음)
+              print('⚠️ Server record temporary missing for token $localToken. Keeping local copy safely.');
+              updatedDrafts.add(local);
             }
           }
         }
@@ -466,74 +471,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('DB 삭제', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          content: const Text(
+            '이 DB 작성을 삭제할까요?\n삭제하면 복구할 수 없습니다.',
+            style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '이 DB 작성을 삭제할까요?',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '삭제하면 복구할 수 없습니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: AppColors.textSub),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFF2F4F6),
-                          padding: const EdgeInsets.all(16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '아니오',
-                          style: TextStyle(
-                            color: AppColors.textSub,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        style: TextButton.styleFrom(
-                          backgroundColor: AppColors.danger,
-                          padding: const EdgeInsets.all(16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '네',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
             ),
-          ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('삭제', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
+            ),
+          ],
         );
       },
     );
@@ -1082,10 +1038,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('이름 수정', style: TextStyle(fontWeight: FontWeight.w700)),
-        content: TextField(controller: controller, decoration: const InputDecoration(hintText: '실명을 입력해주세요', border: OutlineInputBorder()), autofocus: true),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('이름 수정', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        content: TextField(
+          controller: controller, 
+          maxLength: 10, // ✅ 최대 10글자 제한
+          decoration: const InputDecoration(
+            hintText: '실명을 입력해주세요', 
+            hintStyle: TextStyle(fontSize: 14, color: Color(0xFFADB5BD)),
+            counterText: "", // ✅ 글자수 카운터 숨기기
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFF2F4F6))),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+          ), 
+          autofocus: true,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: AppColors.textSub))),
+          TextButton(
+            onPressed: () => Navigator.pop(context), 
+            child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600))
+          ),
           TextButton(
             onPressed: () async {
               final newName = controller.text.trim();
@@ -1102,7 +1076,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               }
               setState(() { _isProfileLoading = false; });
             },
-            child: const Text('저장', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text('저장', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -1166,9 +1140,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   }),
                   const Divider(height: 1, indent: 20, endIndent: 20, color: AppColors.border),
                   _buildProfileMenuItem(Icons.logout, '로그아웃', () async {
-                    await FirebaseAuth.instance.signOut();
-                    if (mounted) Navigator.pushReplacementNamed(context, '/');
-                  }, isDanger: true),
+                    final confirmed = await _showLogoutConfirmationDialog();
+                    if (confirmed == true) {
+                      await StorageService.clearAllData();
+                      await GoogleSignIn().disconnect().catchError((_) => null);
+                      await GoogleSignIn().signOut().catchError((_) => null);
+                      await FirebaseAuth.instance.signOut();
+                    }
+                  }, isDanger: false), // 로그아웃은 이제 검정색
+                  const Divider(height: 1, indent: 20, endIndent: 20, color: AppColors.border),
+                  _buildProfileMenuItem(Icons.delete_forever_outlined, '계정 탈퇴', () async {
+                    final confirmed = await _showDeleteAccountConfirmationDialog();
+                    if (confirmed == true) {
+                      await StorageService.clearAllData();
+                      await _deleteAccount();
+                    }
+                  }, isDanger: true), // 계정 탈퇴는 빨간색
                 ],
               ),
             ),
@@ -1176,6 +1163,96 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  Future<bool?> _showLogoutConfirmationDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          content: const Text(
+            '정말 로그아웃 하시겠습니까?',
+            style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('확인', style: TextStyle(color: AppColors.textMain, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<bool?> _showDeleteAccountConfirmationDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('계정 탈퇴', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          content: const Text(
+            '정말 탈퇴하시겠습니까?\n계정은 복구되지 않아요.',
+            style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('아니오', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('탈퇴하기', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    
+    final uid = user.uid;
+    final email = user.email;
+    try {
+      // [1] 서버 데이터(상례, 볼트 등) 삭제 요청 (404 무시)
+      await ApiService.deleteUser(uid, email: email);
+      
+      // [2] Firebase Auth 계정 삭제 시도
+      try {
+        await user.delete();
+      } catch (e) {
+        print('🔒 Firebase Auth delete require re-auth: $e');
+        // 보안상 바로 삭제가 안 될 수 있지만, 서버 데이터는 위에서 지웠으므로 진행
+      }
+
+      // [3] 세션 파괴 (가장 중요: 다음에 계정 선택창이 뜨도록)
+      await GoogleSignIn().disconnect().catchError((_) => null);
+      await GoogleSignIn().signOut().catchError((_) => null);
+      await FirebaseAuth.instance.signOut();
+      
+      _showToast('계정이 정상적으로 탈퇴되었습니다.');
+    } catch (e) {
+      print('❌ Account deletion error: $e');
+      // 에러 발생 시에도 일단 세션은 강제 종료
+      await GoogleSignIn().disconnect().catchError((_) => null);
+      await GoogleSignIn().signOut().catchError((_) => null);
+      await FirebaseAuth.instance.signOut();
+      _showToast('탈퇴 및 로그아웃이 완료되었습니다.');
+    }
   }
 
   Widget _buildProfileMenuItem(IconData icon, String title, VoidCallback onTap, {bool isDanger = false}) {

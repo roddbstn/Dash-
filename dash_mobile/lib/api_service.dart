@@ -212,6 +212,20 @@ class ApiService {
     }
   }
 
+  // [Security] Delete user data (PIPL Compliance)
+  static Future<bool> deleteUser(String userId, {String? email}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/$userId').replace(
+        queryParameters: email != null ? {'email': email} : null,
+      );
+      final response = await http.delete(uri);
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ Error deleting user: $e');
+      return false;
+    }
+  }
+
   // Real-time Event Listener (SSE) with Exponential Backoff
   static Stream<Map<String, dynamic>> streamEvents(String email) async* {
     int backoffSeconds = 2;

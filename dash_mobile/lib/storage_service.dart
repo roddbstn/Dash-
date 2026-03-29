@@ -56,6 +56,16 @@ class StorageService {
     await prefs.setString(_pendingSyncKey, jsonEncode(data));
   }
 
+  // 로그아웃 또는 계정 탈퇴 시 로컬 캐시 초기화 (다른 계정 로그인 시 데이터 섞임 방지)
+  static Future<void> clearAllData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_casesKey);
+    await prefs.remove(_draftsKey);
+    await prefs.remove(_pendingSyncKey);
+    await prefs.remove(_pinKey);
+    await prefs.remove(_saltKey);
+  }
+
   // [Security] PIN and Vault Salt Management
   static const String _pinKey = 'dash_user_pin';
   static const String _saltKey = 'dash_user_salt';
