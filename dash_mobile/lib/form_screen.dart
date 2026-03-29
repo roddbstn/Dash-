@@ -190,15 +190,30 @@ class _FormScreenState extends State<FormScreen> {
     await StorageService.saveDrafts(drafts);
     setState(() => _isLoading = true);
     
+    final String targetSummary = finalTargets.length > 1 
+        ? "${finalTargets[0]} 외 ${finalTargets.length - 1}" 
+        : (finalTargets.isNotEmpty ? finalTargets[0] : '-');
+
     final userId = await StorageService.getUserId();
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+
+    // [Security] 1. PIN Check & Vault Sync
+    String? pin = await StorageService.getPin();
+    if (pin == null) {
+      pin = await _showPinSetupDialog();
+      if (pin == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+    }
+
     final serverDraftData = {
       'case_id': widget.caseId,
       'case_name': widget.caseName,
       'dong': widget.dong,
       'user_id': userId,
       'user_email': userEmail,
-      'target': targetValue,
+      'target': targetSummary, // ✅ 목록 조회를 위한 요약 정보만 전송
       'provision_type': _selectedProvisionType,
       'method': _selectedMethod,
       'service_type': _selectedServiceType,
@@ -208,14 +223,17 @@ class _FormScreenState extends State<FormScreen> {
       'end_time': _endDate?.toIso8601String(),
       'service_count': int.tryParse(_serviceCountController.text) ?? 1,
       'travel_time': _travelTime,
-      'service_description': _serviceController.text, 
-      'agent_opinion': _opinionController.text,       
+      'service_description': '', // ✅ 민감 정보 비우기 (보안 강화)
+      'agent_opinion': '',       // ✅ 민감 정보 비우기 (보안 강화)
       'encrypted_blob': encryptedBlob,
       'share_token': _currentDraft?['share_token'],
     };
     
     final shareToken = await ApiService.syncRecord(serverDraftData);
     if (shareToken != null) {
+      // [Security] 2. Sync Key to User's Vault
+      await _syncKeyToVault(userId, targetId.toString(), encryptionKey!, pin);
+
       final updatedDrafts = await StorageService.getDrafts();
       final idx = updatedDrafts.indexWhere((d) => d['id'].toString() == targetId.toString());
       if (idx != -1) {
@@ -238,6 +256,80 @@ class _FormScreenState extends State<FormScreen> {
       } else {
         _showSuccessDialog(true);
       }
+    }
+  }
+
+  // [Security] PIN Setup Dialog (Simple 4-digit)
+  Future<String?> _showPinSetupDialog() async {
+    final controller = TextEditingController();
+    return await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('보안 PIN 설정 (4자리)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('PC 환경과 안전하게 데이터를 동기화하기 위해 사용할 4자리 비밀번호를 설정해 주세요. 서버는 이 핀번호를 알 수 없습니다.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              style: const TextStyle(fontSize: 24, letterSpacing: 10),
+              textAlign: TextAlign.center,
+              decoration: const InputDecoration(hintText: '0000', counterText: ''),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () async {
+              if (controller.text.length == 4) {
+                await StorageService.savePin(controller.text);
+                Navigator.pop(context, controller.text);
+              }
+            },
+            child: const Text('설정 완료', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // [Security] Sync Encryption Key to User's Vault (E2EE)
+  Future<void> _syncKeyToVault(String userId, String recordId, String keyStr, String pin) async {
+    try {
+      final vaultResponse = await ApiService.fetchVault(userId);
+      Map<String, dynamic> keyMap = {};
+      String? salt = vaultResponse?['salt'] ?? userId;
+
+      if (vaultResponse != null && vaultResponse['encrypted_vault'] != null) {
+        try {
+          final vaultKey = encrypt.Key.fromUtf8(pin.padRight(32).substring(0, 32));
+          final iv = encrypt.IV.fromLength(16);
+          final encrypter = encrypt.Encrypter(encrypt.AES(vaultKey));
+          
+          final parts = vaultResponse['encrypted_vault'].split(':');
+          final decrypted = encrypter.decrypt(encrypt.Encrypted.fromBase64(parts[1]), iv: encrypt.IV.fromBase64(parts[0]));
+          keyMap = jsonDecode(decrypted) as Map<String, dynamic>;
+        } catch (e) {
+          print('🔒 Sync Log: Creating new vault/Resetting due to PIN mismatch');
+        }
+      }
+
+      keyMap[recordId] = keyStr;
+      final vaultKey = encrypt.Key.fromUtf8(pin.padRight(32).substring(0, 32));
+      final iv = encrypt.IV.fromLength(16);
+      final encrypter = encrypt.Encrypter(encrypt.AES(vaultKey));
+      final encrypted = encrypter.encrypt(jsonEncode(keyMap), iv: iv);
+      final encryptedVaultBlob = "${iv.base64}:${encrypted.base64}";
+      await ApiService.saveVault(userId, encryptedVaultBlob, salt);
+    } catch (e) {
+      print('❌ Error syncing to vault: $e');
     }
   }
 

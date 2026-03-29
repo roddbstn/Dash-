@@ -81,3 +81,12 @@ CREATE TABLE notifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES dash_users(id) ON DELETE CASCADE
 );
+
+-- 6. 보안 PIN 기반 열쇠 보관소 (Zero-Knowledge Sync)
+CREATE TABLE user_key_vault (
+    user_id VARCHAR(36) PRIMARY KEY,
+    encrypted_vault LONGTEXT NOT NULL, -- PIN으로 암호화된 마스터 열쇠/케이스 열쇠 묶음
+    salt VARCHAR(64), -- 암호화 키 유도를 위한 솔트
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES dash_users(id) ON DELETE CASCADE
+);

@@ -22,7 +22,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<dynamic> _drafts = [];
   List<dynamic> _cases = [];
   List<dynamic> _notifications = [];
@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
     _initRealtime();
     _setupFCM();
@@ -43,7 +44,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      print('📱 App returned to foreground. Resuming SSE...');
+      _initRealtime();
+      _loadData();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      print('💤 App backgrounded. Suspending SSE...');
+      _eventSub?.cancel();
+      _eventSub = null;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _eventSub?.cancel();
     super.dispose();
   }

@@ -55,4 +55,28 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_pendingSyncKey, jsonEncode(data));
   }
+
+  // [Security] PIN and Vault Salt Management
+  static const String _pinKey = 'dash_user_pin';
+  static const String _saltKey = 'dash_user_salt';
+
+  static Future<String?> getPin() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pinKey);
+  }
+
+  static Future<void> savePin(String pin) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pinKey, pin);
+  }
+
+  static Future<String?> getSalt() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_saltKey);
+  }
+
+  static Future<void> saveSalt(String salt) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_saltKey, salt);
+  }
 }

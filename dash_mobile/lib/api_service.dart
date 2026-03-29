@@ -183,8 +183,40 @@ class ApiService {
     }
   }
 
-  // Real-time Event Listener (SSE)
+  // [Security] Vault sync for E2EE keys
+  static Future<Map<String, dynamic>?> fetchVault(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/users/vault/$userId'));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print('❌ Error fetching vault: $e');
+    }
+    return null;
+  }
+
+  static Future<void> saveVault(String userId, String encryptedVault, String? salt) async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/users/vault'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': userId,
+          'encrypted_vault': encryptedVault,
+          'salt': salt,
+        }),
+      );
+    } catch (e) {
+      print('❌ Error saving vault: $e');
+    }
+  }
+
+  // Real-time Event Listener (SSE) with Exponential Backoff
   static Stream<Map<String, dynamic>> streamEvents(String email) async* {
+    int backoffSeconds = 2;
+    const int maxBackoff = 60;
+
     while (true) {
       final client = http.Client();
       try {
@@ -193,8 +225,9 @@ class ApiService {
         request.headers['Cache-Control'] = 'no-cache';
         request.headers['Connection'] = 'keep-alive';
 
-        final response = await client.send(request);
+        final response = await client.send(request).timeout(const Duration(seconds: 15));
         if (response.statusCode == 200) {
+          backoffSeconds = 2; // Reset on success
           await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
             if (line.startsWith('data: ')) {
               final jsonStr = line.substring(6).trim();
@@ -205,13 +238,24 @@ class ApiService {
           }
         }
       } catch (e) {
-        print('🔔 SSE Reconnect loop: $e');
+        // Log more cleanly for frequent network errors
+        if (e.toString().contains('Failed host lookup') || e.toString().contains('SocketException')) {
+          // No need to print full stack trace for known offline/background state
+        } else {
+          print('🔔 SSE Reconnect loop: $e');
+        }
       } finally {
         client.close();
       }
 
-      await Future.delayed(const Duration(seconds: 3));
-      print('🔄 Attempting to reconnect SSE for: $email');
+      // Exponential backoff
+      await Future.delayed(Duration(seconds: backoffSeconds));
+      backoffSeconds = (backoffSeconds * 2).clamp(2, maxBackoff);
+      
+      // Heartbeat pulse instead of noisy reconnect log
+      if (backoffSeconds < 10) {
+        print('🔄 SSE Reconnecting for: $email');
+      }
     }
   }
 }

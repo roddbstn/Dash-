@@ -669,6 +669,42 @@ app.get('/api/records/user/:userId', async (req, res) => {
   }
 });
 
+// [Security] 7. Key Vault API (Zero-Knowledge PIN Sync)
+app.get('/api/users/vault/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const [rows] = await pool.query(
+      'SELECT encrypted_vault, salt FROM user_key_vault WHERE user_id = ?',
+      [userId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Vault not found' });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/vault', async (req, res) => {
+  const { user_id, encrypted_vault, salt } = req.body;
+  if (!user_id || !encrypted_vault) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO user_key_vault (user_id, encrypted_vault, salt) 
+       VALUES (?, ?, ?) 
+       ON DUPLICATE KEY UPDATE encrypted_vault = ?, salt = ?`,
+      [user_id, encrypted_vault, salt, encrypted_vault, salt]
+    );
+    res.json({ success: true, message: 'Vault updated successfully' });
+  } catch (err) {
+    console.error('❌ Vault update error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`\n========================================`);
   console.log(`🚀 Dash Server running on http://localhost:${port}`);
