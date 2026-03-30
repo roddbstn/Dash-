@@ -311,12 +311,15 @@ function updateUI(data) {
     const pcGrid = document.getElementById('pc-meta-grid');
     const mobileGrid = document.getElementById('mobile-meta-grid');
     
-    const htmlObj = metaList.map(m => `
+    const htmlObj = metaList.map(m => {
+        const isDate = m.label === '제공일시';
+        return `
         <div class="meta-item">
             <label>${m.label}</label>
-            <span>${m.value}</span>
+            <span class="${isDate ? 'meta-date-val' : ''}">${m.value}</span>
         </div>
-    `).join('');
+        `;
+    }).join('');
     
     pcGrid.innerHTML = htmlObj;
     mobileGrid.innerHTML = htmlObj;

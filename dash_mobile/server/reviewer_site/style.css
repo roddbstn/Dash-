@@ -198,6 +198,20 @@ body {
     max-width: 70%;
 }
 
+.meta-item span.meta-date-val {
+    font-size: 13px;
+    white-space: nowrap;
+    display: block;
+    max-width: none;
+    overflow: visible;
+}
+
+@media (max-width: 768px) {
+    .meta-item span.meta-date-val {
+        font-size: 14px;
+    }
+}
+
 /* Editor Area */
 .editor-area {
     flex: 1;
