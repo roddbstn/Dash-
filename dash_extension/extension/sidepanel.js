@@ -4,7 +4,7 @@
 // ==============================================
 
 // ===== 설정 =====
-const API_BASE = 'http://localhost:3000/api'; // 서버 주소 (배포 시 변경)
+const API_BASE = 'https://dash-production-3aba.up.railway.app/api';
 
 // ===== 상태 관리 =====
 let currentUser = null;   // { uid, email }
@@ -254,8 +254,10 @@ function renderRecords() {
         // 날짜/시간 포맷 (요일 포함)
         let dateTimeStr = '';
         if (record.start_time && record.end_time) {
-            const start = new Date(record.start_time);
-            const end = new Date(record.end_time);
+            const cleanStart = record.start_time.replace(' ', 'T');
+            const cleanEnd = record.end_time.replace(' ', 'T');
+            const start = new Date(cleanStart);
+            const end = new Date(cleanEnd);
             const dayName = dayNames[start.getDay()];
             const datePart = `${start.getMonth() + 1}/${start.getDate()} (${dayName})`;
             const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
@@ -421,8 +423,10 @@ btnInject.addEventListener('click', async () => {
     // 시간 포맷 변환 (ISO → content.js 형식)
     let dateTime_val = '';
     if (record.start_time && record.end_time) {
-        const start = new Date(record.start_time);
-        const end = new Date(record.end_time);
+        const cleanStart = record.start_time.replace(' ', 'T');
+        const cleanEnd = record.end_time.replace(' ', 'T');
+        const start = new Date(cleanStart);
+        const end = new Date(cleanEnd);
         const datePart = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
         const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
         const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;

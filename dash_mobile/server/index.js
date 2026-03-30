@@ -64,7 +64,8 @@ const pool = mysql.createPool({
   database: process.env.MYSQLDATABASE || process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 5,
-  queueLimit: 0
+  queueLimit: 0,
+  dateStrings: true
 });
 
 // --- API Endpoints ---

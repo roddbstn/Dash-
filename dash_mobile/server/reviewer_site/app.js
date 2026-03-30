@@ -129,7 +129,8 @@ function confirmNotify() {
 
 function formatDayOfWeek(dateString) {
     if(!dateString) return '';
-    const date = new Date(dateString);
+    const cleanStr = dateString.replace(' ', 'T');
+    const date = new Date(cleanStr);
     if(isNaN(date)) return dateString;
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     const m = date.getMonth() + 1;
@@ -142,8 +143,10 @@ function formatDayOfWeek(dateString) {
 // Format start and end time string "3월 12일 (목) 17:45 ~ 18:45"
 function formatDateTimeRange(startStr, endStr) {
     if(!startStr || !endStr) return '';
-    const startDate = new Date(startStr);
-    const endDate = new Date(endStr);
+    const cleanStart = startStr.replace(' ', 'T');
+    const cleanEnd = endStr.replace(' ', 'T');
+    const startDate = new Date(cleanStart);
+    const endDate = new Date(cleanEnd);
     if(isNaN(startDate) || isNaN(endDate)) return `${startStr} ~ ${endStr}`;
     
     const startDayFormatted = formatDayOfWeek(startStr);
