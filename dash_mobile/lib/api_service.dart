@@ -113,7 +113,6 @@ class ApiService {
 
   static Future<List<dynamic>> fetchRecords() async {
     final userId = await StorageService.getUserId();
-    if (userId == null) return [];
     try {
       final response = await http.get(Uri.parse('$baseUrl/records/user/$userId'));
       if (response.statusCode == 200) {

@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<dynamic> _cases = [];
   List<dynamic> _notifications = [];
   bool _isSelectionMode = false;
+  bool _isPlusPressed = false;
   final List<int> _selectedCaseIds = [];
   
   // Real-time event subscription
@@ -804,14 +805,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleSpacing: 20,
-        title: const Text(
-          'DASH',
-          style: TextStyle(
-            color: AppColors.primary,
-            fontWeight: FontWeight.w900,
-            fontSize: 22,
-            letterSpacing: -0.4,
-          ),
+        title: Image.asset(
+          'assets/icons/logo.png',
+          height: 28, // height can be adjusted later if needed
+          fit: BoxFit.contain,
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -1335,7 +1332,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: IntrinsicHeight(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: Column(
                   children: [
                     _InfoBanner(),
@@ -1349,47 +1346,47 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
                             colors: [
-                              const Color(0xFFC7E0FF).withValues(alpha: 0.25),
+                              const Color(0xFF90C2FF).withValues(alpha: 0.55),
                               Colors.white,
                             ],
-                            stops: const [0.0, 0.35],
+                            stops: const [0.0, 0.65],
                           ),
                           border: Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            width: 1.2,
+                            color: Colors.black.withValues(alpha: 0.05),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(
-                                alpha: 0.06,
-                              ),
-                              blurRadius: 24,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.primary.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 4),
+                            GestureDetector(
+                              onTapDown: (_) => setState(() => _isPlusPressed = true),
+                              onTapUp: (_) => setState(() => _isPlusPressed = false),
+                              onTapCancel: () => setState(() => _isPlusPressed = false),
+                              onTap: _showCaseSelectionModal,
+                              child: AnimatedScale(
+                                scale: _isPlusPressed ? 0.94 : 1.0,
+                                duration: const Duration(milliseconds: 100),
+                                curve: Curves.easeOutCubic,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 100),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: _isPlusPressed ? const Color(0xFFF2F4F6) : Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: _isPlusPressed ? [] : [
+                                      BoxShadow(
+                                        color: AppColors.primary.withValues(alpha: 0.15),
+                                        blurRadius: 15,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.add_circle_outline,
-                                color: AppColors.primary,
-                                size: 36,
+                                  child: const Icon(
+                                    Icons.add_circle_outline,
+                                    color: AppColors.primary,
+                                    size: 36,
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 30),
@@ -1413,6 +1410,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
+                              letterSpacing: -0.4,
                             ),
                           ),
                         ),
@@ -1519,10 +1517,9 @@ class _PressableCaseCardState extends State<_PressableCaseCard> {
           decoration: BoxDecoration(
             color: _isPressed ? const Color(0xFFF2F4F6) : Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.isSelected ? AppColors.primary : AppColors.border,
-              width: widget.isSelected ? 2 : 1,
-            ),
+            border: widget.isSelected
+                ? Border.all(color: AppColors.primary, width: 2)
+                : Border.all(color: Colors.black.withValues(alpha: 0.05)),
             boxShadow: _isPressed ? [] : [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -1589,39 +1586,132 @@ class _PressableCaseCardState extends State<_PressableCaseCard> {
   }
 }
 
-class _InfoBanner extends StatelessWidget {
-
+class _InfoBanner extends StatefulWidget {
   const _InfoBanner();
 
   @override
+  State<_InfoBanner> createState() => _InfoBannerState();
+}
+
+class _InfoBannerState extends State<_InfoBanner> {
+  bool _isLeftPressed = false;
+  bool _isRightPressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEDF3FB),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.lightbulb_outline_rounded,
-            size: 16,
-            color: AppColors.primary.withValues(alpha: 0.55),
-          ),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              '앱에서 DB를 어떻게 작성하나요?',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color.fromARGB(255, 80, 93, 109),
-                letterSpacing: -0.2,
-              ),
+    final bool isAnyPressed = _isLeftPressed || _isRightPressed;
+
+    return AnimatedScale(
+      scale: isAnyPressed ? 0.98 : 1.0,
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOutCubic,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+          boxShadow: isAnyPressed ? [] : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
+          ],
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // Left: 이용 안내
+              Expanded(
+                child: GestureDetector(
+                  onTapDown: (_) => setState(() => _isLeftPressed = true),
+                  onTapUp: (_) => setState(() => _isLeftPressed = false),
+                  onTapCancel: () => setState(() => _isLeftPressed = false),
+                  onTap: () {
+                    // TODO: 이용 안내 화면으로 이동
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    decoration: BoxDecoration(
+                      color: _isLeftPressed ? const Color(0xFFF2F4F6) : Colors.white,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        bottomLeft: Radius.circular(20),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 22),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Text('📋', style: TextStyle(fontSize: 17)),
+                        SizedBox(width: 7),
+                        Text(
+                          '이용 안내',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF222222),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Vertical divider
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  width: 1,
+                  color: AppColors.bg, // 배경색과 동일한 색으로 변경
+                ),
+              ),
+              // Right: 개인 정보
+              Expanded(
+                child: GestureDetector(
+                  onTapDown: (_) => setState(() => _isRightPressed = true),
+                  onTapUp: (_) => setState(() => _isRightPressed = false),
+                  onTapCancel: () => setState(() => _isRightPressed = false),
+                  onTap: () {
+                    // TODO: 개인 정보 화면으로 이동
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    decoration: BoxDecoration(
+                      color: _isRightPressed ? const Color(0xFFF2F4F6) : Colors.white,
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(20),
+                        bottomRight: Radius.circular(20),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 22),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Text('🔒', style: TextStyle(fontSize: 17)),
+                        SizedBox(width: 7),
+                        Text(
+                          '개인 정보',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF222222),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1649,6 +1739,7 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
   late Animation<double> _animation;
   double _dragOffset = 0;
   static const double _maxSwipe = 90.0;
+  bool _isCardPressed = false;
 
   @override
   void initState() {
@@ -1701,10 +1792,14 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
       animation: _animation,
       builder: (context, child) {
         final offset = _controller.isAnimating ? _animation.value : _dragOffset;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Stack(
-            children: [
+        return AnimatedScale(
+          scale: _isCardPressed ? 0.98 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOutCubic,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Stack(
+              children: [
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -1740,21 +1835,25 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                 child: GestureDetector(
                   onHorizontalDragUpdate: _onHorizontalDragUpdate,
                   onHorizontalDragEnd: _onHorizontalDragEnd,
+                  onTapDown: (_) => setState(() => _isCardPressed = true),
+                  onTapUp: (_) => setState(() => _isCardPressed = false),
+                  onTapCancel: () => setState(() => _isCardPressed = false),
                   onTap: widget.onTap,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFFF2F4F6)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _isCardPressed ? const Color(0xFFF2F4F6) : Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+                        boxShadow: _isCardPressed ? [] : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
                     child: Row(
                       children: [
                         Expanded(
@@ -1843,6 +1942,7 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                 ),
               ),
             ],
+          ),
           ),
         );
       },

@@ -157,9 +157,20 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> with SingleTickerPr
         ),
       ),
     ),
-    bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
             child: DashButton(
               onTap: _isNextEnabled ? _handleNext : null,
               text: _currentStep == 1 ? '다음' : '저장',
@@ -167,7 +178,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> with SingleTickerPr
               height: 56,
               borderRadius: 12,
             ),
-
+          ),
         ),
       ),
     );
