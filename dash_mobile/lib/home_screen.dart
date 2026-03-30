@@ -770,7 +770,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             side: const BorderSide(color: Color(0xFFE5E8EB), width: 1),
                           ),
                           elevation: 4,
-                          shadowColor: Colors.black.withOpacity(0.2),
+                          shadowColor: Colors.black.withValues(alpha: 0.2),
                         ),
                         child: const Text(
                           '+ 사례 생성',
@@ -856,7 +856,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               side: const BorderSide(color: Color(0xFFE5E8EB), width: 1),
             ),
             elevation: 4,
-            shadowColor: Colors.black.withOpacity(0.2),
+            shadowColor: Colors.black.withValues(alpha: 0.2),
           ),
           child: const Text(
             '+ 사례 생성',
@@ -904,7 +904,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.notifications_none_rounded, size: 64, color: AppColors.border.withOpacity(0.8)),
+            Icon(Icons.notifications_none_rounded, size: 64, color: AppColors.border.withValues(alpha: 0.8)),
             const SizedBox(height: 16),
             const Text(
               '아직 도착한 알림이 없어요',
@@ -1311,7 +1311,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Switch(
           value: _notificationsEnabled,
           onChanged: _toggleNotifications,
-          activeColor: Colors.white,
+          activeThumbColor: Colors.white,
           activeTrackColor: AppColors.primary,
           inactiveThumbColor: Colors.white,
           inactiveTrackColor: const Color(0xFFE5E8EB),
@@ -1788,11 +1788,15 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                     if (start == null || end == null) return widget.d['datetime'] ?? '제공일시 미설정';
 
                                     final bool isSameDay = start.year == end.year && start.month == end.month && start.day == end.day;
-                                    final fullFormat = DateFormat('MM.dd HH:mm');
+                                    final days = ['월', '화', '수', '목', '금', '토', '일'];
+                                    final String defaultStartTime = "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
+                                    
                                     if (isSameDay) {
-                                      return "${fullFormat.format(start)} ~ ${DateFormat('HH:mm').format(end)}";
+                                      return "$defaultStartTime ~ ${DateFormat('HH:mm').format(end)}";
+                                    } else {
+                                      final String defaultEndTime = "${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}";
+                                      return "$defaultStartTime ~ $defaultEndTime";
                                     }
-                                    return "${fullFormat.format(start)} ~ ${fullFormat.format(end)}";
                                   })()}',
                                 style: const TextStyle(
                                   color: Color(0xFF8B95A1),

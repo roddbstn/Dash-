@@ -146,10 +146,13 @@ class _FormScreenState extends State<FormScreen> {
     String? dateTimeString;
     if (_startDate != null && _endDate != null) {
       final bool isSameDay = _startDate!.year == _endDate!.year && _startDate!.month == _endDate!.month && _startDate!.day == _endDate!.day;
+      final days = ['월', '화', '수', '목', '금', '토', '일'];
+      final startFormatted = "${_startDate!.month}.${_startDate!.day} (${days[_startDate!.weekday - 1]}) ${DateFormat('HH:mm').format(_startDate!)}";
       if (isSameDay) {
-        dateTimeString = "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('HH:mm').format(_endDate!)}";
+        dateTimeString = "$startFormatted ~ ${DateFormat('HH:mm').format(_endDate!)}";
       } else {
-        dateTimeString = "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}";
+        final endFormatted = "${_endDate!.month}.${_endDate!.day} (${days[_endDate!.weekday - 1]}) ${DateFormat('HH:mm').format(_endDate!)}";
+        dateTimeString = "$startFormatted ~ $endFormatted";
       }
     }
 
@@ -230,7 +233,7 @@ class _FormScreenState extends State<FormScreen> {
     final shareToken = await ApiService.syncRecord(serverDraftData);
     if (shareToken != null) {
       // [Security] 2. Sync Key to User's Vault
-      await _syncKeyToVault(userId, targetId.toString(), encryptionKey!, pin);
+      await _syncKeyToVault(userId, targetId.toString(), encryptionKey, pin);
 
       final updatedDrafts = await StorageService.getDrafts();
       final idx = updatedDrafts.indexWhere((d) => d['id'].toString() == targetId.toString());
@@ -525,7 +528,7 @@ class _FormScreenState extends State<FormScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black.withOpacity(0.05)),
+                border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
               ),
               child: Row(
                 children: [
@@ -583,7 +586,11 @@ class _FormScreenState extends State<FormScreen> {
                       spacing: 8,
                       children: ['피해아동', '사례관리대상자', '가족구성원', '가족전체', '시설', '기타'].map((t) => _buildChip(t, _selectedTargets.contains(t), (val) {
                         setState(() {
-                          if (_selectedTargets.contains(val)) _selectedTargets.remove(val); else _selectedTargets.add(val);
+                          if (_selectedTargets.contains(val)) {
+                            _selectedTargets.remove(val);
+                          } else {
+                            _selectedTargets.add(val);
+                          }
                         });
                       })).toList(),
                     ),
@@ -657,7 +664,11 @@ class _FormScreenState extends State<FormScreen> {
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(20),
-        child: DashButton(onTap: () { if (_startDate == null) setState(() => _showDateTimeError = true); else _handleSave(); }, text: '저장', backgroundColor: AppColors.primary, height: 56),
+        child: DashButton(onTap: () { if (_startDate == null) {
+          setState(() => _showDateTimeError = true);
+        } else {
+          _handleSave();
+        } }, text: '저장', backgroundColor: AppColors.primary, height: 56),
       ),
     );
   }
@@ -667,7 +678,7 @@ class _FormScreenState extends State<FormScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.black.withOpacity(0.05))),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.black.withValues(alpha: 0.05))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textSub)),
         if (subLabel != null) Text(subLabel, style: const TextStyle(fontSize: 11, color: Colors.grey)),
