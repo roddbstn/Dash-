@@ -153,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 서버에서 최신 상태 가져오기
     try {
       final String? userId = FirebaseAuth.instance.currentUser?.uid;
-      final serverRecords = await ApiService.fetchRecords();
+      final serverRecords = await ApiService.fetchRecords(); // null = 통신 실패
 
       // Fetch actual notifications from server table
       if (userId != null) {
@@ -165,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
-      if (serverRecords.isNotEmpty || localDrafts.isNotEmpty) {
+      if (serverRecords != null && (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
         // 로컬 데이터와 서버 데이터 병합 및 삭제 처리
         List<Map<String, dynamic>> updatedDrafts = [];
 
@@ -288,12 +288,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               // 아직 동기화 전인 데이터는 당연히 유지
               updatedDrafts.add(local);
             } else {
-              // 동기화된 데이터인데 서버에서 안 보인다면,
-              // 일시적인 지연일 수 있으므로 일단 로컬에서 지우지 않고 유지 (방어적 설계)
+              // 서버에 토큰이 있는데 서버 응답에 없으면 서버에서 삭제된 것이므로 로컬에서도 제거
               print(
-                '⚠️ Server local mismatch for token $localToken. Keeping local copy safely.',
+                '🗑️ Record with token $localToken not found on server (deleted). Removing local copy.',
               );
-              updatedDrafts.add(local);
+              // updatedDrafts에 추가하지 않음으로써 로컬에서도 삭제
             }
           }
         }

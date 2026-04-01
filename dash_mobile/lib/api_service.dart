@@ -111,7 +111,7 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> fetchRecords() async {
+  static Future<List<dynamic>?> fetchRecords() async {
     final userId = await StorageService.getUserId();
     try {
       final response = await http.get(Uri.parse('$baseUrl/records/user/$userId'));
@@ -121,7 +121,7 @@ class ApiService {
     } catch (e) {
       print('❌ Error fetching records: $e');
     }
-    return [];
+    return null; // null = 서버 통신 실패, [] = 서버 응답은 성공이나 레코드 없음
   }
 
   static Future<Map<String, dynamic>?> fetchUser(String userId) async {
