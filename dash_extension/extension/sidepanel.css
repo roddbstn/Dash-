@@ -786,13 +786,16 @@ body {
 
 /* ===== Footer ===== */
 .footer-link {
-    text-align: center;
-    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--bg);
+    background: var(--card);
+    border-top: 1px solid var(--border);
 }
 
 .footer-link a {
@@ -803,6 +806,24 @@ body {
 
 .footer-link a:hover {
     color: var(--text-sub);
+}
+
+.footer-logout-btn {
+    background: none;
+    border: none;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-hint);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    transition: all 0.2s;
+}
+
+.footer-logout-btn:hover {
+    color: var(--danger);
+    background: #FFEBEE;
 }
 
 /* ===== Loading Skeleton ===== */
@@ -863,4 +884,293 @@ body {
 @keyframes toastSlideDown {
     from { top: -50px; opacity: 0; }
     to { top: 20px; opacity: 1; }
+}
+
+/* ==============================================
+   PIN Verification View
+   ============================================== */
+
+.pin-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px 24px;
+    animation: pinFadeIn 0.4s ease-out;
+}
+
+@keyframes pinFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.pin-header {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.pin-logo {
+    width: 56px;
+    height: 56px;
+    background: var(--primary-light);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+.pin-logo-img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+}
+
+.pin-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-main);
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+}
+
+.pin-subtitle {
+    font-size: 13px;
+    color: var(--text-sub);
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+/* ===== PIN Dots ===== */
+.pin-dots {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.pin-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: transparent;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pin-dot.filled {
+    background: var(--primary);
+    border-color: var(--primary);
+    transform: scale(1.15);
+    box-shadow: 0 2px 8px rgba(49, 130, 246, 0.3);
+}
+
+.pin-dot.error {
+    border-color: var(--danger);
+    background: var(--danger);
+    animation: pinShake 0.4s ease-in-out;
+}
+
+.pin-dot.success {
+    border-color: var(--success);
+    background: var(--success);
+    animation: pinPop 0.3s ease-out;
+}
+
+@keyframes pinShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+
+@keyframes pinPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1.15); }
+}
+
+/* ===== PIN Error Message ===== */
+.pin-error {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--danger);
+    margin-bottom: 12px;
+    animation: pinErrorFade 0.3s ease-out;
+}
+
+@keyframes pinErrorFade {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== PIN Keypad ===== */
+.pin-keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 100%;
+    max-width: 260px;
+    margin-bottom: 20px;
+}
+
+.pin-key {
+    width: 100%;
+    aspect-ratio: 1.4;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--card);
+    color: var(--text-main);
+    font-size: 22px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s ease;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.pin-key:hover:not(:disabled) {
+    background: #F0F2F5;
+    transform: scale(1.03);
+}
+
+.pin-key:active:not(:disabled) {
+    background: var(--primary-light);
+    transform: scale(0.95);
+    box-shadow: none;
+}
+
+.pin-key-empty {
+    background: transparent !important;
+    box-shadow: none !important;
+    cursor: default !important;
+}
+
+.pin-key-delete {
+    font-size: 24px;
+    color: var(--text-sub);
+}
+
+.pin-key-delete:hover:not(:disabled) {
+    color: var(--danger);
+    background: #FFEBEE;
+}
+
+/* ===== Forgot PIN Link ===== */
+.pin-forgot-link {
+    background: none;
+    border: none;
+    color: var(--text-hint);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: var(--radius-xs);
+    transition: all 0.2s;
+    font-family: 'Pretendard', -apple-system, sans-serif;
+}
+
+.pin-forgot-link:hover {
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+/* ===== PIN Help Modal (Forgot PIN) ===== */
+.pin-help-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+    animation: overlayFadeIn 0.25s ease-out;
+    padding: 24px;
+}
+
+.pin-help-overlay.hidden {
+    display: none;
+}
+
+@keyframes overlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.pin-help-modal {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 32px 28px 24px;
+    text-align: center;
+    max-width: 300px;
+    width: 100%;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.15);
+    animation: modalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.pin-help-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.pin-help-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 12px;
+    letter-spacing: -0.3px;
+}
+
+.pin-help-desc {
+    font-size: 13px;
+    color: var(--text-sub);
+    line-height: 1.7;
+    margin-bottom: 24px;
+}
+
+.pin-help-desc strong {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.pin-help-close-btn {
+    height: 44px;
+    font-size: 14px;
+}
+
+/* ===== PIN Loading Spinner ===== */
+.pin-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.pin-loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+.pin-loading-text {
+    font-size: 12px;
+    color: var(--text-hint);
+    font-weight: 500;
 }

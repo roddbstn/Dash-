@@ -17,6 +17,7 @@ class FormScreen extends StatefulWidget {
   final String caseName;
   final String dong;
   final int? draftId;
+  final bool isEmbedded;
 
   const FormScreen({
     super.key,
@@ -24,6 +25,7 @@ class FormScreen extends StatefulWidget {
     required this.caseName,
     required this.dong,
     this.draftId,
+    this.isEmbedded = false,
   });
 
   @override
@@ -232,8 +234,8 @@ class _FormScreenState extends State<FormScreen> {
     
     final shareToken = await ApiService.syncRecord(serverDraftData);
     if (shareToken != null) {
-      // [Security] 2. Sync Key to User's Vault
-      await _syncKeyToVault(userId, targetId.toString(), encryptionKey, pin);
+      // [Security] 2. Sync Key to User's Vault - share_token을 키로 사용 (확장앱이 share_token으로 레코드를 식별)
+      await _syncKeyToVault(userId, shareToken, encryptionKey, pin);
 
       final updatedDrafts = await StorageService.getDrafts();
       final idx = updatedDrafts.indexWhere((d) => d['id'].toString() == targetId.toString());
@@ -502,8 +504,27 @@ class _FormScreenState extends State<FormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Status color and label logic
     final bool isReviewed = (_currentDraft?['status']?.toString().toLowerCase() == 'reviewed');
+
+    if (widget.isEmbedded) {
+      return Material(
+        color: AppColors.bg,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  _buildCaseInfoHeader(isReviewed: isReviewed, showBackButton: true),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                      child: _buildFormSections(),
+                    ),
+                  ),
+                  _buildSaveBar(),
+                ],
+              ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -518,176 +539,237 @@ class _FormScreenState extends State<FormScreen> {
           if (widget.draftId != null) IconButton(icon: const Icon(Icons.ios_share, size: 22), onPressed: _showShareModal),
         ],
       ),
-      body: _isLoading ? const Center(child: CircularProgressIndicator()) : Column(
-        children: [
-          // Case Info (Pinned to top)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                _buildCaseInfoHeader(isReviewed: isReviewed, showBackButton: false),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                    child: _buildFormSections(),
+                  ),
+                ),
+              ],
+            ),
+      bottomNavigationBar: _buildSaveBar(),
+    );
+  }
+
+  Widget _buildCaseInfoHeader({required bool isReviewed, required bool showBackButton}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+        ),
+        child: Row(
+          children: [
+            if (showBackButton) ...[
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.textSub),
               ),
-              child: Row(
-                children: [
-                  Text("${widget.caseName} 아동", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 8),
-                  Text(widget.dong, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 13)),
-                  const Spacer(),
-                  // Status Tag added at the right end (Only shows in Edit mode)
-                  if (widget.draftId != null) 
+              const SizedBox(width: 12),
+            ],
+            Text("${widget.caseName} 아동", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+            Text(widget.dong, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 13)),
+            const Spacer(),
+            if (widget.draftId != null) ...[
+              if (showBackButton)
+                GestureDetector(
+                  onTap: _showShareModal,
+                  child: const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(Icons.ios_share, size: 20, color: AppColors.textSub),
+                  ),
+                ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isReviewed ? AppColors.successLight : AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      width: 6,
+                      height: 6,
                       decoration: BoxDecoration(
-                        color: isReviewed ? AppColors.successLight : AppColors.primaryLight,
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: isReviewed ? AppColors.success : AppColors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isReviewed ? '검토 완료' : '검토 대기',
-                            style: TextStyle(
-                              color: isReviewed ? AppColors.success : AppColors.primary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                        color: isReviewed ? AppColors.success : AppColors.primary,
+                        shape: BoxShape.circle,
                       ),
                     ),
-                ],
+                    const SizedBox(width: 6),
+                    Text(
+                      isReviewed ? '검토 완료' : '검토 대기',
+                      style: TextStyle(
+                        color: isReviewed ? AppColors.success : AppColors.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormSections() {
+    final leftSections = <Widget>[
+      _buildSection(
+        label: '서비스 내용',
+        child: TextField(controller: _serviceController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none)),
+      ),
+      _buildSection(
+        label: '상담원 소견',
+        child: TextField(controller: _opinionController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none)),
+      ),
+      _buildSection(
+        label: '대상자',
+        child: Wrap(
+          spacing: 8,
+          children: ['피해아동', '사례관리대상자', '가족구성원', '가족전체', '시설', '기타'].map((t) => _buildChip(t, _selectedTargets.contains(t), (val) {
+            setState(() {
+              if (_selectedTargets.contains(val)) {
+                _selectedTargets.remove(val);
+              } else {
+                _selectedTargets.add(val);
+              }
+            });
+          })).toList(),
+        ),
+      ),
+    ];
+
+    final rightSections = <Widget>[
+      _buildSection(label: '제공구분', child: Wrap(spacing: 8, children: ['제공', '부가업무', '거부'].map((t) => _buildChip(t, _selectedProvisionType == t, (val) => setState(() => _selectedProvisionType = val))).toList())),
+      _buildSection(label: '제공방법', child: Wrap(spacing: 8, children: ['방문', '내방', '전화'].map((t) => _buildChip(t, _selectedMethod == t, (val) => setState(() => _selectedMethod = val))).toList())),
+      _buildSection(label: '서비스유형', child: Wrap(spacing: 8, children: ['아보전', '연계', '통합'].map((t) => _buildChip(t, _selectedServiceType == t, (val) => setState(() => _selectedServiceType = val))).toList())),
+      _buildSection(label: '제공서비스', child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: _selectedService, items: _serviceOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => setState(() => _selectedService = v!)))),
+      _buildSection(
+        label: '제공장소',
+        child: Wrap(
+          spacing: 8,
+          children: ['기관내', '아동가정', '유관기관', '기타'].map((t) => _buildChip(t, _selectedLocation == t, (val) {
+            setState(() { _selectedLocation = val; _showOtherLocationField = val == '기타'; });
+          })).toList(),
+        ),
+      ),
+      if (_showOtherLocationField)
+        _buildSection(
+          label: '기타 장소',
+          child: TextField(
+            controller: _otherLocationController,
+            inputFormatters: [LengthLimitingTextInputFormatter(10)],
+            decoration: const InputDecoration(hintText: '최대 10자 입력'),
           ),
-          
-          // Form Sections (Scrollable)
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-              child: Column(
+        ),
+      _buildSection(
+        label: '제공일시',
+        child: InkWell(
+          onTap: _selectDateTime,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(color: (_showDateTimeError && _startDate == null) ? Colors.red : Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(_startDate == null ? '일시 선택' : "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}"),
+          ),
+        ),
+      ),
+      _buildSection(label: '서비스 제공횟수', child: Row(children: [SizedBox(width: 40, child: TextField(controller: _serviceCountController, textAlign: TextAlign.center)), const Text('회')])),
+      _buildSection(
+        label: '이동소요시간',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...[5, 10, 15, 20, 30].map((t) => _buildChip("$t분", (!_isManualTravelTime && _travelTime == t), (val) => setState(() { _travelTime = t; _isManualTravelTime = false; }))),
+                _buildChip("직접 입력", _isManualTravelTime, (val) => setState(() => _isManualTravelTime = true)),
+              ],
+            ),
+            if (_isManualTravelTime) ...[
+              const SizedBox(height: 12),
+              Row(
                 children: [
-                  _buildSection(label: '서비스 내용', child: TextField(controller: _serviceController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none))),
-                  _buildSection(label: '상담원 소견', child: TextField(controller: _opinionController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none))),
-                  _buildSection(
-                    label: '대상자',
-                    child: Wrap(
-                      spacing: 8,
-                      children: ['피해아동', '사례관리대상자', '가족구성원', '가족전체', '시설', '기타'].map((t) => _buildChip(t, _selectedTargets.contains(t), (val) {
-                        setState(() {
-                          if (_selectedTargets.contains(val)) {
-                            _selectedTargets.remove(val);
-                          } else {
-                            _selectedTargets.add(val);
-                          }
-                        });
-                      })).toList(),
+                  SizedBox(
+                    width: 80,
+                    child: TextField(
+                      controller: _travelTimeController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      inputFormatters: [LengthLimitingTextInputFormatter(7)],
+                      decoration: const InputDecoration(hintText: '0'),
+                      onChanged: (v) => setState(() => _travelTime = int.tryParse(v) ?? 0),
                     ),
                   ),
-                  _buildSection(label: '제공구분', child: Wrap(spacing: 8, children: ['제공', '부가업무', '거부'].map((t) => _buildChip(t, _selectedProvisionType == t, (val) => setState(() => _selectedProvisionType = val))).toList())),
-                  _buildSection(label: '제공방법', child: Wrap(spacing: 8, children: ['방문', '내방', '전화'].map((t) => _buildChip(t, _selectedMethod == t, (val) => setState(() => _selectedMethod = val))).toList())),
-                  _buildSection(label: '서비스유형', child: Wrap(spacing: 8, children: ['아보전', '연계', '통합'].map((t) => _buildChip(t, _selectedServiceType == t, (val) => setState(() => _selectedServiceType = val))).toList())),
-                  _buildSection(label: '제공서비스', child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: _selectedService, items: _serviceOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => setState(() => _selectedService = v!)))),
-                  _buildSection(
-                    label: '제공장소',
-                    child: Wrap(
-                      spacing: 8,
-                      children: ['기관내', '아동가정', '유관기관', '기타'].map((t) => _buildChip(t, _selectedLocation == t, (val) {
-                        setState(() { _selectedLocation = val; _showOtherLocationField = val == '기타'; });
-                      })).toList(),
-                    ),
-                  ),
-                  if (_showOtherLocationField) _buildSection(label: '기타 장소', child: TextField(controller: _otherLocationController)),
-                  _buildSection(
-                    label: '제공일시',
-                    child: InkWell(
-                      onTap: _selectDateTime,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(border: Border.all(color: (_showDateTimeError && _startDate == null) ? Colors.red : Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
-                        child: Text(_startDate == null ? '일시 선택' : "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}"),
-                      ),
-                    ),
-                  ),
-                  _buildSection(label: '서비스 제공횟수', child: Row(children: [SizedBox(width: 40, child: TextField(controller: _serviceCountController, textAlign: TextAlign.center)), const Text('회')])),
-                  _buildSection(
-                    label: '이동소요시간',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ...[5, 10, 15, 20, 30].map((t) => _buildChip("$t분", (!_isManualTravelTime && _travelTime == t), (val) => setState(() { _travelTime = t; _isManualTravelTime = false; }))),
-                            _buildChip("직접 입력", _isManualTravelTime, (val) => setState(() => _isManualTravelTime = true)),
-                          ],
-                        ),
-                        if (_isManualTravelTime) ...[
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              SizedBox(
-                                width: 80,
-                                child: TextField(
-                                  controller: _travelTimeController,
-                                  keyboardType: TextInputType.number,
-                                  textAlign: TextAlign.center,
-                                  decoration: const InputDecoration(hintText: '0'),
-                                  onChanged: (v) => setState(() => _travelTime = int.tryParse(v) ?? 0),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('분', style: TextStyle(fontSize: 14, color: AppColors.textSub)),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                  const SizedBox(width: 8),
+                  const Text('분', style: TextStyle(fontSize: 14, color: AppColors.textSub)),
                 ],
               ),
-            ),
+            ],
+          ],
+        ),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > kTabletBreakpoint) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: Column(children: leftSections)),
+              const SizedBox(width: 16),
+              Expanded(child: Column(children: rightSections)),
+            ],
+          );
+        }
+        return Column(children: [...leftSections, ...rightSections]);
+      },
+    );
+  }
+
+  Widget _buildSaveBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            child: DashButton(
-              onTap: () { 
-                if (_startDate == null) {
-                  setState(() => _showDateTimeError = true);
-                } else {
-                  _handleSave();
-                } 
-              }, 
-              text: '저장', 
-              backgroundColor: AppColors.primary, 
-              height: 56,
-            ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: DashButton(
+            onTap: () {
+              if (_startDate == null) {
+                setState(() => _showDateTimeError = true);
+              } else {
+                _handleSave();
+              }
+            },
+            text: '저장',
+            backgroundColor: AppColors.primary,
+            height: 56,
           ),
         ),
       ),

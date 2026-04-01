@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const double kTabletBreakpoint = 650.0;
+
 class AppColors {
   static const Color primary = Color(0xFF3182F6);
   static const Color primaryLight = Color(0xFFE8F3FF);

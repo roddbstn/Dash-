@@ -22,19 +22,67 @@
               <div class="gsi-material-button-state"></div>
               <div class="gsi-material-button-content-wrapper">
                 <div class="gsi-material-button-icon">
-                  <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" xmlns:xlink="http://www.w3.org/1999/xlink" style="display: block;">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                    <path fill="none" d="M0 0h48v48H0z"></path>
-                  </svg>
+                  <img src="google_logo.png" alt="Google" style="width: 20px; height: 20px; display: block;" />
                 </div>
                 <span class="gsi-material-button-contents">Google 계정으로 로그인</span>
                 <span style="display: none;">Google 계정으로 로그인</span>
               </div>
             </button>
             <p class="login-hint">모바일 앱과 동일한 계정으로 로그인하세요</p>
+        </div>
+    </div>
+
+    <!-- ===== 1.5. PIN 인증 화면 ===== -->
+    <div id="pin-view" class="view hidden">
+        <div class="pin-container">
+            <div class="pin-header">
+                <div class="pin-logo">
+                    <img src="icon128.png" class="pin-logo-img" alt="Dash" />
+                </div>
+                <h2 class="pin-title">보안 PIN 입력</h2>
+                <p class="pin-subtitle">Dash 모바일 앱에서 설정한<br>4자리 PIN을 입력하세요</p>
+            </div>
+
+            <div class="pin-dots" id="pin-dots">
+                <div class="pin-dot" data-index="0"></div>
+                <div class="pin-dot" data-index="1"></div>
+                <div class="pin-dot" data-index="2"></div>
+                <div class="pin-dot" data-index="3"></div>
+            </div>
+
+            <p id="pin-error" class="pin-error hidden">PIN이 일치하지 않습니다</p>
+
+            <div class="pin-keypad" id="pin-keypad">
+                <button class="pin-key" data-key="1">1</button>
+                <button class="pin-key" data-key="2">2</button>
+                <button class="pin-key" data-key="3">3</button>
+                <button class="pin-key" data-key="4">4</button>
+                <button class="pin-key" data-key="5">5</button>
+                <button class="pin-key" data-key="6">6</button>
+                <button class="pin-key" data-key="7">7</button>
+                <button class="pin-key" data-key="8">8</button>
+                <button class="pin-key" data-key="9">9</button>
+                <button class="pin-key pin-key-empty" disabled></button>
+                <button class="pin-key" data-key="0">0</button>
+                <button class="pin-key pin-key-delete" data-key="delete">⌫</button>
+            </div>
+
+            <button id="btn-forgot-pin" class="pin-forgot-link">PIN이 기억나지 않으세요?</button>
+        </div>
+
+        <!-- PIN 분실 도움말 모달 -->
+        <div id="pin-help-modal" class="pin-help-overlay hidden">
+            <div class="pin-help-modal">
+                <div class="pin-help-icon">📱</div>
+                <h3 class="pin-help-title">모바일 앱에서 확인하세요</h3>
+                <p class="pin-help-desc">
+                    PIN이 기억나지 않으시나요?<br>
+                    내 휴대폰 <strong>Dash 앱</strong>의<br>
+                    <strong>설정 → 보안 PIN 관리</strong>에서<br>
+                    PIN을 확인하실 수 있습니다.
+                </p>
+                <button id="btn-close-pin-help" class="btn btn-outline pin-help-close-btn">확인</button>
+            </div>
         </div>
     </div>
 
@@ -94,6 +142,7 @@
 
     <div class="footer-link">
         <a href="https://roddbstn.github.io/Dash-/" target="_blank">개인정보처리방침</a>
+        <button id="btn-footer-logout" class="footer-logout-btn">로그아웃</button>
     </div>
 
     <!-- Core -->

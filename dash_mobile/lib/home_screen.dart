@@ -940,30 +940,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           fit: BoxFit.contain,
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: const Color(0xFF8B95A1),
-        backgroundColor: Colors.white,
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: '홈',
-          ),
-          BottomNavigationBarItem(
-            icon: Badge(
-              label: null, // 숫자 대신 점만 표시
-              isLabelVisible: _notifications.any(
-                (n) => n['is_read'] == 0 || n['is_read'] == false,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -2))
+          ],
+        ),
+        child: SafeArea(
+          child: Center(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: BottomNavigationBar(
+                elevation: 0,
+                currentIndex: _currentIndex,
+                onTap: (index) => setState(() => _currentIndex = index),
+                selectedItemColor: AppColors.primary,
+                unselectedItemColor: const Color(0xFF8B95A1),
+                backgroundColor: Colors.transparent, // Uses container's white
+                items: [
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.home_filled),
+                    label: '홈',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Badge(
+                      label: null, // 숫자 대신 점만 표시
+                      isLabelVisible: _notifications.any(
+                        (n) => n['is_read'] == 0 || n['is_read'] == false,
+                      ),
+                      backgroundColor: const Color(0xFFFF4D00), // 주황빛 도는 빨간색
+                      child: const Icon(Icons.notifications),
+                    ),
+                    label: '알림',
+                  ),
+                  const BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
+                ],
               ),
-              backgroundColor: const Color(0xFFFF4D00), // 주황빛 도는 빨간색
-              child: const Icon(Icons.notifications),
             ),
-            label: '알림',
           ),
-          const BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
-        ],
+        ),
       ),
       floatingActionButton: _currentIndex != 0
           ? null
@@ -1888,6 +1906,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildHomeTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final bool isPad = constraints.maxWidth > 650;
+
         return RefreshIndicator(
           onRefresh: _loadData,
           color: AppColors.primary,
@@ -1898,126 +1918,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: IntrinsicHeight(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                  child: Column(
-                    children: [
-                      _InfoBanner(),
-                      const SizedBox(height: 15),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [
-                              const Color(0xFF90C2FF).withValues(alpha: 0.55),
-                              Colors.white,
-                            ],
-                            stops: const [0.0, 0.65],
-                          ),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                  child: isPad
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            GestureDetector(
-                              onTapDown: (_) =>
-                                  setState(() => _isPlusPressed = true),
-                              onTapUp: (_) =>
-                                  setState(() => _isPlusPressed = false),
-                              onTapCancel: () =>
-                                  setState(() => _isPlusPressed = false),
-                              onTap: _showCaseSelectionModal,
-                              child: AnimatedScale(
-                                scale: _isPlusPressed ? 0.94 : 1.0,
-                                duration: const Duration(milliseconds: 100),
-                                curve: Curves.easeOutCubic,
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 100),
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: _isPlusPressed
-                                        ? const Color(0xFFF2F4F6)
-                                        : Colors.white,
-                                    shape: BoxShape.circle,
-                                    boxShadow: _isPlusPressed
-                                        ? []
-                                        : [
-                                            BoxShadow(
-                                              color: AppColors.primary
-                                                  .withValues(alpha: 0.15),
-                                              blurRadius: 15,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.add_circle_outline,
-                                    color: AppColors.primary,
-                                    size: 36,
-                                  ),
-                                ),
+                            Expanded(
+                              flex: 66,
+                              child: _buildDbList(
+                                isPad: true,
+                                padWidth: (constraints.maxWidth - 40 - 16) * 0.66,
                               ),
                             ),
-                            const SizedBox(height: 30),
-                            DashButton(
-                              onTap: _showCaseSelectionModal,
-                              text: '사무실 밖에서 DB 쓰기',
-                              backgroundColor: AppColors.primary,
-                              width: double.infinity,
-                              height: 60,
+                            const SizedBox(width: 16),
+                            Expanded(
+                              flex: 34,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _buildCtaCard(),
+                                  const SizedBox(height: 12),
+                                  _InfoBanner(),
+                                ],
+                              ),
                             ),
                           ],
+                        )
+                      : Column(
+                          children: [
+                            _buildGuideAndCta(),
+                            const SizedBox(height: 40),
+                            _buildDbList(isPad: false),
+                            const SizedBox(height: 100),
+                          ],
                         ),
-                      ),
-
-                      const SizedBox(height: 40),
-                      if (_drafts.isNotEmpty) ...[
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '대기 중인 DB 목록',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        ..._drafts.map((d) {
-                          final foundCase = _cases
-                              .cast<Map<String, dynamic>?>()
-                              .firstWhere(
-                                (c) =>
-                                    c?['realName'] == d['caseName'] ||
-                                    c?['maskedName'] == d['caseName'],
-                                orElse: () => null,
-                              );
-                          final dong = foundCase != null
-                              ? foundCase['dong']
-                              : '미지정';
-                          return _buildDraftCard(d, dong);
-                        }),
-                        const SizedBox(height: 30),
-                      ] else ...[
-                        const SizedBox(height: 60),
-                        const Center(
-                          child: Text(
-                            '사례를 선택해 DB를 만들어주세요',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Color(0xFFADB5BD),
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 60),
-                      ],
-                      const SizedBox(height: 100),
-                    ],
-                  ),
                 ),
               ),
             ),
@@ -2025,6 +1958,167 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ); // RefreshIndicator
       },
     ); // LayoutBuilder
+  }
+
+  Widget _buildCtaCard() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            const Color(0xFF90C2FF).withValues(alpha: 0.55),
+            Colors.white,
+          ],
+          stops: const [0.0, 0.65],
+        ),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTapDown: (_) => setState(() => _isPlusPressed = true),
+            onTapUp: (_) => setState(() => _isPlusPressed = false),
+            onTapCancel: () => setState(() => _isPlusPressed = false),
+            onTap: _showCaseSelectionModal,
+            child: AnimatedScale(
+              scale: _isPlusPressed ? 0.94 : 1.0,
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeOutCubic,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 100),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _isPlusPressed
+                      ? const Color(0xFFF2F4F6)
+                      : Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: _isPlusPressed
+                      ? []
+                      : [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                            blurRadius: 15,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                ),
+                child: const Icon(
+                  Icons.add_circle_outline,
+                  color: AppColors.primary,
+                  size: 36,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
+          DashButton(
+            onTap: _showCaseSelectionModal,
+            text: '사무실 밖에서 DB 쓰기',
+            backgroundColor: AppColors.primary,
+            width: double.infinity,
+            height: 60,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuideAndCta() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _InfoBanner(),
+        const SizedBox(height: 15),
+        _buildCtaCard(),
+      ],
+    );
+  }
+
+  Widget _buildDbList({bool isPad = false, double padWidth = 0}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_drafts.isNotEmpty) ...[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '대기 중인 DB 목록',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (isPad && padWidth > 0)
+            Builder(
+              builder: (context) {
+                // 사용자 요청에 따라 태블릿(가로)에서는 3개 열 배치를 기본으로 설정
+                int crossAxisCount = 3;
+                double spacing = 16.0;
+                // Calculate item width exactly using the given area
+                double itemWidth = (padWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
+                // We add a tiny floor to avoid layout constraints overflow
+                itemWidth = itemWidth.floorToDouble();
+                
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: _drafts.map((d) {
+                    final foundCase = _cases
+                        .cast<Map<String, dynamic>?>()
+                        .firstWhere(
+                          (c) =>
+                              c?['realName'] == d['caseName'] ||
+                              c?['maskedName'] == d['caseName'],
+                          orElse: () => null,
+                        );
+                    final dong = foundCase != null ? foundCase['dong'] : '미지정';
+                    return SizedBox(
+                      width: itemWidth,
+                      child: _buildDraftCard(d, dong),
+                    );
+                  }).toList(),
+                );
+              },
+            )
+          else ...[
+            ..._drafts.map((d) {
+              final foundCase = _cases
+                  .cast<Map<String, dynamic>?>()
+                  .firstWhere(
+                    (c) =>
+                        c?['realName'] == d['caseName'] ||
+                        c?['maskedName'] == d['caseName'],
+                    orElse: () => null,
+                  );
+              final dong = foundCase != null ? foundCase['dong'] : '미지정';
+              return _buildDraftCard(d, dong);
+            }),
+          ],
+          const SizedBox(height: 30),
+        ] else ...[
+          const SizedBox(height: 60),
+          const Center(
+            child: Text(
+              '사례를 선택해 DB를 만들어주세요',
+              style: TextStyle(
+                fontSize: 16,
+                color: Color(0xFFADB5BD),
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+          const SizedBox(height: 60),
+        ],
+      ],
+    );
   }
 
   Widget _buildDraftCard(dynamic d, String dong) {
@@ -2448,6 +2542,7 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                               ],
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Column(
@@ -2461,35 +2556,37 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: -0.5,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   '대상: ${() {
-                                    final targets = widget.d['target'].toString().split(', ');
-                                    if (targets.length > 1) {
-                                      return "${targets[0]} 외 ${targets.length - 1}";
-                                    }
-                                    return widget.d['target'];
-                                  }()} | ${widget.d['method'] ?? '방문'}\n${(() {
-                                    final startStr = widget.d['startTime'];
-                                    final endStr = widget.d['endTime'];
-                                    if (startStr == null || endStr == null) return widget.d['datetime'] ?? '제공일시 미설정';
+                              final targets = widget.d['target'].toString().split(', ');
+                              if (targets.length > 1) {
+                                return "${targets[0]} 외 ${targets.length - 1}";
+                              }
+                              return widget.d['target'];
+                            }()} | ${widget.d['method'] ?? '방문'}\n${(() {
+                              final startStr = widget.d['startTime'];
+                              final endStr = widget.d['endTime'];
+                              if (startStr == null || endStr == null) return widget.d['datetime'] ?? '제공일시 미설정';
 
-                                    final start = DateTime.tryParse(startStr);
-                                    final end = DateTime.tryParse(endStr);
-                                    if (start == null || end == null) return widget.d['datetime'] ?? '제공일시 미설정';
+                              final start = DateTime.tryParse(startStr);
+                              final end = DateTime.tryParse(endStr);
+                              if (start == null || end == null) return widget.d['datetime'] ?? '제공일시 미설정';
 
-                                    final bool isSameDay = start.year == end.year && start.month == end.month && start.day == end.day;
-                                    final days = ['월', '화', '수', '목', '금', '토', '일'];
-                                    final String defaultStartTime = "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
+                              final bool isSameDay = start.year == end.year && start.month == end.month && start.day == end.day;
+                              final days = ['월', '화', '수', '목', '금', '토', '일'];
+                              final String defaultStartTime = "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
 
-                                    if (isSameDay) {
-                                      return "$defaultStartTime ~ ${DateFormat('HH:mm').format(end)}";
-                                    } else {
-                                      final String defaultEndTime = "${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}";
-                                      return "$defaultStartTime ~ $defaultEndTime";
-                                    }
-                                  })()}',
+                              if (isSameDay) {
+                                return "$defaultStartTime ~ ${DateFormat('HH:mm').format(end)}";
+                              } else {
+                                final String defaultEndTime = "${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}";
+                                return "$defaultStartTime ~ $defaultEndTime";
+                              }
+                            })()}',
                                   style: const TextStyle(
                                     color: Color(0xFF8B95A1),
                                     fontSize: 13,
@@ -2500,17 +2597,14 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                               ],
                             ),
                           ),
+                          const SizedBox(width: 12),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color:
-                                  (widget.d['status']
-                                          ?.toString()
-                                          .toLowerCase() ==
-                                      'reviewed')
+                              color: (widget.d['status']?.toString().toLowerCase() == 'reviewed')
                                   ? AppColors.successLight
                                   : AppColors.primaryLight,
                               borderRadius: BorderRadius.circular(100),
@@ -2522,11 +2616,7 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                   width: 6,
                                   height: 6,
                                   decoration: BoxDecoration(
-                                    color:
-                                        (widget.d['status']
-                                                ?.toString()
-                                                .toLowerCase() ==
-                                            'reviewed')
+                                    color: (widget.d['status']?.toString().toLowerCase() == 'reviewed')
                                         ? AppColors.success
                                         : AppColors.primary,
                                     shape: BoxShape.circle,
@@ -2534,18 +2624,11 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  (widget.d['status']
-                                              ?.toString()
-                                              .toLowerCase() ==
-                                          'reviewed')
+                                  (widget.d['status']?.toString().toLowerCase() == 'reviewed')
                                       ? '검토 완료'
                                       : '검토 대기',
                                   style: TextStyle(
-                                    color:
-                                        (widget.d['status']
-                                                ?.toString()
-                                                .toLowerCase() ==
-                                            'reviewed')
+                                    color: (widget.d['status']?.toString().toLowerCase() == 'reviewed')
                                         ? AppColors.success
                                         : AppColors.primary,
                                     fontSize: 13,

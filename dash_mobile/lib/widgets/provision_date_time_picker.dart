@@ -90,89 +90,105 @@ class _ProvisionDateTimePickerState extends State<ProvisionDateTimePicker> {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Stack(
       children: [
         Container(
+          constraints: BoxConstraints(maxHeight: screenHeight * 0.88),
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 20),
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '제공일시 선택',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textMain),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.textMain),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Calendar Section
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF9FAFB),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: _CustomCalendar(
-                  startSelectedDate: _startSelectedDate,
-                  endSelectedDate: _endSelectedDate,
-                  onDateSelected: _onDateClick,
+              // Header (not scrollable)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 8, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '제공일시 선택',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textMain),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.textMain),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 20),
-              // Time Selection Section
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text('시작', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSub)),
-                        const SizedBox(height: 10),
-                        _TimeWheelPicker(
-                          hour: _startHour,
-                          minute: _startMinute,
-                          onChanged: (h, m) => setState(() { _startHour = h; _startMinute = m; }),
+              const SizedBox(height: 12),
+              // Scrollable body
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(24, 0, 24, bottomInset + 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Calendar Section
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFB),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text('종료', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSub)),
-                        const SizedBox(height: 10),
-                        _TimeWheelPicker(
-                          hour: _endHour,
-                          minute: _endMinute,
-                          onChanged: (h, m) => setState(() { _endHour = h; _endMinute = m; }),
+                        child: _CustomCalendar(
+                          startSelectedDate: _startSelectedDate,
+                          endSelectedDate: _endSelectedDate,
+                          onDateSelected: _onDateClick,
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Time Selection Section
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                const Text('시작', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSub)),
+                                const SizedBox(height: 8),
+                                _TimeWheelPicker(
+                                  hour: _startHour,
+                                  minute: _startMinute,
+                                  onChanged: (h, m) => setState(() { _startHour = h; _startMinute = m; }),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                const Text('종료', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSub)),
+                                const SizedBox(height: 8),
+                                _TimeWheelPicker(
+                                  hour: _endHour,
+                                  minute: _endMinute,
+                                  onChanged: (h, m) => setState(() { _endHour = h; _endMinute = m; }),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      // Apply Button
+                      DashButton(
+                        onTap: _onApply,
+                        text: '확인',
+                        backgroundColor: AppColors.primary,
+                        height: 52,
+                        borderRadius: 16,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
-                ],
+                ),
               ),
-              const SizedBox(height: 28),
-              // Apply Button
-              DashButton(
-                onTap: _onApply,
-                text: '확인',
-                backgroundColor: AppColors.primary,
-                height: 56,
-                borderRadius: 16,
-              ),
-              const SizedBox(height: 32 + 10), // Extra space for layout
             ],
           ),
         ),
@@ -302,16 +318,26 @@ class _CustomCalendarState extends State<_CustomCalendar> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
+                  // Range highlight: half-cell for start/end, full-cell for middle
                   if (isInRange || isStartInRange || isEndInRange)
-                    Container(
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight,
-                        borderRadius: BorderRadius.horizontal(
-                          left: Radius.circular((isStartInRange || (index % 7 == 0)) ? 100 : 0),
-                          right: Radius.circular((isEndInRange || (index % 7 == 6)) ? 100 : 0),
-                        ),
-                      ),
+                    Positioned.fill(
+                      child: isInRange
+                          ? Container(color: AppColors.primaryLight)
+                          : isStartInRange
+                              ? Align(
+                                  alignment: Alignment.centerRight,
+                                  child: FractionallySizedBox(
+                                    widthFactor: 0.5,
+                                    child: Container(color: AppColors.primaryLight),
+                                  ),
+                                )
+                              : Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: FractionallySizedBox(
+                                    widthFactor: 0.5,
+                                    child: Container(color: AppColors.primaryLight),
+                                  ),
+                                ),
                     ),
                   Container(
                     width: 36,

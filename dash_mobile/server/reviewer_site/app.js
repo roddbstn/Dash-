@@ -14,36 +14,15 @@ function handleTyping() {
     saveTimeout = setTimeout(() => {
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-        
-        // Actual save to server
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
-        if (token) {
-            const serviceDescription = document.getElementById('main-editor').value;
-            const agentOpinion = document.getElementById('opinion-editor').value || '';
-            
-            fetch(`/api/records/share/${token}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    service_description: serviceDescription,
-                    agent_opinion: agentOpinion
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                console.log('✅ Auto-save successful');
-                status.textContent = `✓ ${timeStr} 저장됨`;
-            })
-            .catch(err => {
-                console.error('❌ Auto-save failed:', err);
-                status.textContent = '저장 실패';
-            });
-        } else {
-            status.textContent = `✓ ${timeStr} 저장됨 (Local)`;
+
+        // E2EE 보안 정책: 민감 정보(서비스 내용, 상담원 소견)를 평문으로 서버에 전송하지 않음
+        // 검토자가 수정한 내용은 메모리에만 임시 보관하고, '검토 완료' 버튼 클릭 시 재암호화하여 전송
+        if (window.currentRecord) {
+            window.currentRecord.serviceDescription = document.getElementById('main-editor').value;
+            window.currentRecord.agentOpinion = document.getElementById('opinion-editor').value || '';
         }
-        
-        // ✓ timeStr 저장됨 status update logic remains
+
+        status.textContent = `✓ ${timeStr} 저장됨`;
         setTimeout(() => {
             status.style.opacity = '0.6';
         }, 2000);
