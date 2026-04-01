@@ -369,7 +369,7 @@ class _FormScreenState extends State<FormScreen> {
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
+            padding: const EdgeInsets.fromLTRB(20, 40, 20, 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -437,7 +437,7 @@ class _FormScreenState extends State<FormScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -522,7 +522,7 @@ class _FormScreenState extends State<FormScreen> {
         children: [
           // Case Info (Pinned to top)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -575,7 +575,7 @@ class _FormScreenState extends State<FormScreen> {
           // Form Sections (Scrollable)
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
               child: Column(
                 children: [
                   _buildSection(label: '서비스 내용', child: TextField(controller: _serviceController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none))),
@@ -675,7 +675,7 @@ class _FormScreenState extends State<FormScreen> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
             child: DashButton(
               onTap: () { 
                 if (_startDate == null) {

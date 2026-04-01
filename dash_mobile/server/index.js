@@ -137,6 +137,20 @@ app.post('/api/users/update_profile', async (req, res) => {
   }
 });
 
+// [Test] 로컬 익스텐션 테스트용 UID 조회 (이메일로 실제 모바일의 UID 찾기)
+app.get('/api/test/uid-by-email', async (req, res) => {
+  const { email } = req.query;
+  try {
+    const [rows] = await pool.query('SELECT user_id FROM service_drafts WHERE user_email = ? LIMIT 1', [email]);
+    if (rows.length > 0) {
+      return res.json({ uid: rows[0].user_id });
+    }
+    res.json({ uid: email.split('@')[0] });
+  } catch (err) {
+    res.json({ uid: email.split('@')[0] });
+  }
+});
+
 // [Mobile] FCM 토큰 저장
 app.post('/api/users/fcm_token', async (req, res) => {
   const { id, token, email } = req.body;

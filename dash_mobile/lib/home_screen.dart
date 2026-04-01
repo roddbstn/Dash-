@@ -15,7 +15,9 @@ import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:google_sign_in/google_sign_in.dart';
 
 // 로컬 알림 플러그인 초기화
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -30,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isSelectionMode = false;
   bool _isPlusPressed = false;
   final List<int> _selectedCaseIds = [];
-  
+
   // Real-time event subscription
   StreamSubscription? _eventSub;
   bool _notificationsEnabled = true;
@@ -51,7 +53,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       print('📱 App returned to foreground. Resuming SSE...');
       _initRealtime();
       _loadData();
-    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       print('💤 App backgrounded. Suspending SSE...');
       _eventSub?.cancel();
       _eventSub = null;
@@ -86,14 +89,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _eventSub = ApiService.streamEvents(email).listen((event) {
         final String? ev = event['event'];
         print('🔔 Server Event Received: $ev');
-        
+
         // Initial setup/heartbeat event should not trigger a heavy refresh
         if (ev != 'connected') {
           _loadData();
         }
       });
     }
-    
+
     _isInitializingSse = false;
   }
 
@@ -101,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await StorageService.initInitialData();
     final localDrafts = await StorageService.getDrafts();
     final cases = await StorageService.getCases();
-    
+
     setState(() {
       _drafts = localDrafts;
       _cases = cases;
@@ -116,9 +119,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         for (var data in pending) {
           final clientId = data['client_draft_id'];
           // Remove client_draft_id from payload before sending
-          final payload = Map<String, dynamic>.from(data)..remove('client_draft_id');
+          final payload = Map<String, dynamic>.from(data)
+            ..remove('client_draft_id');
           final token = await ApiService.syncRecord(payload);
-          
+
           if (token != null) {
             syncedAny = true;
             final idx = localDrafts.indexWhere((d) => d['id'] == clientId);
@@ -130,12 +134,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             remaining.add(data);
           }
         }
-        
+
         if (syncedAny) {
           await StorageService.saveDrafts(localDrafts);
           await StorageService.savePendingSyncs(remaining);
           if (mounted) {
-            setState(() { _drafts = localDrafts; });
+            setState(() {
+              _drafts = localDrafts;
+            });
             _showToast('오프라인 기록이 자동 동기화되었습니다. ✨');
           }
         }
@@ -148,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final String? userId = FirebaseAuth.instance.currentUser?.uid;
       final serverRecords = await ApiService.fetchRecords();
-      
+
       // Fetch actual notifications from server table
       if (userId != null) {
         final serverNotifs = await ApiService.fetchNotifications(userId);
@@ -162,28 +168,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (serverRecords.isNotEmpty || localDrafts.isNotEmpty) {
         // 로컬 데이터와 서버 데이터 병합 및 삭제 처리
         List<Map<String, dynamic>> updatedDrafts = [];
-        
+
         // 1. 서버에 있는 데이터를 기준으로 로컬과 대조하여 병합
         for (var s in serverRecords) {
           final String? serverToken = s['share_token'];
           final String serverId = s['id'].toString();
-          
+
           final localIdx = localDrafts.indexWhere((l) {
             final String? localToken = l['share_token'];
             final String localId = l['id'].toString();
-            return (serverToken != null && serverToken == localToken) || (serverId == localId);
+            return (serverToken != null && serverToken == localToken) ||
+                (serverId == localId);
           });
-          
+
           if (localIdx != -1) {
             // 로컬에 이미 있으면 병합 (상태 업데이트 및 데이터 보정)
             final local = localDrafts[localIdx];
             String finalDescription = local['serviceDescription'] ?? '';
             String finalOpinion = local['agentOpinion'] ?? '';
-            
-            if (s['service_description'] != null && s['service_description'].toString().isNotEmpty) {
+
+            if (s['service_description'] != null &&
+                s['service_description'].toString().isNotEmpty) {
               finalDescription = s['service_description'];
             }
-            if (s['agent_opinion'] != null && s['agent_opinion'].toString().isNotEmpty) {
+            if (s['agent_opinion'] != null &&
+                s['agent_opinion'].toString().isNotEmpty) {
               finalOpinion = s['agent_opinion'];
             }
 
@@ -195,12 +204,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 final parts = blob.split(':');
                 final iv = encrypt.IV.fromBase64(parts[0]);
                 final encrypted = encrypt.Encrypted.fromBase64(parts[1]);
-                final key = encrypt.Key.fromUtf8(keyStr.padRight(32).substring(0, 32));
+                final key = encrypt.Key.fromUtf8(
+                  keyStr.padRight(32).substring(0, 32),
+                );
                 final encrypter = encrypt.Encrypter(encrypt.AES(key));
                 final decrypted = encrypter.decrypt(encrypted, iv: iv);
-                final decryptedData = jsonDecode(decrypted) as Map<String, dynamic>;
-                finalDescription = decryptedData['serviceDescription'] ?? decryptedData['service_description'] ?? finalDescription;
-                finalOpinion = decryptedData['agentOpinion'] ?? decryptedData['agent_opinion'] ?? finalOpinion;
+                final decryptedData =
+                    jsonDecode(decrypted) as Map<String, dynamic>;
+                finalDescription =
+                    decryptedData['serviceDescription'] ??
+                    decryptedData['service_description'] ??
+                    finalDescription;
+                finalOpinion =
+                    decryptedData['agentOpinion'] ??
+                    decryptedData['agent_opinion'] ??
+                    finalOpinion;
               } catch (e) {
                 print('E2EE Decryption failed on merge: $e');
               }
@@ -215,10 +233,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               'dong': s['dong'] ?? local['dong'],
               'serviceDescription': finalDescription,
               'agentOpinion': finalOpinion,
-              'startTime': (s['status'] == 'Reviewed' && s['start_time'] != null) ? s['start_time'] : (local['startTime'] ?? s['start_time']),
-              'endTime': (s['status'] == 'Reviewed' && s['end_time'] != null) ? s['end_time'] : (local['endTime'] ?? s['end_time']),
-              'serviceCount': (s['status'] == 'Reviewed') ? (s['service_count'] ?? local['serviceCount']) : (local['serviceCount'] ?? s['service_count']),
-              'travelTime': (s['status'] == 'Reviewed') ? (s['travel_time'] ?? local['travelTime']) : (local['travelTime'] ?? s['travel_time']),
+              'startTime':
+                  (s['status'] == 'Reviewed' && s['start_time'] != null)
+                  ? s['start_time']
+                  : (local['startTime'] ?? s['start_time']),
+              'endTime': (s['status'] == 'Reviewed' && s['end_time'] != null)
+                  ? s['end_time']
+                  : (local['endTime'] ?? s['end_time']),
+              'serviceCount': (s['status'] == 'Reviewed')
+                  ? (s['service_count'] ?? local['serviceCount'])
+                  : (local['serviceCount'] ?? s['service_count']),
+              'travelTime': (s['status'] == 'Reviewed')
+                  ? (s['travel_time'] ?? local['travelTime'])
+                  : (local['travelTime'] ?? s['travel_time']),
             });
           } else {
             // 로컬에 없는데 서버에만 있는 경우 (다른 기기에서 작성했거나 재설치 등)
@@ -245,24 +272,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             });
           }
         }
-        
+
         // 2. 로컬에만 있는 데이터(동기화 전인 것들)들 보존
         for (var local in localDrafts) {
           final String? localToken = local['share_token'];
-          final alreadyAdded = updatedDrafts.any((u) => 
-            (localToken != null && u['share_token'] == localToken) || 
-            (local['id'].toString() == u['id'].toString())
+          final alreadyAdded = updatedDrafts.any(
+            (u) =>
+                (localToken != null && u['share_token'] == localToken) ||
+                (local['id'].toString() == u['id'].toString()),
           );
-          
+
           if (!alreadyAdded) {
             // 서버 목록에는 없지만 로컬에 있는 경우
             if (localToken == null || localToken.isEmpty) {
               // 아직 동기화 전인 데이터는 당연히 유지
               updatedDrafts.add(local);
             } else {
-              // 동기화된 데이터인데 서버에서 안 보인다면, 
+              // 동기화된 데이터인데 서버에서 안 보인다면,
               // 일시적인 지연일 수 있으므로 일단 로컬에서 지우지 않고 유지 (방어적 설계)
-              print('⚠️ Server local mismatch for token $localToken. Keeping local copy safely.');
+              print(
+                '⚠️ Server local mismatch for token $localToken. Keeping local copy safely.',
+              );
               updatedDrafts.add(local);
             }
           }
@@ -281,12 +311,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // NEW: Sync active tokens to clear orphaned drafts on the server
     try {
-      final activeTokens = _drafts // Use _drafts which is already updated or localDrafts if not yet updated
-          .map((d) => d['share_token'] as String?)
-          .where((t) => t != null && t.isNotEmpty)
-          .cast<String>()
-          .toList();
-      
+      final activeTokens =
+          _drafts // Use _drafts which is already updated or localDrafts if not yet updated
+              .map((d) => d['share_token'] as String?)
+              .where((t) => t != null && t.isNotEmpty)
+              .cast<String>()
+              .toList();
+
       // Always sync to clean server if drafts empty
       await ApiService.syncActiveRecords(activeTokens);
     } catch (e) {
@@ -296,14 +327,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _setupFCM() async {
     final messaging = FirebaseMessaging.instance;
-    
+
     // 1. 권한 요청
     final settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
-    
+
     // 2. Android 알림 채널 설정 (포그라운드 팝업용)
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'high_importance_channel', // id
@@ -313,18 +344,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
 
     await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(channel);
 
     // 알림 권한 상태에 따른 토글 초기화
     setState(() {
-      _notificationsEnabled = settings.authorizationStatus == AuthorizationStatus.authorized;
+      _notificationsEnabled =
+          settings.authorizationStatus == AuthorizationStatus.authorized;
     });
 
     // 3. 플러그인 초기화
-    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
-    await flutterLocalNotificationsPlugin.initialize(settings: initializationSettings);
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    await flutterLocalNotificationsPlugin.initialize(
+      settings: initializationSettings,
+    );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       // 4. 토큰 획득 및 서버 저장
@@ -358,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
         );
-        
+
         _loadData(); // 알림 리스트 및 배지 상태 갱신
       }
     });
@@ -378,20 +416,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         builder: (context) => AlertDialog(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('푸시 알림 off', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            '푸시 알림 off',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          ),
           content: const Text(
             'DB 검토 완료 및 중요 소식에 대한\n푸시 알림을 받지 않으시겠습니까?',
-            style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSub,
+              height: 1.5,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+              child: const Text(
+                '취소',
+                style: TextStyle(
+                  color: Color(0xFFADB5BD),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('확인', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
+              child: const Text(
+                '확인',
+                style: TextStyle(
+                  color: AppColors.danger,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ],
         ),
@@ -404,8 +463,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else {
       // 알림 켜기
       final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
-      
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         setState(() => _notificationsEnabled = true);
         _showToast('푸시 알림이 활성화되었습니다. ✨');
@@ -503,20 +566,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return AlertDialog(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('DB 삭제', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'DB 삭제',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          ),
           content: const Text(
             '이 DB 작성을 삭제할까요?\n삭제하면 복구할 수 없습니다.',
-            style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSub,
+              height: 1.5,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+              child: const Text(
+                '취소',
+                style: TextStyle(
+                  color: Color(0xFFADB5BD),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('삭제', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
+              child: const Text(
+                '삭제',
+                style: TextStyle(
+                  color: AppColors.danger,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ],
         );
@@ -539,7 +623,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _deleteDraft(int draftId) async {
     final drafts = await StorageService.getDrafts();
-    final draftToDelete = drafts.firstWhere((d) => d['id'] == draftId, orElse: () => null);
+    final draftToDelete = drafts.firstWhere(
+      (d) => d['id'] == draftId,
+      orElse: () => null,
+    );
 
     drafts.removeWhere((d) => d['id'] == draftId);
     await StorageService.saveDrafts(drafts);
@@ -585,8 +672,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            FormScreen(caseId: caseId, caseName: maskedName, dong: dong, draftId: draftId),
+        builder: (context) => FormScreen(
+          caseId: caseId,
+          caseName: maskedName,
+          dong: dong,
+          draftId: draftId,
+        ),
       ),
     );
     // 무조건 로드하여 알림 상태 동기화
@@ -646,7 +737,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     const Text(
                                       '사례 선택',
@@ -658,24 +750,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     if (_cases.isNotEmpty)
                                       GestureDetector(
                                         onTap: () {
-                                          if (_isSelectionMode && _selectedCaseIds.isNotEmpty) {
-                                            _showCaseDeleteConfirmation(modalContext);
+                                          if (_isSelectionMode &&
+                                              _selectedCaseIds.isNotEmpty) {
+                                            _showCaseDeleteConfirmation(
+                                              modalContext,
+                                            );
                                           } else {
                                             setState(() {
-                                              _isSelectionMode = !_isSelectionMode;
-                                              if (!_isSelectionMode) _selectedCaseIds.clear();
+                                              _isSelectionMode =
+                                                  !_isSelectionMode;
+                                              if (!_isSelectionMode)
+                                                _selectedCaseIds.clear();
                                             });
                                             setModalState(() {});
                                           }
                                         },
                                         child: Text(
                                           _isSelectionMode
-                                              ? (_selectedCaseIds.isEmpty ? '취소' : '삭제')
+                                              ? (_selectedCaseIds.isEmpty
+                                                    ? '취소'
+                                                    : '삭제')
                                               : '편집',
                                           style: TextStyle(
                                             fontSize: 14,
-                                            color: _isSelectionMode ? AppColors.danger : AppColors.textSub,
-                                            fontWeight: _isSelectionMode ? FontWeight.w700 : FontWeight.w500,
+                                            color: _isSelectionMode
+                                                ? AppColors.danger
+                                                : AppColors.textSub,
+                                            fontWeight: _isSelectionMode
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
                                           ),
                                         ),
                                       ),
@@ -708,18 +811,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   )
                                 : GridView.builder(
                                     controller: scrollController,
-                                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 2,
-                                      crossAxisSpacing: 12,
-                                      mainAxisSpacing: 12,
-                                      childAspectRatio: 1.6,
+                                    padding: const EdgeInsets.fromLTRB(
+                                      20,
+                                      0,
+                                      20,
+                                      40,
                                     ),
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 2,
+                                          crossAxisSpacing: 12,
+                                          mainAxisSpacing: 12,
+                                          childAspectRatio: 1.6,
+                                        ),
                                     itemCount: _cases.length,
                                     itemBuilder: (context, index) {
                                       final c = _cases[index];
-                                      final bool isSelected = _selectedCaseIds.contains(c['id']);
-                                      final int sIndex = _selectedCaseIds.indexOf(c['id']) + 1;
+                                      final bool isSelected = _selectedCaseIds
+                                          .contains(c['id']);
+                                      final int sIndex =
+                                          _selectedCaseIds.indexOf(c['id']) + 1;
                                       return _PressableCaseCard(
                                         caseData: c,
                                         isSelected: isSelected,
@@ -729,7 +840,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           if (_isSelectionMode) {
                                             setState(() {
                                               if (isSelected) {
-                                                _selectedCaseIds.remove(c['id']);
+                                                _selectedCaseIds.remove(
+                                                  c['id'],
+                                                );
                                               } else {
                                                 _selectedCaseIds.add(c['id']);
                                               }
@@ -737,7 +850,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                             setModalState(() {});
                                           } else {
                                             Navigator.pop(modalContext);
-                                            _goToForm(c['realName'], c['maskedName'], c['dong'], caseId: c['id']);
+                                            _goToForm(
+                                              c['realName'],
+                                              c['maskedName'],
+                                              c['dong'],
+                                              caseId: c['id'],
+                                            );
                                           }
                                         },
                                       );
@@ -754,7 +872,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         onPressed: () async {
                           final result = await Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const CreateCaseScreen()),
+                            MaterialPageRoute(
+                              builder: (context) => const CreateCaseScreen(),
+                            ),
                           );
                           if (result == true) {
                             await _loadData();
@@ -765,17 +885,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: AppColors.textMain,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 16,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(100),
-                            side: const BorderSide(color: Color(0xFFE5E8EB), width: 1),
+                            side: const BorderSide(
+                              color: Color(0xFFE5E8EB),
+                              width: 1,
+                            ),
                           ),
                           elevation: 4,
                           shadowColor: Colors.black.withValues(alpha: 0.2),
                         ),
                         child: const Text(
                           '+ 사례 생성',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -818,11 +947,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         unselectedItemColor: const Color(0xFF8B95A1),
         backgroundColor: Colors.white,
         items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.home_filled),
+            label: '홈',
+          ),
           BottomNavigationBarItem(
             icon: Badge(
               label: null, // 숫자 대신 점만 표시
-              isLabelVisible: _notifications.any((n) => n['is_read'] == 0 || n['is_read'] == false),
+              isLabelVisible: _notifications.any(
+                (n) => n['is_read'] == 0 || n['is_read'] == false,
+              ),
               backgroundColor: const Color(0xFFFF4D00), // 주황빛 도는 빨간색
               child: const Icon(Icons.notifications),
             ),
@@ -831,36 +965,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
         ],
       ),
-      floatingActionButton: _currentIndex != 0 ? null : Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: ElevatedButton(
-          onPressed: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const CreateCaseScreen()),
-            );
-            if (result == true) {
-              _loadData();
-              _showToast('사례를 생성하였어요. DB를 작성해보세요!');
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: AppColors.textMain,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(100),
-              side: const BorderSide(color: Color(0xFFE5E8EB), width: 1),
+      floatingActionButton: _currentIndex != 0
+          ? null
+          : Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ElevatedButton(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CreateCaseScreen(),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadData();
+                    _showToast('사례를 생성하였어요. DB를 작성해보세요!');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.textMain,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(100),
+                    side: const BorderSide(color: Color(0xFFE5E8EB), width: 1),
+                  ),
+                  elevation: 4,
+                  shadowColor: Colors.black.withValues(alpha: 0.2),
+                ),
+                child: const Text(
+                  '+ 사례 생성',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+              ),
             ),
-            elevation: 4,
-            shadowColor: Colors.black.withValues(alpha: 0.2),
-          ),
-          child: const Text(
-            '+ 사례 생성',
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-          ),
-        ),
-      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: _buildBody(),
     );
@@ -879,7 +1020,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (n['is_read'] == 0 || n['is_read'] == false) {
         // 토큰이 없으면 사례명을 키로 사용 (구형 알림 대응)
         final String key = n['record_token'] ?? "name_${n['case_name']}";
-        
+
         if (!uniqueNotifs.containsKey(key)) {
           uniqueNotifs[key] = n;
         } else {
@@ -892,34 +1033,49 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
     }
-    
+
     final unreadNotifs = uniqueNotifs.values.toList();
-    unreadNotifs.sort((a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''));
+    unreadNotifs.sort(
+      (a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''),
+    );
 
     if (unreadNotifs.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.notifications_none_rounded, size: 64, color: AppColors.border.withValues(alpha: 0.8)),
+            Icon(
+              Icons.notifications_none_rounded,
+              size: 64,
+              color: AppColors.border.withValues(alpha: 0.8),
+            ),
             const SizedBox(height: 16),
             const Text(
               '아직 도착한 알림이 없어요',
-              style: TextStyle(color: AppColors.textSub, fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Color(0xFFADB5BD),
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+              ),
             ),
           ],
         ),
       );
     }
 
-
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
-          child: Text('알림', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF222222))),
+          child: Text(
+            '알림',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF222222),
+            ),
+          ),
         ),
         Expanded(
           child: RefreshIndicator(
@@ -932,7 +1088,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               itemBuilder: (context, index) {
                 final n = unreadNotifs[index];
                 final String caseName = n['case_name'] ?? '미지정';
-                
+
                 String dateStr = '';
                 if (n['created_at'] != null) {
                   final dt = DateTime.parse(n['created_at']).toLocal();
@@ -951,7 +1107,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ApiService.markNotificationRead(notifId);
                       setState(() {
                         // 로컬 알림 리스트에서 해당 알림 읽음 처리 (배지 점을 즉시 없애기 위함)
-                        final index = _notifications.indexWhere((n) => n['id'] == notifId);
+                        final index = _notifications.indexWhere(
+                          (n) => n['id'] == notifId,
+                        );
                         if (index != -1) {
                           _notifications[index]['is_read'] = 1;
                         }
@@ -962,7 +1120,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     // 2. 기록 매칭 및 이동
                     Map<String, dynamic>? foundDraft;
                     for (var d in _drafts) {
-                      final bool matchToken = (nToken != null && d['share_token'] == nToken);
+                      final bool matchToken =
+                          (nToken != null && d['share_token'] == nToken);
                       final bool matchName = (d['caseName'] == caseName);
                       if (matchToken || matchName) {
                         foundDraft = Map<String, dynamic>.from(d);
@@ -974,11 +1133,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     if (foundDraft != null) {
                       final dong = foundDraft['dong'] ?? '';
                       _goToForm(
-                        foundDraft['caseName'] ?? caseName, 
-                        foundDraft['caseName'] ?? caseName, 
-                        dong, 
-                        caseId: foundDraft['case_id'] ?? foundDraft['id'], 
-                        draftId: foundDraft['id']
+                        foundDraft['caseName'] ?? caseName,
+                        foundDraft['caseName'] ?? caseName,
+                        dong,
+                        caseId: foundDraft['case_id'] ?? foundDraft['id'],
+                        draftId: foundDraft['id'],
                       );
                     } else {
                       _showToast('해당 사례를 찾을 수 없어요. 😊');
@@ -996,8 +1155,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
-                          decoration: const BoxDecoration(color: Color(0xFFF1F7FF), shape: BoxShape.circle),
-                          child: const Icon(Icons.assignment_turned_in_rounded, color: AppColors.primary, size: 22),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF1F7FF),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.assignment_turned_in_rounded,
+                            color: AppColors.primary,
+                            size: 22,
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -1006,26 +1172,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             children: [
                               Text(
                                 "$caseName 아동 사례",
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.primary),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: AppColors.primary,
+                                ),
                               ),
                               const SizedBox(height: 6),
                               const Text(
                                 "DB 내용이 검토 완료되었어요.\n수정 사항을 확인해 보세요.",
-                                style: TextStyle(fontSize: 14, height: 1.5, color: Color(0xFF4E5968), fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  height: 1.5,
+                                  color: Color(0xFF4E5968),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                               const SizedBox(height: 12),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(dateStr, style: const TextStyle(fontSize: 11, color: Color(0xFFADB5BD), fontWeight: FontWeight.w500)),
+                                  Text(
+                                    dateStr,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFFADB5BD),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                   const Row(
                                     children: [
                                       Text(
                                         '자세히 보기',
-                                        style: TextStyle(color: Color(0xFF8B95A1), fontWeight: FontWeight.w600, fontSize: 13),
+                                        style: TextStyle(
+                                          color: Color(0xFF8B95A1),
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
                                       ),
                                       SizedBox(width: 4),
-                                      Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFADB5BD)),
+                                      Icon(
+                                        Icons.chevron_right_rounded,
+                                        size: 16,
+                                        color: Color(0xFFADB5BD),
+                                      ),
                                     ],
                                   ),
                                 ],
@@ -1051,11 +1242,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _fetchUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    if (_userName == null) { setState(() { _userName = user.displayName; }); }
+    if (_userName == null) {
+      setState(() {
+        _userName = user.displayName;
+      });
+    }
     try {
       final serverUser = await ApiService.fetchUser(user.uid);
-      if (serverUser != null && mounted) { setState(() { _userName = serverUser['name']; }); }
-    } catch (e) { print('Error fetching profile: $e'); }
+      if (serverUser != null && mounted) {
+        setState(() {
+          _userName = serverUser['name'];
+        });
+      }
+    } catch (e) {
+      print('Error fetching profile: $e');
+    }
   }
 
   void _showEditNameDialog() {
@@ -1066,42 +1267,71 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('이름 수정', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: const Text(
+          '이름 수정',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        ),
         content: TextField(
-          controller: controller, 
+          controller: controller,
           maxLength: 10, // ✅ 최대 10글자 제한
           decoration: const InputDecoration(
-            hintText: '실명을 입력해주세요', 
+            hintText: '실명을 입력해주세요',
             hintStyle: TextStyle(fontSize: 14, color: Color(0xFFADB5BD)),
             counterText: "", // ✅ 글자수 카운터 숨기기
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFF2F4F6))),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
-          ), 
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFFF2F4F6)),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.primary),
+            ),
+          ),
           autofocus: true,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context), 
-            child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600))
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              '취소',
+              style: TextStyle(
+                color: Color(0xFFADB5BD),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () async {
               final newName = controller.text.trim();
               if (newName.isEmpty) return;
               Navigator.pop(context);
-              setState(() { _isProfileLoading = true; });
+              setState(() {
+                _isProfileLoading = true;
+              });
               final user = FirebaseAuth.instance.currentUser;
-              final success = await ApiService.updateUserProfile(user?.uid ?? '', newName, user?.email);
+              final success = await ApiService.updateUserProfile(
+                user?.uid ?? '',
+                newName,
+                user?.email,
+              );
               if (success) {
-                setState(() { _userName = newName; });
+                setState(() {
+                  _userName = newName;
+                });
                 _showToast('이름이 수정되었습니다.');
               } else {
                 _showToast('이름 수정에 실패했습니다.');
               }
-              setState(() { _isProfileLoading = false; });
+              setState(() {
+                _isProfileLoading = false;
+              });
             },
-            child: const Text('저장', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+            child: const Text(
+              '저장',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ],
       ),
@@ -1110,7 +1340,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildProfileTab() {
     if (_userName == null && !_isProfileLoading) {
-       _fetchUserProfile();
+      _fetchUserProfile();
     }
 
     final user = FirebaseAuth.instance.currentUser;
@@ -1133,20 +1363,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               children: [
                 Text(
                   '${_userName ?? '사용자'}님',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 24, color: AppColors.textMain),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 24,
+                    color: AppColors.textMain,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: _showEditNameDialog,
-                  icon: const Icon(Icons.edit, size: 20, color: Color(0xFF8B95A1)),
+                  icon: const Icon(
+                    Icons.edit,
+                    size: 20,
+                    color: Color(0xFF8B95A1),
+                  ),
                   tooltip: '이름 수정',
                 ),
               ],
             ),
-            Text(email, style: const TextStyle(fontSize: 14, color: AppColors.textSub, fontWeight: FontWeight.w500)),
+            Text(
+              email,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSub,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const SizedBox(height: 48),
             Container(
               width: double.infinity,
+              clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
@@ -1155,32 +1401,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Column(
                 children: [
                   _buildNotificationToggleItem(),
-                  const Divider(height: 1, indent: 20, endIndent: 20, color: AppColors.border),
-                  _buildProfileMenuItem(Icons.lock_outline, '개인정보처리방침', () {
-                    _showToast('개인정보처리방침 페이지로 이동합니다.');
-                  }),
-                  const Divider(height: 1, indent: 20, endIndent: 20, color: AppColors.border),
-                  _buildProfileMenuItem(Icons.description_outlined, '서비스 약관', () {
-                    _showToast('서비스 약관 페이지로 이동합니다.');
-                  }),
-                  const Divider(height: 1, indent: 20, endIndent: 20, color: AppColors.border),
-                  _buildProfileMenuItem(Icons.logout, '로그아웃', () async {
-                    final confirmed = await _showLogoutConfirmationDialog();
-                    if (confirmed == true) {
-                      await StorageService.clearAllData();
-                      await GoogleSignIn().disconnect().catchError((_) => null);
-                      await GoogleSignIn().signOut().catchError((_) => null);
-                      await FirebaseAuth.instance.signOut();
-                    }
-                  }, isDanger: false), // 로그아웃은 이제 검정색
-                  const Divider(height: 1, indent: 20, endIndent: 20, color: AppColors.border),
-                  _buildProfileMenuItem(Icons.delete_forever_outlined, '계정 탈퇴', () async {
-                    final confirmed = await _showDeleteAccountConfirmationDialog();
-                    if (confirmed == true) {
-                      await StorageService.clearAllData();
-                      await _deleteAccount();
-                    }
-                  }, isDanger: true), // 계정 탈퇴는 빨간색
+                  const Divider(
+                    height: 1,
+                    indent: 20,
+                    endIndent: 20,
+                    color: AppColors.border,
+                  ),
+                  _PressableProfileMenuItem(
+                    icon: Icons.lock_outline,
+                    title: '개인정보처리방침',
+                    onTap: () {
+                      _showToast('개인정보처리방침 페이지로 이동합니다.');
+                    },
+                  ),
+                  const Divider(
+                    height: 1,
+                    indent: 20,
+                    endIndent: 20,
+                    color: AppColors.border,
+                  ),
+                  _PressableProfileMenuItem(
+                    icon: Icons.description_outlined,
+                    title: '서비스 약관',
+                    onTap: () {
+                      _showToast('서비스 약관 페이지로 이동합니다.');
+                    },
+                  ),
+                  const Divider(
+                    height: 1,
+                    indent: 20,
+                    endIndent: 20,
+                    color: AppColors.border,
+                  ),
+                  _PressableProfileMenuItem(
+                    icon: Icons.password_outlined,
+                    title: '보안 PIN 확인',
+                    onTap: () {
+                      _showPinManagementDialog();
+                    },
+                  ),
+                  const Divider(
+                    height: 1,
+                    indent: 20,
+                    endIndent: 20,
+                    color: AppColors.border,
+                  ),
+                  _PressableProfileMenuItem(
+                    icon: Icons.logout,
+                    title: '로그아웃',
+                    onTap: () async {
+                      final confirmed = await _showLogoutConfirmationDialog();
+                      if (confirmed == true) {
+                        await StorageService.clearAllData();
+                        await GoogleSignIn().disconnect().catchError(
+                          (_) => null,
+                        );
+                        await GoogleSignIn().signOut().catchError((_) => null);
+                        await FirebaseAuth.instance.signOut();
+                      }
+                    },
+                    isDanger: false,
+                  ), // 로그아웃은 이제 검정색
+                  const Divider(
+                    height: 1,
+                    indent: 20,
+                    endIndent: 20,
+                    color: AppColors.border,
+                  ),
+                  _PressableProfileMenuItem(
+                    icon: Icons.delete_forever_outlined,
+                    title: '계정 탈퇴',
+                    onTap: () async {
+                      final confirmed =
+                          await _showDeleteAccountConfirmationDialog();
+                      if (confirmed == true) {
+                        await StorageService.clearAllData();
+                        await _deleteAccount();
+                      }
+                    },
+                    isDanger: true,
+                  ), // 계정 탈퇴는 빨간색
                 ],
               ),
             ),
@@ -1197,20 +1497,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return AlertDialog(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            '로그아웃',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          ),
           content: const Text(
             '정말 로그아웃 하시겠습니까?',
-            style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSub,
+              height: 1.5,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+              child: const Text(
+                '취소',
+                style: TextStyle(
+                  color: Color(0xFFADB5BD),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('확인', style: TextStyle(color: AppColors.textMain, fontWeight: FontWeight.w800)),
+              child: const Text(
+                '확인',
+                style: TextStyle(
+                  color: AppColors.textMain,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ],
         );
@@ -1225,20 +1546,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return AlertDialog(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('계정 탈퇴', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            '계정 탈퇴',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          ),
           content: const Text(
             '정말 탈퇴하시겠습니까?\n계정은 복구되지 않아요.',
-            style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSub,
+              height: 1.5,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('아니오', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+              child: const Text(
+                '아니오',
+                style: TextStyle(
+                  color: Color(0xFFADB5BD),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('탈퇴하기', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
+              child: const Text(
+                '탈퇴하기',
+                style: TextStyle(
+                  color: AppColors.danger,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ],
         );
@@ -1249,13 +1591,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _deleteAccount() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    
+
     final uid = user.uid;
     final email = user.email;
     try {
       // [1] 서버 데이터(상례, 볼트 등) 삭제 요청 (404 무시)
       await ApiService.deleteUser(uid, email: email);
-      
+
       // [2] Firebase Auth 계정 삭제 시도
       try {
         await user.delete();
@@ -1268,7 +1610,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await GoogleSignIn().disconnect().catchError((_) => null);
       await GoogleSignIn().signOut().catchError((_) => null);
       await FirebaseAuth.instance.signOut();
-      
+
       _showToast('계정이 정상적으로 탈퇴되었습니다.');
     } catch (e) {
       print('❌ Account deletion error: $e');
@@ -1280,21 +1622,244 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Widget _buildProfileMenuItem(IconData icon, String title, VoidCallback onTap, {bool isDanger = false}) {
-    return ListTile(
-      onTap: onTap,
-      leading: Icon(icon, color: isDanger ? AppColors.danger : AppColors.textMain, size: 22),
-      title: Text(title, style: TextStyle(color: isDanger ? AppColors.danger : AppColors.textMain, fontWeight: FontWeight.w600, fontSize: 16)),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.border, size: 20),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+  void _showPinManagementDialog() async {
+    final pin = await StorageService.getPin();
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool showPin = false;
+        return StatefulBuilder(
+          builder: (context, setStateSB) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              contentPadding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 0),
+              actionsPadding: const EdgeInsets.only(right: 16, bottom: 8),
+              title: const Text(
+                '보안 PIN 관리',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '현재 설정된 보안 PIN 번호입니다.',
+                    style: TextStyle(fontSize: 14, color: AppColors.textSub),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        pin == null ? '미설정 상태' : (showPin ? pin : '****'),
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 4,
+                        ),
+                      ),
+                      if (pin != null)
+                        IconButton(
+                          onPressed: () => setStateSB(() => showPin = !showPin),
+                          icon: Icon(
+                            showPin ? Icons.visibility_off : Icons.visibility,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1, color: AppColors.border),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _showPinResetWarningDialog();
+                    },
+                    child: const Text(
+                      'PIN 초기화하기',
+                      style: TextStyle(
+                        color: Color(0xFFADB5BD),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    '닫기',
+                    style: TextStyle(
+                      color: AppColors.textMain,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
+  }
+
+  void _showPinResetWarningDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        String input = '';
+        return StatefulBuilder(
+          builder: (context, setStateSB) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.danger,
+                    size: 28,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    '주의사항',
+                    style: TextStyle(
+                      color: AppColors.danger,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'PIN 번호를 초기화하면 모든 사례와 DB가 삭제되며 복구가 불가능해요. 진행하시겠습니까?',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textMain,
+                      height: 1.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "동의하신다면 아래에 '초기화'를 입력해주세요.",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.danger,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    onChanged: (val) => setStateSB(() => input = val.trim()),
+                    decoration: InputDecoration(
+                      hintText: '\'초기화\' 입력',
+                      hintStyle: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFFBEC4CC),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.danger,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    '취소',
+                    style: TextStyle(
+                      color: Color(0xFFADB5BD),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: input == '초기화'
+                      ? () async {
+                          Navigator.pop(ctx);
+                          await _executePinReset();
+                        }
+                      : null,
+                  child: Text(
+                    '확인',
+                    style: TextStyle(
+                      color: input == '초기화'
+                          ? AppColors.danger
+                          : const Color(0xFFADB5BD),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _executePinReset() async {
+    // 1. Wipe local storage (clears PIN, cases, drafts, salt)
+    await StorageService.clearAllData();
+
+    // 2. Wipe server vault memory specifically to prevent decrypting old data
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await ApiService.saveVault(user.uid, '', '');
+      // 3. Delete all active records from the server to prevent them from showing back up
+      await ApiService.syncActiveRecords([]);
+    }
+
+    setState(() {
+      _drafts = [];
+      _cases = [];
+      _notifications = [];
+    });
+
+    _showToast('PIN 및 로컬 DB 데이터가 안전하게 완전히 삭제되었습니다.');
   }
 
   Widget _buildNotificationToggleItem() {
     return ListTile(
       enabled: false, // 영역 터치 피드백 비활성화
-      leading: const Icon(Icons.notifications_none, color: AppColors.textMain, size: 22),
+      leading: const Icon(
+        Icons.notifications_none,
+        color: AppColors.textMain,
+        size: 22,
+      ),
       title: const Text(
         '알림 설정',
         style: TextStyle(
@@ -1304,7 +1869,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
       trailing: Transform.scale(
-        scale: 0.85, 
+        scale: 0.85,
         child: Switch(
           value: _notificationsEnabled,
           onChanged: _toggleNotifications,
@@ -1329,19 +1894,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: IntrinsicHeight(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: Column(
-                  children: [
-                    _InfoBanner(),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                  child: Column(
+                    children: [
+                      _InfoBanner(),
+                      const SizedBox(height: 15),
+                      Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(20),
                           gradient: LinearGradient(
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
@@ -1351,17 +1916,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             ],
                             stops: const [0.0, 0.65],
                           ),
-                          border: Border.all(
-                            color: Colors.black.withValues(alpha: 0.05),
-                          ),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             GestureDetector(
-                              onTapDown: (_) => setState(() => _isPlusPressed = true),
-                              onTapUp: (_) => setState(() => _isPlusPressed = false),
-                              onTapCancel: () => setState(() => _isPlusPressed = false),
+                              onTapDown: (_) =>
+                                  setState(() => _isPlusPressed = true),
+                              onTapUp: (_) =>
+                                  setState(() => _isPlusPressed = false),
+                              onTapCancel: () =>
+                                  setState(() => _isPlusPressed = false),
                               onTap: _showCaseSelectionModal,
                               child: AnimatedScale(
                                 scale: _isPlusPressed ? 0.94 : 1.0,
@@ -1371,15 +1937,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   duration: const Duration(milliseconds: 100),
                                   padding: const EdgeInsets.all(14),
                                   decoration: BoxDecoration(
-                                    color: _isPlusPressed ? const Color(0xFFF2F4F6) : Colors.white,
+                                    color: _isPlusPressed
+                                        ? const Color(0xFFF2F4F6)
+                                        : Colors.white,
                                     shape: BoxShape.circle,
-                                    boxShadow: _isPlusPressed ? [] : [
-                                      BoxShadow(
-                                        color: AppColors.primary.withValues(alpha: 0.15),
-                                        blurRadius: 15,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
+                                    boxShadow: _isPlusPressed
+                                        ? []
+                                        : [
+                                            BoxShadow(
+                                              color: AppColors.primary
+                                                  .withValues(alpha: 0.15),
+                                              blurRadius: 15,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
                                   ),
                                   child: const Icon(
                                     Icons.add_circle_outline,
@@ -1416,11 +1987,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                         const SizedBox(height: 20),
                         ..._drafts.map((d) {
-                          final foundCase = _cases.cast<Map<String, dynamic>?>().firstWhere(
-                            (c) => c?['realName'] == d['caseName'] || c?['maskedName'] == d['caseName'],
-                            orElse: () => null,
-                          );
-                          final dong = foundCase != null ? foundCase['dong'] : '미지정';
+                          final foundCase = _cases
+                              .cast<Map<String, dynamic>?>()
+                              .firstWhere(
+                                (c) =>
+                                    c?['realName'] == d['caseName'] ||
+                                    c?['maskedName'] == d['caseName'],
+                                orElse: () => null,
+                              );
+                          final dong = foundCase != null
+                              ? foundCase['dong']
+                              : '미지정';
                           return _buildDraftCard(d, dong);
                         }),
                         const SizedBox(height: 30),
@@ -1520,13 +2097,15 @@ class _PressableCaseCardState extends State<_PressableCaseCard> {
             border: widget.isSelected
                 ? Border.all(color: AppColors.primary, width: 2)
                 : Border.all(color: Colors.black.withValues(alpha: 0.05)),
-            boxShadow: _isPressed ? [] : [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            boxShadow: _isPressed
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: Stack(
             children: [
@@ -1560,9 +2139,13 @@ class _PressableCaseCardState extends State<_PressableCaseCard> {
                     height: 24,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: widget.isSelected ? AppColors.primary : Colors.white,
+                      color: widget.isSelected
+                          ? AppColors.primary
+                          : Colors.white,
                       border: Border.all(
-                        color: widget.isSelected ? AppColors.primary : AppColors.border,
+                        color: widget.isSelected
+                            ? AppColors.primary
+                            : AppColors.border,
                         width: 1.5,
                       ),
                     ),
@@ -1611,14 +2194,16 @@ class _InfoBannerState extends State<_InfoBanner> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-          boxShadow: isAnyPressed ? [] : [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(color: AppColors.border),
+          boxShadow: isAnyPressed
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
         ),
         child: IntrinsicHeight(
           child: Row(
@@ -1636,7 +2221,9 @@ class _InfoBannerState extends State<_InfoBanner> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 100),
                     decoration: BoxDecoration(
-                      color: _isLeftPressed ? const Color(0xFFF2F4F6) : Colors.white,
+                      color: _isLeftPressed
+                          ? const Color(0xFFF2F4F6)
+                          : Colors.white,
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(20),
                         bottomLeft: Radius.circular(20),
@@ -1683,7 +2270,9 @@ class _InfoBannerState extends State<_InfoBanner> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 100),
                     decoration: BoxDecoration(
-                      color: _isRightPressed ? const Color(0xFFF2F4F6) : Colors.white,
+                      color: _isRightPressed
+                          ? const Color(0xFFF2F4F6)
+                          : Colors.white,
                       borderRadius: const BorderRadius.only(
                         topRight: Radius.circular(20),
                         bottomRight: Radius.circular(20),
@@ -1800,88 +2389,92 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
             margin: const EdgeInsets.only(bottom: 12),
             child: Stack(
               children: [
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: () async {
-                        final confirmed = await widget.onDelete();
-                        if (!confirmed && mounted) {
-                          _controller.reverse();
-                          setState(() => _dragOffset = 0);
-                        }
-                      },
-                      child: Container(
-                        width: _maxSwipe,
-                        height: double.infinity,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.delete,
-                          color: Colors.white,
-                          size: 30,
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () async {
+                          final confirmed = await widget.onDelete();
+                          if (!confirmed && mounted) {
+                            _controller.reverse();
+                            setState(() => _dragOffset = 0);
+                          }
+                        },
+                        child: Container(
+                          width: _maxSwipe,
+                          height: double.infinity,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.delete,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Transform.translate(
-                offset: Offset(offset, 0),
-                child: GestureDetector(
-                  onHorizontalDragUpdate: _onHorizontalDragUpdate,
-                  onHorizontalDragEnd: _onHorizontalDragEnd,
-                  onTapDown: (_) => setState(() => _isCardPressed = true),
-                  onTapUp: (_) => setState(() => _isCardPressed = false),
-                  onTapCancel: () => setState(() => _isCardPressed = false),
-                  onTap: widget.onTap,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 100),
+                Transform.translate(
+                  offset: Offset(offset, 0),
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: _onHorizontalDragUpdate,
+                    onHorizontalDragEnd: _onHorizontalDragEnd,
+                    onTapDown: (_) => setState(() => _isCardPressed = true),
+                    onTapUp: (_) => setState(() => _isCardPressed = false),
+                    onTapCancel: () => setState(() => _isCardPressed = false),
+                    onTap: widget.onTap,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 100),
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: _isCardPressed ? const Color(0xFFF2F4F6) : Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-                        boxShadow: _isCardPressed ? [] : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${widget.d['caseName']} 아동 사례',
-                                style: const TextStyle(
-                                  color: Color(0xFF222222),
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.5,
+                        color: _isCardPressed
+                            ? const Color(0xFFF2F4F6)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: _isCardPressed
+                            ? []
+                            : [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '대상: ${() {
-                                  final targets = widget.d['target'].toString().split(', ');
-                                  if (targets.length > 1) {
-                                    return "${targets[0]} 외 ${targets.length - 1}";
-                                  }
-                                  return widget.d['target'];
+                              ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${widget.d['caseName']} 아동 사례',
+                                  style: const TextStyle(
+                                    color: Color(0xFF222222),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '대상: ${() {
+                                    final targets = widget.d['target'].toString().split(', ');
+                                    if (targets.length > 1) {
+                                      return "${targets[0]} 외 ${targets.length - 1}";
+                                    }
+                                    return widget.d['target'];
                                   }()} | ${widget.d['method'] ?? '방문'}\n${(() {
                                     final startStr = widget.d['startTime'];
                                     final endStr = widget.d['endTime'];
                                     if (startStr == null || endStr == null) return widget.d['datetime'] ?? '제공일시 미설정';
-                                    
+
                                     final start = DateTime.tryParse(startStr);
                                     final end = DateTime.tryParse(endStr);
                                     if (start == null || end == null) return widget.d['datetime'] ?? '제공일시 미설정';
@@ -1889,7 +2482,7 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                     final bool isSameDay = start.year == end.year && start.month == end.month && start.day == end.day;
                                     final days = ['월', '화', '수', '목', '금', '토', '일'];
                                     final String defaultStartTime = "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
-                                    
+
                                     if (isSameDay) {
                                       return "$defaultStartTime ~ ${DateFormat('HH:mm').format(end)}";
                                     } else {
@@ -1897,55 +2490,144 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                       return "$defaultStartTime ~ $defaultEndTime";
                                     }
                                   })()}',
-                                style: const TextStyle(
-                                  color: Color(0xFF8B95A1),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.5,
+                                  style: const TextStyle(
+                                    color: Color(0xFF8B95A1),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.5,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: (widget.d['status']?.toString().toLowerCase() == 'reviewed') ? AppColors.successLight : AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: (widget.d['status']?.toString().toLowerCase() == 'reviewed') ? AppColors.success : AppColors.primary,
-                                  shape: BoxShape.circle,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  (widget.d['status']
+                                          ?.toString()
+                                          .toLowerCase() ==
+                                      'reviewed')
+                                  ? AppColors.successLight
+                                  : AppColors.primaryLight,
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        (widget.d['status']
+                                                ?.toString()
+                                                .toLowerCase() ==
+                                            'reviewed')
+                                        ? AppColors.success
+                                        : AppColors.primary,
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                (widget.d['status']?.toString().toLowerCase() == 'reviewed') ? '검토 완료' : '검토 대기',
-                                style: TextStyle(
-                                  color: (widget.d['status']?.toString().toLowerCase() == 'reviewed') ? AppColors.success : AppColors.primary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
+                                const SizedBox(width: 6),
+                                Text(
+                                  (widget.d['status']
+                                              ?.toString()
+                                              .toLowerCase() ==
+                                          'reviewed')
+                                      ? '검토 완료'
+                                      : '검토 대기',
+                                  style: TextStyle(
+                                    color:
+                                        (widget.d['status']
+                                                ?.toString()
+                                                .toLowerCase() ==
+                                            'reviewed')
+                                        ? AppColors.success
+                                        : AppColors.primary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+class _PressableProfileMenuItem extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final bool isDanger;
+
+  const _PressableProfileMenuItem({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.isDanger = false,
+  });
+
+  @override
+  State<_PressableProfileMenuItem> createState() =>
+      _PressableProfileMenuItemState();
+}
+
+class _PressableProfileMenuItemState extends State<_PressableProfileMenuItem> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        decoration: BoxDecoration(
+          color: _isPressed ? const Color(0xFFF2F4F6) : Colors.white,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Icon(
+              widget.icon,
+              color: widget.isDanger ? AppColors.danger : AppColors.textMain,
+              size: 22,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                widget.title,
+                style: TextStyle(
+                  color: widget.isDanger
+                      ? AppColors.danger
+                      : AppColors.textMain,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.border, size: 20),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -19,7 +19,9 @@ class _LoginScreenState extends State<LoginScreen> {
       // Chrome Custom Tab 방식(signInWithProvider)은 브라우저 세션 저장소 접근 권한 문제
       // (partitioned storage environment 등)로 인해 신규 로그인 시 오류가 발생할 수 있습니다.
       // 따라서 가장 안정적인 플러터 네이티브 GoogleSignIn 패키지를 사용하여 인증합니다.
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final GoogleSignInAccount? googleUser = await GoogleSignIn(
+        serverClientId: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
+      ).signIn();
       
       // 사용자가 로그인 팝업을 그냥 닫은 경우 중단
       if (googleUser == null) return;

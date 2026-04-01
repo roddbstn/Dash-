@@ -144,7 +144,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> with SingleTickerPr
           }
         },
         child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           children: [
             const SizedBox(height: 60), 
@@ -170,7 +170,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> with SingleTickerPr
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
             child: DashButton(
               onTap: _isNextEnabled ? _handleNext : null,
               text: _currentStep == 1 ? '다음' : '저장',
