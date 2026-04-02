@@ -60,6 +60,7 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
+    padding-top: 16px;
 }
 
 .status-indicator {
@@ -470,12 +471,17 @@ body {
 
 /* Tablet */
 @media (min-width: 769px) and (max-width: 1280px) {
+    .main-container {
+        background: var(--bg);
+    }
+
     .info-sidebar {
         display: none;
     }
 
     .mobile-info-trigger {
         display: block;
+        padding: 16px 32px 16px 56px;
     }
 
     .status-indicator {
@@ -493,17 +499,24 @@ body {
         left: 0 !important;
         right: 0 !important;
         background: #ffffff;
-        padding: 16px 32px 40px 32px;
+        padding: 16px 32px calc(env(safe-area-inset-bottom, 0px) + 16px) 32px;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
         z-index: 9999;
     }
 
     .editor-container {
-        margin-bottom: 140px;
+        background: var(--surface);
+        padding: 40px 32px;
+        margin: 20px 24px 140px 24px;
+        width: auto;
+        max-width: none;
+        border-radius: 28px;
+        box-shadow: var(--shadow);
     }
 
     .editor-area {
-        padding: 0 0 32px 24px;
+        padding: 0;
+        background: var(--bg);
     }
 
     .main-header {
@@ -563,7 +576,7 @@ body {
         left: 0 !important;
         right: 0 !important;
         background: #ffffff;
-        padding: 16px 20px 32px 20px;
+        padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 16px) 20px;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
         z-index: 9999;
     }

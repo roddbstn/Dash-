@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Dash | Reviewer Board</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap"
@@ -47,7 +47,7 @@
 
             <main class="editor-area">
                 <!-- Mobile Info Accordion (Only visible on mobile) -->
-                <div class="mobile-info-trigger" onclick="toggleMobileInfo()" style="padding: 16px 24px;">
+                <div class="mobile-info-trigger" onclick="toggleMobileInfo()">
                     <div class="trigger-top"
                         style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                         <div id="mobile-child-tag"></div>
@@ -86,7 +86,7 @@
 
             <!-- Bottom CTA Button (Mobile) -->
             <div class="mobile-cta-container">
-                <button class="btn btn-primary-full" onclick="openNotifyModal()">완료 알림</button>
+                <button class="btn btn-primary-full" onclick="openNotifyModal()">검토 완료 알림 보내기</button>
             </div>
         </div>
 
