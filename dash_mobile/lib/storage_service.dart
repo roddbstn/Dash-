@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class StorageService {
@@ -62,22 +63,39 @@ class StorageService {
     await prefs.remove(_casesKey);
     await prefs.remove(_draftsKey);
     await prefs.remove(_pendingSyncKey);
-    await prefs.remove(_pinKey);
+    await prefs.remove(_pinKey); // legacy 잔존 시 제거
     await prefs.remove(_saltKey);
+    // 온보딩·동의·FCM 플래그 초기화 — 재로그인 시 플로우가 다시 시작되어야 함
+    await prefs.remove('consent_v1_completed');
+    await prefs.remove('consent_marketing');
+    await prefs.remove('onboarding_v1_completed');
+    await prefs.remove('fcm_permission_asked');
+    await _secureStorage.delete(key: _pinKey);
   }
 
   // [Security] PIN and Vault Salt Management
   static const String _pinKey = 'dash_user_pin';
   static const String _saltKey = 'dash_user_salt';
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  // 기존 SharedPreferences PIN → Secure Storage 1회 마이그레이션
+  static Future<void> migratePinIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final legacyPin = prefs.getString(_pinKey);
+    if (legacyPin != null) {
+      await _secureStorage.write(key: _pinKey, value: legacyPin);
+      await prefs.remove(_pinKey);
+    }
+  }
 
   static Future<String?> getPin() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_pinKey);
+    return await _secureStorage.read(key: _pinKey);
   }
 
   static Future<void> savePin(String pin) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_pinKey, pin);
+    await _secureStorage.write(key: _pinKey, value: pin);
   }
 
   static Future<String?> getSalt() async {

@@ -13,6 +13,14 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
+  // ── 접근 허용 이메일 도메인 목록 ────────────────────────────────
+  // 비어있으면 모든 구글 계정 허용 (테스트/개발 시),
+  // 운영 시에는 기관 도메인을 추가하세요. 예: 'ncrc.or.kr'
+  static const List<String> _allowedDomains = [
+    // 'example.or.kr',
+  ];
+  // ─────────────────────────────────────────────────────────────
+
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
@@ -22,7 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final GoogleSignInAccount? googleUser = await GoogleSignIn(
         serverClientId: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
       ).signIn();
-      
+
       // 사용자가 로그인 팝업을 그냥 닫은 경우 중단
       if (googleUser == null) return;
 
@@ -32,10 +40,27 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
 
-      // 따로 화면을 이동시키지 않습니다. main.dart의 StreamBuilder가 자동으로 상태를 감지하고
-      // 로그인, 홈 화면을 알아서 라우팅해 줍니다. 그래야 스택이 꼬이지 않습니다.
+      // 이메일 도메인 화이트리스트 검사
+      if (_allowedDomains.isNotEmpty) {
+        final email = userCredential.user?.email ?? '';
+        final domain = email.contains('@') ? email.split('@').last : '';
+        if (!_allowedDomains.contains(domain)) {
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('승인되지 않은 이메일 계정입니다. 기관 이메일로 로그인해 주세요.'),
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // main.dart의 StreamBuilder가 자동으로 상태를 감지하고 라우팅합니다.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

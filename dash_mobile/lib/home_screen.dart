@@ -13,6 +13,10 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dash_mobile/privacy_policy_screen.dart';
+import 'package:dash_mobile/terms_screen.dart';
+import 'package:dash_mobile/user_guide_screen.dart';
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -36,6 +40,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // Real-time event subscription
   StreamSubscription? _eventSub;
   bool _notificationsEnabled = true;
+
+  // 로딩 / 네트워크 상태
+  bool _isLoadingInitial = true;   // 앱 첫 진입 시 로딩 스피너 표시용
+  bool _serverReachable = true;    // false = 서버 미응답, 오프라인 배너 표시
 
   @override
   void initState() {
@@ -105,10 +113,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final localDrafts = await StorageService.getDrafts();
     final cases = await StorageService.getCases();
 
-    setState(() {
-      _drafts = localDrafts;
-      _cases = cases;
-    });
+    if (mounted) {
+      setState(() {
+        _drafts = localDrafts;
+        _cases = cases;
+        _isLoadingInitial = false;
+      });
+    }
 
     // Background Sync for offline drafts
     try {
@@ -154,6 +165,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final String? userId = FirebaseAuth.instance.currentUser?.uid;
       final serverRecords = await ApiService.fetchRecords(); // null = 통신 실패
+
+      // 서버 응답 여부 업데이트
+      if (mounted) {
+        setState(() {
+          _serverReachable = serverRecords != null;
+        });
+      }
 
       // Fetch actual notifications from server table
       if (userId != null) {
@@ -327,17 +345,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _setupFCM() async {
     final messaging = FirebaseMessaging.instance;
 
-    // 1. 권한 요청
-    final settings = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // 2. Android 알림 채널 설정 (포그라운드 팝업용)
+    // 1. Android 알림 채널 설정 (포그라운드 팝업용) — 권한 요청보다 먼저 실행
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'high_importance_channel', // id
-      'High Importance Notifications', // name
+      'high_importance_channel',
+      'High Importance Notifications',
       description: 'This channel is used for important notifications.',
       importance: Importance.max,
     );
@@ -348,13 +359,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         >()
         ?.createNotificationChannel(channel);
 
-    // 알림 권한 상태에 따른 토글 초기화
-    setState(() {
-      _notificationsEnabled =
-          settings.authorizationStatus == AuthorizationStatus.authorized;
-    });
-
-    // 3. 플러그인 초기화
+    // 2. 플러그인 초기화
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const InitializationSettings initializationSettings =
@@ -363,8 +368,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       settings: initializationSettings,
     );
 
+    // 3. 권한 요청 — 최초 실행 시 3초 유예 (온보딩 직후 팝업 방지)
+    final prefs = await SharedPreferences.getInstance();
+    final permissionAsked = prefs.getBool('fcm_permission_asked') ?? false;
+    if (!permissionAsked) {
+      await Future.delayed(const Duration(seconds: 3));
+      await prefs.setBool('fcm_permission_asked', true);
+    }
+
+    final settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // 알림 권한 상태에 따른 토글 초기화
+    if (mounted) {
+      setState(() {
+        _notificationsEnabled =
+            settings.authorizationStatus == AuthorizationStatus.authorized;
+      });
+    }
+
+    // 4. 토큰 획득 및 서버 저장
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // 4. 토큰 획득 및 서버 저장
       final token = await messaging.getToken();
       final user = FirebaseAuth.instance.currentUser;
       if (token != null && user != null) {
@@ -1025,9 +1052,61 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildBody() {
-    if (_currentIndex == 0) return _buildHomeTab();
+    if (_currentIndex == 0) {
+      // 첫 진입 로딩 스피너
+      if (_isLoadingInitial) {
+        return const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
+        );
+      }
+      // 오프라인 배너 + 홈 탭
+      return Column(
+        children: [
+          if (!_serverReachable) _buildOfflineBanner(),
+          Expanded(child: _buildHomeTab()),
+        ],
+      );
+    }
     if (_currentIndex == 1) return _buildNotificationTab();
     return _buildProfileTab();
+  }
+
+  Widget _buildOfflineBanner() {
+    return Material(
+      color: const Color(0xFFFFF7ED),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.wifi_off_rounded,
+                size: 15, color: Color(0xFFB45309)),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                '서버에 연결하지 못했습니다. 로컬 저장 기록만 표시됩니다.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF92400E),
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: _loadData,
+              child: const Text(
+                '재시도',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFB45309),
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildNotificationTab() {
@@ -1188,7 +1267,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "$caseName 아동 사례",
+                                "$caseName 아동",
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13,
@@ -1428,7 +1507,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     icon: Icons.lock_outline,
                     title: '개인정보처리방침',
                     onTap: () {
-                      _showToast('개인정보처리방침 페이지로 이동합니다.');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PrivacyPolicyScreen(),
+                        ),
+                      );
                     },
                   ),
                   const Divider(
@@ -1441,7 +1525,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     icon: Icons.description_outlined,
                     title: '서비스 약관',
                     onTap: () {
-                      _showToast('서비스 약관 페이지로 이동합니다.');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TermsScreen(),
+                        ),
+                      );
                     },
                   ),
                   const Divider(
@@ -1905,7 +1994,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildHomeTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isPad = constraints.maxWidth > 650;
+        final bool isTablet = constraints.maxWidth > 650;
+        final bool isLandscape = constraints.maxWidth > constraints.maxHeight;
+        final bool isPadLandscape = isTablet && isLandscape;
+        final bool isPadPortrait = isTablet && !isLandscape;
+
+        Widget layoutContent;
+        if (isPadLandscape) {
+          layoutContent = KeyedSubtree(
+            key: const ValueKey('pad-landscape'),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 66,
+                  child: _buildDbList(
+                    isPad: true,
+                    padWidth: (constraints.maxWidth - 40 - 16) * 0.66,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 34,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildCtaCard(),
+                      const SizedBox(height: 12),
+                      _InfoBanner(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else if (isPadPortrait) {
+          layoutContent = KeyedSubtree(
+            key: const ValueKey('pad-portrait'),
+            child: Column(
+              children: [
+                _buildGuideAndCta(),
+                const SizedBox(height: 40),
+                _buildDbList(
+                  isPad: true,
+                  padWidth: constraints.maxWidth - 40,
+                  crossAxisCount: 2,
+                ),
+                const SizedBox(height: 100),
+              ],
+            ),
+          );
+        } else {
+          layoutContent = KeyedSubtree(
+            key: const ValueKey('mobile'),
+            child: Column(
+              children: [
+                _buildGuideAndCta(),
+                const SizedBox(height: 40),
+                _buildDbList(isPad: false),
+                const SizedBox(height: 100),
+              ],
+            ),
+          );
+        }
 
         return RefreshIndicator(
           onRefresh: _loadData,
@@ -1917,39 +2068,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: IntrinsicHeight(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                  child: isPad
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 66,
-                              child: _buildDbList(
-                                isPad: true,
-                                padWidth: (constraints.maxWidth - 40 - 16) * 0.66,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 34,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _buildCtaCard(),
-                                  const SizedBox(height: 12),
-                                  _InfoBanner(),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            _buildGuideAndCta(),
-                            const SizedBox(height: 40),
-                            _buildDbList(isPad: false),
-                            const SizedBox(height: 100),
-                          ],
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.04),
+                            end: Offset.zero,
+                          ).animate(CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          )),
+                          child: child,
                         ),
+                      );
+                    },
+                    child: layoutContent,
+                  ),
                 ),
               ),
             ),
@@ -2038,7 +2177,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildDbList({bool isPad = false, double padWidth = 0}) {
+  Widget _buildDbList({bool isPad = false, double padWidth = 0, int crossAxisCount = 3}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2058,8 +2197,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (isPad && padWidth > 0)
             Builder(
               builder: (context) {
-                // 사용자 요청에 따라 태블릿(가로)에서는 3개 열 배치를 기본으로 설정
-                int crossAxisCount = 3;
                 double spacing = 16.0;
                 // Calculate item width exactly using the given area
                 double itemWidth = (padWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
@@ -2308,7 +2445,12 @@ class _InfoBannerState extends State<_InfoBanner> {
                   onTapUp: (_) => setState(() => _isLeftPressed = false),
                   onTapCancel: () => setState(() => _isLeftPressed = false),
                   onTap: () {
-                    // TODO: 이용 안내 화면으로 이동
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const UserGuideScreen(),
+                      ),
+                    );
                   },
                   behavior: HitTestBehavior.opaque,
                   child: AnimatedContainer(
@@ -2357,7 +2499,12 @@ class _InfoBannerState extends State<_InfoBanner> {
                   onTapUp: (_) => setState(() => _isRightPressed = false),
                   onTapCancel: () => setState(() => _isRightPressed = false),
                   onTap: () {
-                    // TODO: 개인 정보 화면으로 이동
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PrivacyPolicyScreen(),
+                      ),
+                    );
                   },
                   behavior: HitTestBehavior.opaque,
                   child: AnimatedContainer(
@@ -2540,105 +2687,176 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                 ),
                               ],
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${widget.d['caseName']} 아동 사례',
-                                  style: const TextStyle(
-                                    color: Color(0xFF222222),
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.5,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '대상: ${() {
-                              final targets = widget.d['target'].toString().split(', ');
-                              if (targets.length > 1) {
-                                return "${targets[0]} 외 ${targets.length - 1}";
-                              }
-                              return widget.d['target'];
-                            }()} | ${widget.d['method'] ?? '방문'}\n${(() {
-                              final startStr = widget.d['startTime'];
-                              final endStr = widget.d['endTime'];
-                              if (startStr == null || endStr == null) return widget.d['datetime'] ?? '제공일시 미설정';
+                      child: Builder(builder: (context) {
+                        final bool isReviewed = widget.d['status']?.toString().toLowerCase() == 'reviewed';
+                        final bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
-                              final start = DateTime.tryParse(startStr);
-                              final end = DateTime.tryParse(endStr);
-                              if (start == null || end == null) return widget.d['datetime'] ?? '제공일시 미설정';
+                        // ── 대상 텍스트 ──────────────────────────
+                        final targets = widget.d['target'].toString().split(', ');
+                        final String targetText = targets.length > 1
+                            ? "${targets[0]} 외 ${targets.length - 1}"
+                            : widget.d['target'].toString();
+                        final String subLine1 = '대상: $targetText | ${widget.d['method'] ?? '방문'}';
 
-                              final bool isSameDay = start.year == end.year && start.month == end.month && start.day == end.day;
-                              final days = ['월', '화', '수', '목', '금', '토', '일'];
-                              final String defaultStartTime = "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
+                        // ── 제공일시 텍스트 ──────────────────────
+                        final startStr = widget.d['startTime'];
+                        final endStr = widget.d['endTime'];
+                        String subLine2;
+                        if (startStr == null || endStr == null) {
+                          subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
+                        } else {
+                          final start = DateTime.tryParse(startStr);
+                          final end = DateTime.tryParse(endStr);
+                          if (start == null || end == null) {
+                            subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
+                          } else {
+                            final bool isSameDay = start.year == end.year &&
+                                start.month == end.month &&
+                                start.day == end.day;
+                            final days = ['월', '화', '수', '목', '금', '토', '일'];
+                            final String startFmt =
+                                "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
+                            if (isSameDay) {
+                              subLine2 = "$startFmt ~ ${DateFormat('HH:mm').format(end)}";
+                            } else {
+                              final String endFmt =
+                                  "${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}";
+                              subLine2 = "$startFmt ~ $endFmt";
+                            }
+                          }
+                        }
 
-                              if (isSameDay) {
-                                return "$defaultStartTime ~ ${DateFormat('HH:mm').format(end)}";
-                              } else {
-                                final String defaultEndTime = "${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}";
-                                return "$defaultStartTime ~ $defaultEndTime";
-                              }
-                            })()}',
-                                  style: const TextStyle(
-                                    color: Color(0xFF8B95A1),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        // ── 상태 태그 위젯 ──────────────────────
+                        final Widget statusTag = Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: (widget.d['status']?.toString().toLowerCase() == 'reviewed')
-                                  ? AppColors.successLight
-                                  : AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: (widget.d['status']?.toString().toLowerCase() == 'reviewed')
-                                        ? AppColors.success
-                                        : AppColors.primary,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  (widget.d['status']?.toString().toLowerCase() == 'reviewed')
-                                      ? '검토 완료'
-                                      : '검토 대기',
-                                  style: TextStyle(
-                                    color: (widget.d['status']?.toString().toLowerCase() == 'reviewed')
-                                        ? AppColors.success
-                                        : AppColors.primary,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          decoration: BoxDecoration(
+                            color: isReviewed
+                                ? AppColors.successLight
+                                : AppColors.primaryLight,
+                            borderRadius: BorderRadius.circular(100),
                           ),
-                        ],
-                      ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: isReviewed
+                                      ? AppColors.success
+                                      : AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isReviewed ? '검토 완료' : '검토 대기',
+                                style: TextStyle(
+                                  color: isReviewed
+                                      ? AppColors.success
+                                      : AppColors.primary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        // ── 가로 모드: 태그를 타이틀 오른쪽에 ────
+                        if (isLandscape) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 타이틀 + 태그 (태그는 오른쪽 끝 고정)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${widget.d['caseName']} 아동',
+                                      style: const TextStyle(
+                                        color: Color(0xFF222222),
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.5,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  statusTag,
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // 서브텍스트 1: 대상 | 방법 (1줄)
+                              Text(
+                                subLine1,
+                                style: const TextStyle(
+                                  color: Color(0xFF8B95A1),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              // 서브텍스트 2: 제공일시 (1줄)
+                              Text(
+                                subLine2,
+                                style: const TextStyle(
+                                  color: Color(0xFF8B95A1),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          );
+                        }
+
+                        // ── 세로 모드: 태그 오른쪽 고정 (기존 구조) ──
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${widget.d['caseName']} 아동',
+                                    style: const TextStyle(
+                                      color: Color(0xFF222222),
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.5,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '$subLine1\n$subLine2',
+                                    style: const TextStyle(
+                                      color: Color(0xFF8B95A1),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            statusTag,
+                          ],
+                        );
+                      }),
                     ),
                   ),
                 ),

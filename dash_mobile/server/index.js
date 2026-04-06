@@ -3,6 +3,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
+const cron = require('node-cron');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -37,10 +38,59 @@ try {
   console.warn('Set FIREBASE_SERVICE_ACCOUNT environment variable with the JSON content to enable FCM in production.');
 }
 // Middleware
-app.use(cors()); // In production, we can restrict this to specific domains later
+// CORS: 모바일 앱(Origin 없음)과 Chrome 확장프로그램만 허용, 외부 웹 차단
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);                         // 모바일 앱 / 동일출처
+    if (origin.startsWith('chrome-extension://')) return callback(null, true); // Chrome 확장
+    return callback(new Error('CORS: 허용되지 않은 출처입니다.'));
+  },
+}));
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'reviewer_site'))); // Serve static files
+
+// ── 보안 설정 ────────────────────────────────────────────────────────────────
+// 허용할 이메일 도메인 목록 (쉼표 구분, 비어있으면 제한 없음)
+// 예: ALLOWED_EMAIL_DOMAINS=ncrc.or.kr,welfare.or.kr
+const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || '')
+  .split(',').map(d => d.trim()).filter(Boolean);
+
+// Firebase ID Token 검증 미들웨어 (모바일 전용 API 보호)
+async function verifyFirebaseAuth(req, res, next) {
+  // Firebase Admin 미초기화 시 (로컬 개발환경) — 인증 건너뜀
+  if (!fcmInitialized) {
+    console.warn('⚠️  [AUTH] Firebase Admin 미초기화 — 토큰 검증 건너뜀 (개발 모드)');
+    return next();
+  }
+
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: '인증이 필요합니다.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+
+    // 이메일 도메인 화이트리스트 검사
+    if (ALLOWED_EMAIL_DOMAINS.length > 0) {
+      const email = decoded.email || '';
+      const domain = email.split('@')[1] || '';
+      if (!ALLOWED_EMAIL_DOMAINS.includes(domain)) {
+        console.warn(`🚫 [AUTH] 차단된 도메인: ${domain} (${email})`);
+        return res.status(403).json({ error: '접근이 허용되지 않은 계정입니다.' });
+      }
+    }
+
+    req.firebaseUser = decoded;
+    next();
+  } catch (err) {
+    console.warn(`⚠️  [AUTH] 유효하지 않은 토큰: ${err.message}`);
+    return res.status(401).json({ error: '유효하지 않은 인증 토큰입니다.' });
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // --- SSE Clients ---
 let sseClients = [];
@@ -81,7 +131,7 @@ app.get('/health', (req, res) => {
 });
 
 // [Mobile/Web] SSE Stream
-app.get('/api/events', (req, res) => {
+app.get('/api/events', verifyFirebaseAuth, (req, res) => {
   const { email } = req.query;
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -105,7 +155,7 @@ app.get('/api/stream', (req, res) => {
 });
 
 // [Mobile] 0. 사용자 정보 조회 및 관리
-app.get('/api/users/:id', async (req, res) => {
+app.get('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const [users] = await pool.query('SELECT * FROM dash_users WHERE id = ?', [id]);
@@ -119,7 +169,7 @@ app.get('/api/users/:id', async (req, res) => {
   }
 });
 
-app.post('/api/users/update_profile', async (req, res) => {
+app.post('/api/users/update_profile', verifyFirebaseAuth, async (req, res) => {
   const { id, name, email } = req.body;
   console.log(`\n👤 [PROFILE UPDATE] User: ${id}, New Name: ${name}, Email: ${email}`);
   try {
@@ -137,22 +187,8 @@ app.post('/api/users/update_profile', async (req, res) => {
   }
 });
 
-// [Test] 로컬 익스텐션 테스트용 UID 조회 (이메일로 실제 모바일의 UID 찾기)
-app.get('/api/test/uid-by-email', async (req, res) => {
-  const { email } = req.query;
-  try {
-    const [rows] = await pool.query('SELECT user_id FROM service_drafts WHERE user_email = ? LIMIT 1', [email]);
-    if (rows.length > 0) {
-      return res.json({ uid: rows[0].user_id });
-    }
-    res.json({ uid: email.split('@')[0] });
-  } catch (err) {
-    res.json({ uid: email.split('@')[0] });
-  }
-});
-
 // [Mobile] FCM 토큰 저장
-app.post('/api/users/fcm_token', async (req, res) => {
+app.post('/api/users/fcm_token', verifyFirebaseAuth, async (req, res) => {
   const { id, token, email } = req.body;
   console.log(`\n📱 [FCM TOKEN] User: ${id}, Token: ${token.substring(0, 10)}..., Email: ${email}`);
   try {
@@ -171,7 +207,7 @@ app.post('/api/users/fcm_token', async (req, res) => {
 });
 
 // [E2EE] RSA 공개키 저장 및 조회
-app.post('/api/users/public_key', async (req, res) => {
+app.post('/api/users/public_key', verifyFirebaseAuth, async (req, res) => {
   const { id, public_key } = req.body;
   console.log(`\n🔑 [PUBLIC KEY] Saving for User: ${id}`);
   try {
@@ -182,7 +218,7 @@ app.post('/api/users/public_key', async (req, res) => {
   }
 });
 
-app.get('/api/users/:id/public_key', async (req, res) => {
+app.get('/api/users/:id/public_key', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.query('SELECT public_key FROM dash_users WHERE id = ?', [id]);
@@ -197,7 +233,7 @@ app.get('/api/users/:id/public_key', async (req, res) => {
 });
 
 // [Mobile] 1. 새로운 사례(Case) 생성
-app.post('/api/cases', async (req, res) => {
+app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
   const { id, user_id, case_name, dong, target_system_code, user_name } = req.body;
   console.log(`\n📦 [NEW CASE] 아동명: ${case_name}, 동: ${dong} (ID: ${id})`);
   
@@ -237,7 +273,7 @@ app.post('/api/cases', async (req, res) => {
 });
 
 // [Mobile] 2. 상담 기록(Draft) 서버로 동기화
-app.post('/api/records', async (req, res) => {
+app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
   const { 
     case_id, case_name, dong, user_id, user_email, target, provision_type, method, service_type, service_name, 
     location, start_time, end_time, service_count, travel_time, 
@@ -358,7 +394,7 @@ app.post('/api/records', async (req, res) => {
 });
 
 // [Mobile] 2-1. 동기화된 상담 기록 단건 삭제
-app.delete('/api/records/token/:token', async (req, res) => {
+app.delete('/api/records/token/:token', verifyFirebaseAuth, async (req, res) => {
   const { token } = req.params;
   const { user_email } = req.body || {};
   console.log(`\n🗑️ [DELETE RECORD] Token: ${token} (User: ${user_email||'unknown'})`);
@@ -377,7 +413,7 @@ app.delete('/api/records/token/:token', async (req, res) => {
   }
 });
 
-app.delete('/api/records/id/:id', async (req, res) => {
+app.delete('/api/records/id/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   console.log(`\n🗑️ [DELETE RECORD] ID: ${id}`);
   try {
@@ -397,7 +433,7 @@ app.delete('/api/records/id/:id', async (req, res) => {
 });
 
 // [Mobile] 2-2. 활성 상태의 토큰 목록과 서버 간 동기화 (유령 데이터 정리)
-app.post('/api/records/sync_active', async (req, res) => {
+app.post('/api/records/sync_active', verifyFirebaseAuth, async (req, res) => {
   const { user_email, active_tokens } = req.body;
   if (!user_email) return res.status(400).json({ error: 'user_email required' });
   
@@ -442,7 +478,7 @@ app.post('/api/records/sync_active', async (req, res) => {
 });
 
 // [Mobile] 2-3. 사용자 알림 리스트 조회
-app.get('/api/notifications/:userId', async (req, res) => {
+app.get('/api/notifications/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   try {
     const [rows] = await pool.query(
@@ -456,7 +492,7 @@ app.get('/api/notifications/:userId', async (req, res) => {
   }
 });
 
-app.put('/api/notifications/:id/read', async (req, res) => {
+app.put('/api/notifications/:id/read', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
@@ -666,7 +702,7 @@ app.get('/api/records/ready', async (req, res) => {
 });
 
 // [Mobile] 6. 특정 사용자의 모든 상담 기록 가져오기 (앱 동기화용)
-app.get('/api/records/user/:userId', async (req, res) => {
+app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   console.log(`\n📱 [MOBILE SYNC] Fetching records for user: ${userId}`);
   try {
@@ -685,7 +721,7 @@ app.get('/api/records/user/:userId', async (req, res) => {
 });
 
 // [Security] 7. Key Vault API (Zero-Knowledge PIN Sync)
-app.get('/api/users/vault/:userId', async (req, res) => {
+app.get('/api/users/vault/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   try {
     const [rows] = await pool.query(
@@ -701,7 +737,7 @@ app.get('/api/users/vault/:userId', async (req, res) => {
   }
 });
 
-app.post('/api/users/vault', async (req, res) => {
+app.post('/api/users/vault', verifyFirebaseAuth, async (req, res) => {
   const { user_id, encrypted_vault, salt } = req.body;
   if (!user_id || !encrypted_vault) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -721,7 +757,7 @@ app.post('/api/users/vault', async (req, res) => {
 });
 
 // [Security] 8. User Deletion (PIPL Compliance)
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   const { email } = req.query;
   console.log(`\n🗑️ [USER DEletion] User ID: ${id}, Email: ${email}`);
@@ -750,3 +786,79 @@ app.listen(port, () => {
   console.log(`🚀 Dash Server running on http://localhost:${port}`);
   console.log(`========================================\n`);
 });
+
+// ============================================================
+// 개인정보 자동 파기 스케줄러 (개인정보보호법 제21조)
+// 매일 새벽 2시 실행
+// - 상담 기록(service_drafts): 아동복지법 제28조 → 5년 보존 후 파기
+// - 알림(notifications): 1년 보존 후 파기
+// ============================================================
+async function ensureRetentionLogTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS retention_policy_log (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        target_table VARCHAR(64)  NOT NULL COMMENT '파기 대상 테이블',
+        deleted_count INT         NOT NULL DEFAULT 0 COMMENT '파기된 레코드 수',
+        cutoff_date  DATE         NOT NULL COMMENT '파기 기준일(이 날짜 이전 생성분 파기)',
+        law_basis    VARCHAR(255) NOT NULL COMMENT '법적 근거',
+        executed_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '실행 일시'
+      ) COMMENT='개인정보 자동 파기 이력 (개인정보보호법 제21조)';
+    `);
+  } catch (err) {
+    console.warn('⚠️  retention_policy_log 테이블 생성 실패:', err.message);
+  }
+}
+
+async function runRetentionPurge() {
+  console.log('\n========================================');
+  console.log('🗑️  [RETENTION PURGE] 개인정보 자동 파기 시작');
+  console.log(`⏰  실행 시각: ${new Date().toLocaleString('ko-KR')}`);
+  console.log('========================================');
+
+  try {
+    await ensureRetentionLogTable();
+
+    // 1. 상담 기록 파기: 5년 경과분 (아동복지법 제28조)
+    const fiveYearsAgo = new Date();
+    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+    const fiveYearsAgoStr = fiveYearsAgo.toISOString().split('T')[0];
+
+    const [draftsResult] = await pool.query(
+      `DELETE FROM service_drafts WHERE created_at < ?`,
+      [fiveYearsAgoStr]
+    );
+    await pool.query(
+      `INSERT INTO retention_policy_log (target_table, deleted_count, cutoff_date, law_basis)
+       VALUES (?, ?, ?, ?)`,
+      ['service_drafts', draftsResult.affectedRows, fiveYearsAgoStr, '아동복지법 제28조 (5년 보존)']
+    );
+    console.log(`✅ service_drafts: ${draftsResult.affectedRows}건 파기 (기준일: ${fiveYearsAgoStr})`);
+
+    // 2. 알림 파기: 1년 경과분
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+
+    const [notifResult] = await pool.query(
+      `DELETE FROM notifications WHERE created_at < ?`,
+      [oneYearAgoStr]
+    );
+    await pool.query(
+      `INSERT INTO retention_policy_log (target_table, deleted_count, cutoff_date, law_basis)
+       VALUES (?, ?, ?, ?)`,
+      ['notifications', notifResult.affectedRows, oneYearAgoStr, '내부 정책 (1년 보존)']
+    );
+    console.log(`✅ notifications: ${notifResult.affectedRows}건 파기 (기준일: ${oneYearAgoStr})`);
+
+    console.log('🎉 [RETENTION PURGE] 완료\n');
+  } catch (err) {
+    console.error('❌ [RETENTION PURGE] 오류:', err.message);
+  }
+}
+
+// 매일 새벽 2:00 실행 (서버 로컬 타임 기준)
+cron.schedule('0 2 * * *', runRetentionPurge, {
+  timezone: 'Asia/Seoul',
+});
+console.log('⏰ 개인정보 자동 파기 스케줄러 등록 완료 (매일 02:00 KST)');

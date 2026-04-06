@@ -16,6 +16,23 @@ class ApiService {
   static String get baseUrl => isProduction ? '$prodUrl/api' : '$localUrl/api';
   static String get serverUrl => isProduction ? prodUrl : localUrl;
 
+  /// Firebase ID Token을 포함한 인증 헤더 반환 (JSON 요청용)
+  static Future<Map<String, String>> _authHeaders() async {
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  /// Firebase ID Token을 포함한 인증 헤더 반환 (GET/DELETE 요청용 — Content-Type 없음)
+  static Future<Map<String, String>> _authGetHeaders() async {
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    return {
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   static Future<void> checkHealth() async {
     try {
       final response = await http.get(Uri.parse('$serverUrl/health'));
@@ -29,11 +46,11 @@ class ApiService {
     final user = FirebaseAuth.instance.currentUser;
     final userId = user?.uid;
     if (userId == null) return;
-    
+
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/cases'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _authHeaders(),
         body: jsonEncode({
           'id': caseData['id'],
           'user_id': userId,
@@ -58,7 +75,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/records'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _authHeaders(),
         body: jsonEncode(recordData),
       ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
@@ -79,7 +96,7 @@ class ApiService {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/records/token/$token'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _authHeaders(),
         body: jsonEncode({'user_email': userEmail}),
       );
       if (response.statusCode == 200) {
@@ -98,7 +115,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/records/sync_active'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _authHeaders(),
         body: jsonEncode({'user_email': userEmail, 'active_tokens': activeTokens}),
       );
       if (response.statusCode == 200) {
@@ -114,7 +131,10 @@ class ApiService {
   static Future<List<dynamic>?> fetchRecords() async {
     final userId = await StorageService.getUserId();
     try {
-      final response = await http.get(Uri.parse('$baseUrl/records/user/$userId'));
+      final response = await http.get(
+        Uri.parse('$baseUrl/records/user/$userId'),
+        headers: await _authGetHeaders(),
+      );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -126,7 +146,10 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> fetchUser(String userId) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/users/$userId'));
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$userId'),
+        headers: await _authGetHeaders(),
+      );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -140,7 +163,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/users/update_profile'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _authHeaders(),
         body: jsonEncode({'id': userId, 'name': name, 'email': email}),
       );
       return response.statusCode == 200;
@@ -152,7 +175,10 @@ class ApiService {
 
   static Future<List<dynamic>> fetchNotifications(String userId) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/notifications/$userId'));
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications/$userId'),
+        headers: await _authGetHeaders(),
+      );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -164,7 +190,10 @@ class ApiService {
 
   static Future<void> markNotificationRead(int notifId) async {
     try {
-      await http.put(Uri.parse('$baseUrl/notifications/$notifId/read'));
+      await http.put(
+        Uri.parse('$baseUrl/notifications/$notifId/read'),
+        headers: await _authGetHeaders(),
+      );
     } catch (e) {
       print('❌ Error marking notification read: $e');
     }
@@ -174,7 +203,7 @@ class ApiService {
     try {
       await http.post(
         Uri.parse('$baseUrl/users/fcm_token'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _authHeaders(),
         body: jsonEncode({'id': userId, 'token': token, 'email': email}),
       );
     } catch (e) {
@@ -185,7 +214,10 @@ class ApiService {
   // [Security] Vault sync for E2EE keys
   static Future<Map<String, dynamic>?> fetchVault(String userId) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/users/vault/$userId'));
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/vault/$userId'),
+        headers: await _authGetHeaders(),
+      );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -199,7 +231,7 @@ class ApiService {
     try {
       await http.post(
         Uri.parse('$baseUrl/users/vault'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await _authHeaders(),
         body: jsonEncode({
           'user_id': userId,
           'encrypted_vault': encryptedVault,
@@ -217,7 +249,7 @@ class ApiService {
       final uri = Uri.parse('$baseUrl/users/$userId').replace(
         queryParameters: email != null ? {'email': email} : null,
       );
-      final response = await http.delete(uri);
+      final response = await http.delete(uri, headers: await _authGetHeaders());
       return response.statusCode == 200;
     } catch (e) {
       print('❌ Error deleting user: $e');
@@ -237,6 +269,8 @@ class ApiService {
         request.headers['Accept'] = 'text/event-stream';
         request.headers['Cache-Control'] = 'no-cache';
         request.headers['Connection'] = 'keep-alive';
+        final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+        if (token != null) request.headers['Authorization'] = 'Bearer $token';
 
         final response = await client.send(request).timeout(const Duration(seconds: 15));
         if (response.statusCode == 200) {
