@@ -451,17 +451,20 @@ class _FormScreenState extends State<FormScreen> {
               const Text('공유하기', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 24),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildShareItem(label: '카카오톡', icon: Icons.chat, color: const Color(0xFFFEE500), iconColor: Colors.black, onTap: () { Navigator.pop(context); _showToast('SDK가 필요합니다.'); }),
-                  _buildShareItem(label: '메신저', icon: Icons.send, color: AppColors.primary, iconColor: Colors.white, onTap: () {
-                    Navigator.pop(context);
-                    final String token = _currentDraft?['share_token'] ?? '';
-                    final String key = _currentDraft?['encryption_key'] ?? '';
-                    final String host = ApiService.baseUrl.replaceAll('/api', '');
-                    final url = "$host/?token=$token${key.isNotEmpty ? '#$key' : ''}";
-                    Share.share('[${widget.caseName} 서비스 제공 DB]\n\n$url');
-                  }),
+                  _buildImageShareItem(
+                    label: '오피스메신저',
+                    imagePath: 'assets/images/office_messenger.png',
+                    onTap: () {
+                      Navigator.pop(context);
+                      final String token = _currentDraft?['share_token'] ?? '';
+                      final String key = _currentDraft?['encryption_key'] ?? '';
+                      final String host = ApiService.baseUrl.replaceAll('/api', '');
+                      final url = "$host/?token=$token${key.isNotEmpty ? '#$key' : ''}";
+                      SharePlus.instance.share(ShareParams(text: '[${widget.caseName} 서비스 제공 DB]\n\n$url'));
+                    },
+                  ),
                   _buildShareItem(label: '링크 복사', icon: Icons.link, color: const Color(0xFFF2F4F6), iconColor: AppColors.textMain, onTap: () {
                     Navigator.pop(context);
                     final String token = _currentDraft?['share_token'] ?? '';
@@ -483,12 +486,28 @@ class _FormScreenState extends State<FormScreen> {
     );
   }
 
+  Widget _buildImageShareItem({required String label, required String imagePath, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset(imagePath, width: 56, height: 56, fit: BoxFit.cover),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSub)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildShareItem({required String label, required IconData icon, required Color color, required Color iconColor, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         children: [
-          Container(width: 56, height: 56, decoration: BoxDecoration(color: color, shape: BoxShape.circle), child: Icon(icon, color: iconColor)),
+          Container(width: 56, height: 56, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16)), child: Icon(icon, color: iconColor)),
           const SizedBox(height: 8),
           Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSub)),
         ],
@@ -691,7 +710,10 @@ class _FormScreenState extends State<FormScreen> {
           child: TextField(
             controller: _otherLocationController,
             inputFormatters: [LengthLimitingTextInputFormatter(10)],
-            decoration: const InputDecoration(hintText: '최대 10자 입력'),
+            decoration: const InputDecoration(
+              hintText: '최대 10자 입력',
+              hintStyle: TextStyle(color: Color(0xFF8B95A1)),
+            ),
           ),
         ),
       _buildSection(
@@ -704,7 +726,10 @@ class _FormScreenState extends State<FormScreen> {
               border: Border.all(color: (_showDateTimeError && _startDate == null) ? Colors.red : Colors.grey.shade300),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(_startDate == null ? '일시 선택' : "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}"),
+            child: Text(
+              _startDate == null ? '일시 선택' : "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}",
+              style: TextStyle(color: _startDate == null ? const Color(0xFF8B95A1) : AppColors.textMain),
+            ),
           ),
         ),
       ),
@@ -733,7 +758,10 @@ class _FormScreenState extends State<FormScreen> {
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
                       inputFormatters: [LengthLimitingTextInputFormatter(7)],
-                      decoration: const InputDecoration(hintText: '0'),
+                      decoration: const InputDecoration(
+                        hintText: '0',
+                        hintStyle: TextStyle(color: Color(0xFF8B95A1)),
+                      ),
                       onChanged: (v) => setState(() => _travelTime = int.tryParse(v) ?? 0),
                     ),
                   ),
@@ -808,6 +836,7 @@ class _FormScreenState extends State<FormScreen> {
       textInputAction: TextInputAction.newline,
       decoration: InputDecoration(
         hintText: hintText,
+        hintStyle: const TextStyle(color: Color(0xFF8B95A1)),
         border: InputBorder.none,
         suffixIcon: ListenableBuilder(
           listenable: focusNode,

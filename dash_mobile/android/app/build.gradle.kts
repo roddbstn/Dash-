@@ -47,7 +47,7 @@ android {
 
     defaultConfig {
         applicationId = "com.dash.app"
-        minSdk = flutter.minSdkVersion  // Firebase Auth, Messaging 등 최소 요구사항
+        minSdk = 23  // Firebase Auth, Messaging 등 최소 요구사항
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

@@ -37,6 +37,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isPlusPressed = false;
   final List<int> _selectedCaseIds = [];
 
+  // Debounce _loadData to prevent duplicate card flicker from simultaneous calls
+  bool _isLoadingData = false;
+  bool _pendingLoadData = false;
+
   // Real-time event subscription
   StreamSubscription? _eventSub;
   bool _notificationsEnabled = true;
@@ -109,6 +113,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadData() async {
+    // Debounce: if already loading, mark pending and return
+    if (_isLoadingData) {
+      _pendingLoadData = true;
+      return;
+    }
+    _isLoadingData = true;
+    _pendingLoadData = false;
+
     await StorageService.initInitialData();
     final localDrafts = await StorageService.getDrafts();
     final cases = await StorageService.getCases();
@@ -342,6 +354,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       debugPrint('Orphan cleanup error: $e');
+    }
+
+    // Release debounce lock and re-run if a call came in while we were loading
+    _isLoadingData = false;
+    if (_pendingLoadData) {
+      _pendingLoadData = false;
+      _loadData();
     }
   }
 
