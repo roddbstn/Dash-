@@ -58,12 +58,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      print('📱 App returned to foreground. Resuming SSE...');
+      debugPrint('📱 App returned to foreground. Resuming SSE...');
       _initRealtime();
       _loadData();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      print('💤 App backgrounded. Suspending SSE...');
+      debugPrint('💤 App backgrounded. Suspending SSE...');
       _eventSub?.cancel();
       _eventSub = null;
     }
@@ -92,11 +92,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final email = user?.email;
     if (email != null) {
-      print('🚀 Initializing SSE for email: $email');
+      debugPrint('🚀 Initializing SSE for email: $email');
       _eventSub?.cancel();
       _eventSub = ApiService.streamEvents(email).listen((event) {
         final String? ev = event['event'];
-        print('🔔 Server Event Received: $ev');
+        debugPrint('🔔 Server Event Received: $ev');
 
         // Initial setup/heartbeat event should not trigger a heavy refresh
         if (ev != 'connected') {
@@ -158,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
     } catch (e) {
-      print('Background Sync Error: $e');
+      debugPrint('Background Sync Error: $e');
     }
 
     // 서버에서 최신 상태 가져오기
@@ -238,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     decryptedData['agent_opinion'] ??
                     finalOpinion;
               } catch (e) {
-                print('E2EE Decryption failed on merge: $e');
+                debugPrint('E2EE Decryption failed on merge: $e');
               }
             }
 
@@ -307,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               updatedDrafts.add(local);
             } else {
               // 서버에 토큰이 있는데 서버 응답에 없으면 서버에서 삭제된 것이므로 로컬에서도 제거
-              print(
+              debugPrint(
                 '🗑️ Record with token $localToken not found on server (deleted). Removing local copy.',
               );
               // updatedDrafts에 추가하지 않음으로써 로컬에서도 삭제
@@ -323,22 +323,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
     } catch (e) {
-      print('Sync failed: $e');
+      debugPrint('Sync failed: $e');
     }
 
-    // NEW: Sync active tokens to clear orphaned drafts on the server
+    // Sync active tokens AFTER merge is complete so we never send stale/empty list
     try {
+      // Use the FINAL merged _drafts (which already includes server-only records)
       final activeTokens =
-          _drafts // Use _drafts which is already updated or localDrafts if not yet updated
+          _drafts
               .map((d) => d['share_token'] as String?)
               .where((t) => t != null && t.isNotEmpty)
               .cast<String>()
               .toList();
 
-      // Always sync to clean server if drafts empty
-      await ApiService.syncActiveRecords(activeTokens);
+      // Guard: never send an empty list right after a save — it would wipe all server records
+      if (activeTokens.isNotEmpty) {
+        await ApiService.syncActiveRecords(activeTokens);
+      }
     } catch (e) {
-      print('Orphan cleanup error: $e');
+      debugPrint('Orphan cleanup error: $e');
     }
   }
 
@@ -396,7 +399,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final user = FirebaseAuth.instance.currentUser;
       if (token != null && user != null) {
         await ApiService.saveFcmToken(user.uid, token, user.email);
-        print('🔥 FCM Token Registered: ${token.substring(0, 8)}...');
+        debugPrint('🔥 FCM Token Registered: ${token.substring(0, 8)}...');
       }
     }
 
@@ -429,7 +432,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // 6. 알림 클릭으로 앱이 열렸을 때 처리
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('🚀 Notification opened app: ${message.data}');
+      debugPrint('🚀 Notification opened app: ${message.data}');
       setState(() => _currentIndex = 1); // 알림 탭으로 이동
     });
   }
@@ -1197,7 +1200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
-                    print('🔔 Notification tapped: $notifId');
+                    debugPrint('🔔 Notification tapped: $notifId');
                     // 1. 알림 읽음 처리 (서버 및 로컬 즉시 반영)
                     if (notifId != null) {
                       ApiService.markNotificationRead(notifId);
@@ -1212,7 +1215,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       });
                     }
 
-                    print('🔍 Found drafts length: ${_drafts.length}');
+                    debugPrint('🔍 Found drafts length: ${_drafts.length}');
                     // 2. 기록 매칭 및 이동
                     Map<String, dynamic>? foundDraft;
                     for (var d in _drafts) {
@@ -1224,7 +1227,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         break;
                       }
                     }
-                    print('🔍 Matched draft: $foundDraft');
+                    debugPrint('🔍 Matched draft: $foundDraft');
 
                     if (foundDraft != null) {
                       final dong = foundDraft['dong'] ?? '';
@@ -1351,7 +1354,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         });
       }
     } catch (e) {
-      print('Error fetching profile: $e');
+      debugPrint('Error fetching profile: $e');
     }
   }
 
@@ -1708,7 +1711,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       try {
         await user.delete();
       } catch (e) {
-        print('🔒 Firebase Auth delete require re-auth: $e');
+        debugPrint('🔒 Firebase Auth delete require re-auth: $e');
         // 보안상 바로 삭제가 안 될 수 있지만, 서버 데이터는 위에서 지웠으므로 진행
       }
 
@@ -1719,7 +1722,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       _showToast('계정이 정상적으로 탈퇴되었습니다.');
     } catch (e) {
-      print('❌ Account deletion error: $e');
+      debugPrint('❌ Account deletion error: $e');
       // 에러 발생 시에도 일단 세션은 강제 종료
       await GoogleSignIn().disconnect().catchError((_) => null);
       await GoogleSignIn().signOut().catchError((_) => null);

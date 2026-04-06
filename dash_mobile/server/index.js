@@ -438,30 +438,19 @@ app.post('/api/records/sync_active', verifyFirebaseAuth, async (req, res) => {
   if (!user_email) return res.status(400).json({ error: 'user_email required' });
   
   try {
-    // 찾을 대상: 내 이메일로 작성된 모든 service_drafts 중 active_tokens에 포함되지 않은 것.
-    // user_email로 찾기 위해 dash_users를 조인하거나, cases 테이블을 통해 유저 확인.
-    // 여기서는 간단히 dash_users -> cases -> service_drafts 로 조회.
-    let deleteQuery;
-    let deleteParams;
-    
-    if (active_tokens && active_tokens.length > 0) {
-      deleteQuery = `
-        DELETE r FROM service_drafts r
-        JOIN cases c ON r.case_id = c.id
-        JOIN dash_users u ON c.user_id = u.id
-        WHERE u.email = ? AND r.share_token NOT IN (?)
-      `;
-      deleteParams = [user_email, active_tokens];
-    } else {
-      // active_tokens가 빈 배열이면 사용자의 모든 drafts 삭제
-      deleteQuery = `
-        DELETE r FROM service_drafts r
-        JOIN cases c ON r.case_id = c.id
-        JOIN dash_users u ON c.user_id = u.id
-        WHERE u.email = ?
-      `;
-      deleteParams = [user_email];
+    // Guard: If active_tokens is empty or missing, skip cleanup to prevent accidental full wipe
+    if (!active_tokens || active_tokens.length === 0) {
+      console.log(`⚠️  [SYNC_ACTIVE] Empty tokens for ${user_email} — skipping cleanup to prevent data loss`);
+      return res.json({ message: 'Sync skipped (no active tokens)', deleted_count: 0 });
     }
+
+    const deleteQuery = `
+      DELETE r FROM service_drafts r
+      JOIN cases c ON r.case_id = c.id
+      JOIN dash_users u ON c.user_id = u.id
+      WHERE u.email = ? AND r.share_token NOT IN (?)
+    `;
+    const deleteParams = [user_email, active_tokens];
     
     const [result] = await pool.query(deleteQuery, deleteParams);
     if (result.affectedRows > 0) {

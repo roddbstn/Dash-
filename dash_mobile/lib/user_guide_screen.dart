@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class UserGuideScreen extends StatelessWidget {
   const UserGuideScreen({super.key});
@@ -67,7 +68,6 @@ class UserGuideScreen extends StatelessWidget {
             _StepCard(
               step: 1,
               icon: Icons.person_add_outlined,
-              color: AppColors.primary,
               title: '새 사례 등록',
               description: '홈 화면 하단의 + 버튼을 눌러 새 사례를 만드세요.\n'
                   '아동 이름과 동(읍·면·동) 정보를 입력하면 사례가 생성됩니다.',
@@ -78,19 +78,17 @@ class UserGuideScreen extends StatelessWidget {
             _StepCard(
               step: 2,
               icon: Icons.edit_note_outlined,
-              color: const Color(0xFF6366F1),
               title: '상담 기록 작성',
               description: '등록된 사례를 탭하면 상담 기록 폼이 열립니다.\n'
                   '제공 구분, 방법, 서비스 유형, 일시, 내용 등을 입력하세요.\n'
                   '태블릿과 휴대폰 모두 지원합니다.',
-              tip: '저장 전에 앱을 닫아도 임시저장이 유지됩니다.',
+              tip: '저장한 기록은 서버 연결 없이도 기기에 보관되며, 연결 복구 시 자동 동기화됩니다.',
             ),
             _StepConnector(),
 
             _StepCard(
               step: 3,
               icon: Icons.share_outlined,
-              color: const Color(0xFF059669),
               title: '상사에게 공유 및 검토 요청',
               description: '작성 완료 후 공유 버튼을 누르면 고유 링크가 생성됩니다.\n'
                   '링크를 상사에게 전달하면 PC 웹에서 내용을 확인하고\n'
@@ -102,7 +100,6 @@ class UserGuideScreen extends StatelessWidget {
             _StepCard(
               step: 4,
               icon: Icons.notifications_active_outlined,
-              color: const Color(0xFFD97706),
               title: '검토 완료 알림 수신',
               description: '상사가 검토를 완료하면 즉시 푸시 알림이 도착합니다.\n'
                   '홈 화면 알림 탭에서 검토 내용을 확인할 수 있습니다.',
@@ -113,12 +110,13 @@ class UserGuideScreen extends StatelessWidget {
             _StepCard(
               step: 5,
               icon: Icons.computer_outlined,
-              color: const Color(0xFF7C3AED),
               title: 'NCADS 자동 입력',
               description: 'PC에서 Chrome 확장프로그램을 설치하세요.\n'
                   'NCADS 업무 시스템에 접속한 상태에서 확장프로그램을 열면\n'
                   '작성한 기록이 클릭 한 번으로 자동 입력됩니다.',
-              tip: '확장프로그램은 별도 안내 링크를 통해 설치할 수 있습니다.',
+              tip: 'Chrome 웹 스토어에서 무료로 설치할 수 있습니다.',
+              actionLabel: 'Chrome 웹 스토어에서 설치하기',
+              actionUrl: 'https://chromewebstore.google.com/detail/dpncpmegjlgknkagcfjdaccbgmjncdef?utm_source=item-share-cb',
             ),
 
             const SizedBox(height: 28),
@@ -193,18 +191,20 @@ class UserGuideScreen extends StatelessWidget {
 class _StepCard extends StatelessWidget {
   final int step;
   final IconData icon;
-  final Color color;
   final String title;
   final String description;
   final String tip;
+  final String? actionLabel;
+  final String? actionUrl;
 
   const _StepCard({
     required this.step,
     required this.icon,
-    required this.color,
     required this.title,
     required this.description,
     required this.tip,
+    this.actionLabel,
+    this.actionUrl,
   });
 
   @override
@@ -226,25 +226,25 @@ class _StepCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
+                  color: AppColors.primary,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: color, size: 22),
+                child: Icon(icon, color: Colors.white, size: 22),
               ),
               const SizedBox(height: 4),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: AppColors.primary,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'STEP $step',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
-                    color: color,
+                    color: Colors.white,
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -270,7 +270,7 @@ class _StepCard extends StatelessWidget {
                 Text(
                   description,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     color: Color(0xFF4B5563),
                     height: 1.6,
                     letterSpacing: -0.1,
@@ -305,6 +305,41 @@ class _StepCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (actionLabel != null && actionUrl != null) ...[
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () => launchUrl(
+                      Uri.parse(actionUrl!),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.open_in_new,
+                              size: 14, color: Colors.white),
+                          const SizedBox(width: 6),
+                          Text(
+                            actionLabel!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

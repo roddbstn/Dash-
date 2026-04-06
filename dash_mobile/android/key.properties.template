@@ -1,0 +1,13 @@
+# key.properties — 실제 파일은 android/key.properties에 생성하세요.
+# 이 파일은 Git에 커밋됩니다 (템플릿). 실제 key.properties는 절대 커밋하지 마세요.
+#
+# 키스토어 생성 방법:
+#   keytool -genkey -v -keystore dash-release.jks \
+#     -alias dash -keyalg RSA -keysize 2048 -validity 10000
+#
+# 생성 후 android/key.properties 파일을 만들고 아래 값을 채우세요:
+
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=dash
+storeFile=../dash-release.jks

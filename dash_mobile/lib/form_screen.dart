@@ -49,6 +49,8 @@ class _FormScreenState extends State<FormScreen> {
   final TextEditingController _otherLocationController = TextEditingController();
   final TextEditingController _travelTimeController = TextEditingController();
   final TextEditingController _serviceCountController = TextEditingController(text: '1');
+  final FocusNode _serviceFocusNode = FocusNode();
+  final FocusNode _opinionFocusNode = FocusNode();
   bool _showOtherTargetField = false;
   bool _showOtherLocationField = false;
   bool _isManualTravelTime = false;
@@ -73,6 +75,8 @@ class _FormScreenState extends State<FormScreen> {
     _opinionController.dispose();
     _otherTargetController.dispose();
     _otherLocationController.dispose();
+    _serviceFocusNode.dispose();
+    _opinionFocusNode.dispose();
     super.dispose();
   }
 
@@ -345,7 +349,7 @@ class _FormScreenState extends State<FormScreen> {
           final decrypted = encrypter.decrypt(encrypt.Encrypted.fromBase64(parts[1]), iv: encrypt.IV.fromBase64(parts[0]));
           keyMap = jsonDecode(decrypted) as Map<String, dynamic>;
         } catch (e) {
-          print('🔒 Sync Log: Creating new vault/Resetting due to PIN mismatch');
+          debugPrint('🔒 Sync Log: Creating new vault/Resetting due to PIN mismatch');
         }
       }
 
@@ -357,7 +361,7 @@ class _FormScreenState extends State<FormScreen> {
       final encryptedVaultBlob = "${iv.base64}:${encrypted.base64}";
       await ApiService.saveVault(userId, encryptedVaultBlob, salt);
     } catch (e) {
-      print('❌ Error syncing to vault: $e');
+      debugPrint('❌ Error syncing to vault: $e');
     }
   }
 
@@ -507,52 +511,60 @@ class _FormScreenState extends State<FormScreen> {
     final bool isReviewed = (_currentDraft?['status']?.toString().toLowerCase() == 'reviewed');
 
     if (widget.isEmbedded) {
-      return Material(
-        color: AppColors.bg,
-        child: _isLoading
+      return GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Material(
+          color: AppColors.bg,
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    _buildCaseInfoHeader(isReviewed: isReviewed, showBackButton: true),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                        child: _buildFormSections(),
+                      ),
+                    ),
+                    _buildSaveBar(),
+                  ],
+                ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(
+          backgroundColor: AppColors.bg,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 20), onPressed: () => Navigator.pop(context)),
+          title: Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          centerTitle: true,
+          actions: [
+            if (widget.draftId != null) IconButton(icon: const Icon(Icons.ios_share, size: 22), onPressed: _showShareModal),
+          ],
+        ),
+        body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
-                  _buildCaseInfoHeader(isReviewed: isReviewed, showBackButton: true),
+                  _buildCaseInfoHeader(isReviewed: isReviewed, showBackButton: false),
                   Expanded(
                     child: SingleChildScrollView(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
                       child: _buildFormSections(),
                     ),
                   ),
-                  _buildSaveBar(),
                 ],
               ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 20), onPressed: () => Navigator.pop(context)),
-        title: Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        actions: [
-          if (widget.draftId != null) IconButton(icon: const Icon(Icons.ios_share, size: 22), onPressed: _showShareModal),
-        ],
+        bottomNavigationBar: _buildSaveBar(),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _buildCaseInfoHeader(isReviewed: isReviewed, showBackButton: false),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                    child: _buildFormSections(),
-                  ),
-                ),
-              ],
-            ),
-      bottomNavigationBar: _buildSaveBar(),
     );
   }
 
@@ -628,11 +640,19 @@ class _FormScreenState extends State<FormScreen> {
     final leftSections = <Widget>[
       _buildSection(
         label: '서비스 내용',
-        child: TextField(controller: _serviceController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none)),
+        child: _buildDismissibleTextField(
+          controller: _serviceController,
+          focusNode: _serviceFocusNode,
+          hintText: '입력해주세요',
+        ),
       ),
       _buildSection(
         label: '상담원 소견',
-        child: TextField(controller: _opinionController, maxLines: null, decoration: const InputDecoration(hintText: '입력해주세요', border: InputBorder.none)),
+        child: _buildDismissibleTextField(
+          controller: _opinionController,
+          focusNode: _opinionFocusNode,
+          hintText: '입력해주세요',
+        ),
       ),
       _buildSection(
         label: '대상자',
@@ -771,6 +791,43 @@ class _FormScreenState extends State<FormScreen> {
             backgroundColor: AppColors.primary,
             height: 56,
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDismissibleTextField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String hintText,
+  }) {
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      maxLines: null,
+      textInputAction: TextInputAction.newline,
+      decoration: InputDecoration(
+        hintText: hintText,
+        border: InputBorder.none,
+        suffixIcon: ListenableBuilder(
+          listenable: focusNode,
+          builder: (context, child) {
+            if (!focusNode.hasFocus) return const SizedBox.shrink();
+            return GestureDetector(
+              onTap: () => focusNode.unfocus(),
+              child: const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text(
+                  '완료',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

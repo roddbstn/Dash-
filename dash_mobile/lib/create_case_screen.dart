@@ -110,7 +110,9 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.bg,
@@ -180,6 +182,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> with SingleTickerPr
             ),
           ),
         ),
+      ),
       ),
     );
   }

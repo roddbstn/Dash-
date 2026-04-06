@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dash_mobile/storage_service.dart';
@@ -36,9 +37,9 @@ class ApiService {
   static Future<void> checkHealth() async {
     try {
       final response = await http.get(Uri.parse('$serverUrl/health'));
-      print('🚀 Health Check: ${response.statusCode} - ${response.body}');
+      debugPrint('🚀 Health Check: ${response.statusCode} - ${response.body}');
     } catch (e) {
-      print('❌ Health Check Error: $e');
+      debugPrint('❌ Health Check Error: $e');
     }
   }
 
@@ -62,12 +63,12 @@ class ApiService {
         }),
       ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        print('✅ Case synchronized with server');
+        debugPrint('✅ Case synchronized with server');
       } else {
-        print('❌ Failed to sync case: ${response.body}');
+        debugPrint('❌ Failed to sync case: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error syncing case: $e');
+      debugPrint('❌ Error syncing case: $e');
     }
   }
 
@@ -80,13 +81,13 @@ class ApiService {
       ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('✅ Record synchronized with server');
+        debugPrint('✅ Record synchronized with server');
         return data['share_token'];
       } else {
-        print('❌ Failed to sync record: ${response.body}');
+        debugPrint('❌ Failed to sync record: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error syncing record: $e');
+      debugPrint('❌ Error syncing record: $e');
     }
     return null;
   }
@@ -100,12 +101,12 @@ class ApiService {
         body: jsonEncode({'user_email': userEmail}),
       );
       if (response.statusCode == 200) {
-        print('🗑️ Record deleted from server');
+        debugPrint('🗑️ Record deleted from server');
       } else {
-        print('❌ Failed to delete record: ${response.body}');
+        debugPrint('❌ Failed to delete record: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error deleting record: $e');
+      debugPrint('❌ Error deleting record: $e');
     }
   }
 
@@ -119,12 +120,12 @@ class ApiService {
         body: jsonEncode({'user_email': userEmail, 'active_tokens': activeTokens}),
       );
       if (response.statusCode == 200) {
-        print('🔄 Active records sync complete');
+        debugPrint('🔄 Active records sync complete');
       } else {
-        print('❌ Active sync failed: ${response.body}');
+        debugPrint('❌ Active sync failed: ${response.body}');
       }
     } catch (e) {
-      print('❌ Active sync error: $e');
+      debugPrint('❌ Active sync error: $e');
     }
   }
 
@@ -139,7 +140,7 @@ class ApiService {
         return jsonDecode(response.body);
       }
     } catch (e) {
-      print('❌ Error fetching records: $e');
+      debugPrint('❌ Error fetching records: $e');
     }
     return null; // null = 서버 통신 실패, [] = 서버 응답은 성공이나 레코드 없음
   }
@@ -154,7 +155,7 @@ class ApiService {
         return jsonDecode(response.body);
       }
     } catch (e) {
-      print('❌ Error fetching user: $e');
+      debugPrint('❌ Error fetching user: $e');
     }
     return null;
   }
@@ -168,7 +169,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('❌ Error updating profile: $e');
+      debugPrint('❌ Error updating profile: $e');
       return false;
     }
   }
@@ -183,7 +184,7 @@ class ApiService {
         return jsonDecode(response.body);
       }
     } catch (e) {
-      print('❌ Error fetching notifications: $e');
+      debugPrint('❌ Error fetching notifications: $e');
     }
     return [];
   }
@@ -195,7 +196,7 @@ class ApiService {
         headers: await _authGetHeaders(),
       );
     } catch (e) {
-      print('❌ Error marking notification read: $e');
+      debugPrint('❌ Error marking notification read: $e');
     }
   }
 
@@ -207,7 +208,7 @@ class ApiService {
         body: jsonEncode({'id': userId, 'token': token, 'email': email}),
       );
     } catch (e) {
-      print('❌ Error saving FCM token: $e');
+      debugPrint('❌ Error saving FCM token: $e');
     }
   }
 
@@ -222,7 +223,7 @@ class ApiService {
         return jsonDecode(response.body);
       }
     } catch (e) {
-      print('❌ Error fetching vault: $e');
+      debugPrint('❌ Error fetching vault: $e');
     }
     return null;
   }
@@ -239,7 +240,7 @@ class ApiService {
         }),
       );
     } catch (e) {
-      print('❌ Error saving vault: $e');
+      debugPrint('❌ Error saving vault: $e');
     }
   }
 
@@ -252,7 +253,7 @@ class ApiService {
       final response = await http.delete(uri, headers: await _authGetHeaders());
       return response.statusCode == 200;
     } catch (e) {
-      print('❌ Error deleting user: $e');
+      debugPrint('❌ Error deleting user: $e');
       return false;
     }
   }
@@ -289,7 +290,7 @@ class ApiService {
         if (e.toString().contains('Failed host lookup') || e.toString().contains('SocketException')) {
           // No need to print full stack trace for known offline/background state
         } else {
-          print('🔔 SSE Reconnect loop: $e');
+          debugPrint('🔔 SSE Reconnect loop: $e');
         }
       } finally {
         client.close();
@@ -301,7 +302,7 @@ class ApiService {
       
       // Heartbeat pulse instead of noisy reconnect log
       if (backoffSeconds < 10) {
-        print('🔄 SSE Reconnecting for: $email');
+        debugPrint('🔄 SSE Reconnecting for: $email');
       }
     }
   }

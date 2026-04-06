@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -15,7 +16,7 @@ import 'package:dash_mobile/storage_service.dart';
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // 백그라운드 수신 시 Firebase 초기화 필수
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  print("📩 Background message received: ${message.messageId}");
+  if (kDebugMode) debugPrint("📩 Background message received: ${message.messageId}");
 }
 
 void main() async {

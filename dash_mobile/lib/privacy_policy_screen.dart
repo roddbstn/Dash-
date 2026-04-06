@@ -89,9 +89,36 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // 2. 보유기간 및 파기 정책
+            // 2. 아동 개인정보 처리
             _Section(
               number: '2',
+              title: '아동의 개인정보 처리',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _highlightBox(
+                    '👶 이 항목이 중요한 이유\n\n'
+                    'DASH는 아동보호전문기관 상담원이 업무 중 입력하는 아동 관련 정보를 '
+                    '공식 시스템(NCIS 등)에 자동 입력하기 위해 임시 처리합니다. '
+                    '아동 정보는 DASH에 영구 저장되지 않으며, 전송 완료 후 즉시 삭제됩니다.',
+                  ),
+                  const SizedBox(height: 14),
+                  _bodyText(
+                    '개인정보보호법 제22조의2(아동의 개인정보 보호)에 따라, '
+                    'DASH가 업무 보조 목적으로 임시 처리하는 아동 개인정보 항목은 다음과 같습니다.',
+                  ),
+                  const SizedBox(height: 12),
+                  _childInfoTable(),
+                  const SizedBox(height: 14),
+                  _childProtectionBox(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // 3. 보유기간 및 파기 정책
+            _Section(
+              number: '3',
               title: '개인정보 보유기간 및 파기 정책',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,8 +130,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     rows: [
                       ['일반 개인정보\n(이름, 이메일)', '회원 탈퇴 후 즉시 파기', '-'],
                       [
-                        '상담 기록\n(service_drafts)',
-                        '생성일로부터 5년\n→ 이후 자동 파기',
+                        '아동 관련 기록\n(service_drafts)',
+                        '전송 완료 시 즉시 삭제\n미완료 시 최대 5년 후\n자동 파기',
                         '아동복지법 제28조',
                       ],
                       ['로그인 기록', '1년', '통신비밀보호법'],
@@ -122,9 +149,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // 3. 민감정보 처리
+            // 4. 민감정보 처리
             _Section(
-              number: '3',
+              number: '4',
               title: '민감정보 임시 처리',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,9 +175,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // 4. 처리위탁
+            // 5. 처리위탁
             _Section(
-              number: '4',
+              number: '5',
               title: '개인정보 처리위탁',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,9 +216,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // 5. 정보주체 권리
+            // 6. 정보주체 권리
             _Section(
-              number: '5',
+              number: '6',
               title: '정보주체의 권리·의무 및 행사 방법',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,9 +240,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // 6. 안전성 확보 조치
+            // 7. 안전성 확보 조치
             _Section(
-              number: '6',
+              number: '7',
               title: '개인정보 안전성 확보 조치',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,9 +261,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // 7. 개인정보 보호책임자
+            // 8. 개인정보 보호책임자
             _Section(
-              number: '7',
+              number: '8',
               title: '개인정보 보호책임자(CPO)',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,9 +283,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // 8. 고지 의무
+            // 9. 고지 의무
             _Section(
-              number: '8',
+              number: '9',
               title: '개인정보처리방침 변경 고지',
               child: _bodyText(
                 '본 개인정보처리방침은 법령·정책 변경 및 서비스 내용에 따라 변경될 수 있습니다. '
@@ -450,6 +477,111 @@ class PrivacyPolicyScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _childInfoTable() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Table(
+        border: TableBorder.all(
+          color: const Color(0xFFE5E7EB),
+          width: 1,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        columnWidths: const {
+          0: FlexColumnWidth(1.3),
+          1: FlexColumnWidth(2),
+          2: FlexColumnWidth(1.5),
+        },
+        children: [
+          TableRow(
+            decoration: const BoxDecoration(color: Color(0xFFFFF7ED)),
+            children: ['구분', '처리 항목', '처리 목적'].map(
+              (h) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Text(
+                  h,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF9A3412),
+                    letterSpacing: -0.1,
+                  ),
+                ),
+              ),
+            ).toList(),
+          ),
+          _childInfoRow('아동 식별',
+              '이름(마스킹 처리)\n생년월일, 성별', '상담 대상 아동 식별'),
+          _childInfoRow('가족 관계',
+              '보호자 관계, 가족 구성', '사례 환경 파악'),
+          _childInfoRow('상담 내용',
+              '학대 유형, 상담 경위\n상담 내용 요약', '공식 시스템\n(NCIS) 입력 보조'),
+          _childInfoRow('보호 조치',
+              '조치 사항, 사후 관리 계획', '사례 관리 연속성'),
+          _childInfoRow('주소 정보',
+              '아동 소재지(시/군/구 단위)', '관할 기관 연계'),
+        ],
+      ),
+    );
+  }
+
+  TableRow _childInfoRow(String category, String items, String purpose) {
+    return TableRow(
+      children: [category, items, purpose].map(
+        (cell) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Text(
+            cell,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Color(0xFF6B7280),
+              height: 1.5,
+              letterSpacing: -0.1,
+            ),
+          ),
+        ),
+      ).toList(),
+    );
+  }
+
+  Widget _childProtectionBox() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFBBF24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            '🛡️ 아동 정보 보호 조치',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF92400E),
+              letterSpacing: -0.2,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            '∙ 아동 이름은 마스킹 처리(예: 김○재)하여 저장합니다.\n'
+            '∙ 모든 아동 정보는 AES-256으로 암호화된 상태로만 서버에 존재합니다.\n'
+            '∙ 공식 시스템 전송이 완료되면 앱에서 즉시 삭제됩니다.\n'
+            '∙ DASH 서버는 복호화 키를 보유하지 않아 내용을 열람할 수 없습니다.\n'
+            '∙ 아동 정보는 제3자에게 절대 제공·공유되지 않습니다.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF92400E),
+              height: 1.7,
+              letterSpacing: -0.1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
