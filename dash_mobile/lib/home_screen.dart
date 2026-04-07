@@ -56,7 +56,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadData();
     _initRealtime();
     _setupFCM();
-    ApiService.checkHealth();
   }
 
   @override
@@ -121,7 +120,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _isLoadingData = true;
     _pendingLoadData = false;
 
-    await StorageService.initInitialData();
     final localDrafts = await StorageService.getDrafts();
     final cases = await StorageService.getCases();
 
@@ -173,26 +171,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       debugPrint('Background Sync Error: $e');
     }
 
-    // 서버에서 최신 상태 가져오기
+    // 서버에서 최신 상태 가져오기 (records + notifications 병렬 요청)
     try {
       final String? userId = FirebaseAuth.instance.currentUser?.uid;
-      final serverRecords = await ApiService.fetchRecords(); // null = 통신 실패
 
-      // 서버 응답 여부 업데이트
+      final results = await Future.wait([
+        ApiService.fetchRecords(),
+        if (userId != null) ApiService.fetchNotifications(userId) else Future.value(<dynamic>[]),
+      ]);
+
+      final serverRecords = results[0] as List<dynamic>?;
+      final serverNotifs = results[1] as List<dynamic>;
+
       if (mounted) {
         setState(() {
           _serverReachable = serverRecords != null;
+          _notifications = serverNotifs;
         });
-      }
-
-      // Fetch actual notifications from server table
-      if (userId != null) {
-        final serverNotifs = await ApiService.fetchNotifications(userId);
-        if (mounted) {
-          setState(() {
-            _notifications = serverNotifs;
-          });
-        }
       }
 
       if (serverRecords != null && (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
@@ -1735,18 +1730,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
 
       // [3] 세션 파괴 (가장 중요: 다음에 계정 선택창이 뜨도록)
+      // signOut() 전에 토스트 표시 — signOut 후 context가 unmount될 수 있음
+      if (mounted) _showToast('계정이 정상적으로 탈퇴되었습니다.');
       await GoogleSignIn().disconnect().catchError((_) => null);
       await GoogleSignIn().signOut().catchError((_) => null);
       await FirebaseAuth.instance.signOut();
-
-      _showToast('계정이 정상적으로 탈퇴되었습니다.');
     } catch (e) {
       debugPrint('❌ Account deletion error: $e');
       // 에러 발생 시에도 일단 세션은 강제 종료
+      if (mounted) _showToast('탈퇴 및 로그아웃이 완료되었습니다.');
       await GoogleSignIn().disconnect().catchError((_) => null);
       await GoogleSignIn().signOut().catchError((_) => null);
       await FirebaseAuth.instance.signOut();
-      _showToast('탈퇴 및 로그아웃이 완료되었습니다.');
     }
   }
 

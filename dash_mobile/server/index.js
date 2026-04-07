@@ -149,11 +149,6 @@ app.get('/api/events', verifyFirebaseAuth, (req, res) => {
   });
 });
 
-// Alias for compatibility
-app.get('/api/stream', (req, res) => {
-  res.redirect('/api/events');
-});
-
 // [Mobile] 0. 사용자 정보 조회 및 관리
 app.get('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
@@ -658,7 +653,7 @@ app.put('/api/records/:id/review', async (req, res) => {
 });
 
 // [Extension] 5. 주입 대기 중인 목록 가져오기 (userId 또는 email로 필터링)
-app.get('/api/records/ready', async (req, res) => {
+app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
   const { userId, email } = req.query;
   console.log(`\n🚀 [EXTENSION FETCH] Fetching ready records (userId: ${userId || '-'}, email: ${email || '-'})...`);
   try {
