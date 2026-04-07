@@ -9,7 +9,7 @@ class ApiService {
   static const bool isProduction = true; // 🚀 Set to true for Final Launch!
 
   // Production: Enter your Cloud Domain here (e.g. railway/supabase url)
-  static const String prodUrl = 'https://dash-production-3aba.up.railway.app';
+  static const String prodUrl = 'https://dash.qpon';
   
   // Local (Android Emulator 10.0.2.2 points to localhost:3000)
   static const String localUrl = 'http://10.0.2.2:3000';
