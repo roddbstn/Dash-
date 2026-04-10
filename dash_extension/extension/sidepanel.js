@@ -4,12 +4,18 @@
 // ==============================================
 
 // ===== 설정 =====
-const API_BASE = 'https://dash-production-3aba.up.railway.app/api';
+const API_BASE = 'https://dash.qpon/api';
 
 // ===== 상태 관리 =====
 let currentUser = null;   // { uid, email }
+let currentOAuthToken = null; // Google OAuth 토큰 (API 인증용)
 let records = [];          // 서버에서 가져온 기록 목록
 let selectedRecordId = null; // 현재 선택된 기록 ID
+
+function authHeaders() {
+    if (currentOAuthToken) return { 'Authorization': `Bearer ${currentOAuthToken}` };
+    return {};
+}
 
 // ===== DOM 참조 =====
 const loginView = document.getElementById('login-view');
@@ -76,6 +82,7 @@ btnGoogleLogin.addEventListener('click', async () => {
         });
         const userInfo = await response.json();
 
+        currentOAuthToken = token;
         currentUser = {
             uid: userInfo.id,
             email: userInfo.email,
@@ -234,7 +241,7 @@ async function checkPinAndProceed() {
 async function checkVaultExists() {
     if (!currentUser?.uid) return false;
     try {
-        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`);
+        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
         return res.ok;
     } catch (e) {
         console.error('Vault check failed:', e);
@@ -246,7 +253,7 @@ async function checkVaultExists() {
 async function verifyPinWithVault(pin) {
     if (!currentUser?.uid) return null;
     try {
-        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`);
+        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
         if (!res.ok) return null;
 
         const { encrypted_vault } = await res.json();
@@ -429,7 +436,7 @@ async function fetchRecords() {
         const userEmail = currentUser?.email;
         if (!userEmail) throw new Error('로그인이 필요합니다.');
 
-        const res = await fetch(`${API_BASE}/records/ready?email=${encodeURIComponent(userEmail)}`);
+        const res = await fetch(`${API_BASE}/records/ready?email=${encodeURIComponent(userEmail)}`, { headers: authHeaders() });
         if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
 
         const rawRecords = await res.json();
@@ -518,7 +525,7 @@ function setupSelectionLogic() {
                 try {
                     setStatus('loading', '삭제 중입니다...');
                     for (const id of selectedForDelete.keys()) {
-                        await fetch(`${API_BASE}/records/id/${id}`, { method: 'DELETE' });
+                        await fetch(`${API_BASE}/records/id/${id}`, { method: 'DELETE', headers: authHeaders() });
                     }
                     exitSelectionMode();
                     fetchRecords(); 
@@ -784,7 +791,7 @@ btnInject.addEventListener('click', async () => {
         try {
             await fetch(`${API_BASE}/records/${record.id}/review`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
                 body: JSON.stringify({ status: 'Injected' })
             });
         } catch (e) {
@@ -843,7 +850,8 @@ let selectedForDelete = new Map(); // Use Map to maintain order for numbering
 let eventSource = null;
 function setupRealtimeSync() {
     if (eventSource) eventSource.close();
-    eventSource = new EventSource(`${API_BASE}/stream`);
+    const sseToken = currentOAuthToken ? `?token=${encodeURIComponent(currentOAuthToken)}` : '';
+    eventSource = new EventSource(`${API_BASE}/events${sseToken}`);
     eventSource.addEventListener('new_record', (e) => {
         const data = JSON.parse(e.data);
         if (currentUser && (data.user_email === currentUser.email || data.user_id === currentUser.uid)) {

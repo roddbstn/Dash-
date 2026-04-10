@@ -72,16 +72,40 @@ async function verifyFirebaseAuth(req, res, next) {
     return next();
   }
 
+  // SSE 요청은 쿼리 파라미터로도 토큰을 받음 (EventSource는 헤더 불가)
   const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const queryToken = req.query.token;
+  const rawToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : queryToken;
+
+  if (!rawToken) {
     return res.status(401).json({ error: '인증이 필요합니다.' });
   }
 
-  const token = authHeader.split(' ')[1];
+  // Google OAuth 토큰 검증 (Chrome 확장프로그램용)
   try {
-    const decoded = await admin.auth().verifyIdToken(token);
+    const googleRes = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${rawToken}`);
+    if (googleRes.ok) {
+      const info = await googleRes.json();
+      if (info.email) {
+        if (ALLOWED_EMAIL_DOMAINS.length > 0) {
+          const domain = info.email.split('@')[1] || '';
+          if (!ALLOWED_EMAIL_DOMAINS.includes(domain)) {
+            console.warn(`🚫 [AUTH] 차단된 도메인: ${domain} (${info.email})`);
+            return res.status(403).json({ error: '접근이 허용되지 않은 계정입니다.' });
+          }
+        }
+        req.firebaseUser = { email: info.email, uid: info.user_id || info.email };
+        return next();
+      }
+    }
+  } catch (googleErr) {
+    // Google OAuth 검증 실패 시 Firebase 토큰으로 재시도
+  }
 
-    // 이메일 도메인 화이트리스트 검사
+  // Firebase ID 토큰 검증 (모바일 앱용)
+  try {
+    const decoded = await admin.auth().verifyIdToken(rawToken);
+
     if (ALLOWED_EMAIL_DOMAINS.length > 0) {
       const email = decoded.email || '';
       const domain = email.split('@')[1] || '';
