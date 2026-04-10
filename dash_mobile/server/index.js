@@ -277,7 +277,7 @@ app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
       const userEmail = req.body.user_email || `user_${user_id.substring(0,8)}@gmail.com`;
       const name = user_name || userEmail.split('@')[0];
       await pool.query(
-        'INSERT INTO dash_users (id, email, name, organization_id) VALUES (?, ?, ?, ?)',
+        'INSERT IGNORE INTO dash_users (id, email, name, organization_id) VALUES (?, ?, ?, ?)',
         [user_id, userEmail, name, 'DEFAULT_ORG']
       );
     } else if (user_name) {
@@ -340,7 +340,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
         if (existingUser.length === 0) {
           const email = user_email || `user_${resolvedUserId.substring(0,8)}@gmail.com`;
           await pool.query(
-            'INSERT INTO dash_users (id, email, organization_id) VALUES (?, ?, ?)',
+            'INSERT IGNORE INTO dash_users (id, email, organization_id) VALUES (?, ?, ?)',
             [resolvedUserId, email, 'DEFAULT_ORG']
           );
           console.log(`👤 Auto-created user: ${resolvedUserId} (${email})`);
