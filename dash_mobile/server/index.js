@@ -741,18 +741,25 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
 });
 
 // [Mobile] 6. 특정 사용자의 모든 상담 기록 가져오기 (앱 동기화용)
-// 같은 이메일로 등록된 모든 user_id 포함 조회 (OAuth id vs Firebase UID 불일치 대응)
+// Firebase UID가 DB에 없는 경우 토큰 이메일로 폴백 (OAuth id vs Firebase UID 불일치 대응)
 app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   console.log(`\n📱 [MOBILE SYNC] Fetching records for user: ${userId}`);
   try {
-    // 먼저 해당 userId로 이메일 조회
+    // 1) userId로 이메일 조회 
+    let email = null;
     const [userRows] = await pool.query('SELECT email FROM dash_users WHERE id = ?', [userId]);
+    if (userRows.length > 0) {
+      email = userRows[0].email;
+    } else {
+      // 2) DB에 없으면 Firebase 토큰의 이메일 사용 (INSERT IGNORE로 누락된 경우)
+      email = req.firebaseUser?.email;
+      console.log(`⚠️  User ${userId} not in dash_users, using token email: ${email}`);
+    }
     
     let rows;
-    if (userRows.length > 0) {
+    if (email) {
       // 같은 이메일의 모든 user_id로 레코드 조회 (Chrome OAuth id, Firebase UID 모두 포함)
-      const email = userRows[0].email;
       [rows] = await pool.query(
         `SELECT r.*, c.case_name, c.dong 
          FROM service_drafts r 
@@ -763,7 +770,6 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
       );
       console.log(`✅ Found ${rows.length} records for email: ${email}`);
     } else {
-      // 이메일 조회 실패 시 userId 직접 사용
       [rows] = await pool.query(
         `SELECT r.*, c.case_name, c.dong 
          FROM service_drafts r 
@@ -783,9 +789,22 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
 app.get('/api/users/vault/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   try {
+    // userId가 DB에 없으면 Firebase 토큰 이메일로 실제 user_id 해석
+    let resolvedId = userId;
+    const [userCheck] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [userId]);
+    if (userCheck.length === 0) {
+      const email = req.firebaseUser?.email;
+      if (email) {
+        const [byEmail] = await pool.query('SELECT id FROM dash_users WHERE email = ?', [email]);
+        if (byEmail.length > 0) {
+          resolvedId = byEmail[0].id;
+          console.log(`🔄 Vault GET: resolved user id via email: ${resolvedId}`);
+        }
+      }
+    }
     const [rows] = await pool.query(
       'SELECT encrypted_vault, salt FROM user_key_vault WHERE user_id = ?',
-      [userId]
+      [resolvedId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ message: 'Vault not found' });
