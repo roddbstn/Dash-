@@ -741,18 +741,38 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
 });
 
 // [Mobile] 6. 특정 사용자의 모든 상담 기록 가져오기 (앱 동기화용)
+// 같은 이메일로 등록된 모든 user_id 포함 조회 (OAuth id vs Firebase UID 불일치 대응)
 app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   console.log(`\n📱 [MOBILE SYNC] Fetching records for user: ${userId}`);
   try {
-    const [rows] = await pool.query(
-      `SELECT r.*, c.case_name, c.dong 
-       FROM service_drafts r 
-       JOIN cases c ON r.case_id = c.id 
-       WHERE c.user_id = ? 
-       ORDER BY r.created_at DESC`,
-      [userId]
-    );
+    // 먼저 해당 userId로 이메일 조회
+    const [userRows] = await pool.query('SELECT email FROM dash_users WHERE id = ?', [userId]);
+    
+    let rows;
+    if (userRows.length > 0) {
+      // 같은 이메일의 모든 user_id로 레코드 조회 (Chrome OAuth id, Firebase UID 모두 포함)
+      const email = userRows[0].email;
+      [rows] = await pool.query(
+        `SELECT r.*, c.case_name, c.dong 
+         FROM service_drafts r 
+         JOIN cases c ON r.case_id = c.id 
+         WHERE c.user_id IN (SELECT id FROM dash_users WHERE email = ?) 
+         ORDER BY r.created_at DESC`,
+        [email]
+      );
+      console.log(`✅ Found ${rows.length} records for email: ${email}`);
+    } else {
+      // 이메일 조회 실패 시 userId 직접 사용
+      [rows] = await pool.query(
+        `SELECT r.*, c.case_name, c.dong 
+         FROM service_drafts r 
+         JOIN cases c ON r.case_id = c.id 
+         WHERE c.user_id = ? 
+         ORDER BY r.created_at DESC`,
+        [userId]
+      );
+    }
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -782,11 +802,25 @@ app.post('/api/users/vault', verifyFirebaseAuth, async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   try {
+    // Firebase UID가 dash_users에 없으면 이메일로 실제 user_id를 찾아 사용
+    let resolvedId = user_id;
+    const [userRows] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [user_id]);
+    if (userRows.length === 0) {
+      const firebaseUser = req.firebaseUser;
+      const email = firebaseUser?.email;
+      if (email) {
+        const [byEmail] = await pool.query('SELECT id FROM dash_users WHERE email = ?', [email]);
+        if (byEmail.length > 0) {
+          resolvedId = byEmail[0].id;
+          console.log(`🔄 Vault: resolved user id via email: ${resolvedId}`);
+        }
+      }
+    }
     await pool.query(
       `INSERT INTO user_key_vault (user_id, encrypted_vault, salt) 
        VALUES (?, ?, ?) 
        ON DUPLICATE KEY UPDATE encrypted_vault = ?, salt = ?`,
-      [user_id, encrypted_vault, salt, encrypted_vault, salt]
+      [resolvedId, encrypted_vault, salt, encrypted_vault, salt]
     );
     res.json({ success: true, message: 'Vault updated successfully' });
   } catch (err) {
