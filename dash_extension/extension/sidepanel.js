@@ -896,6 +896,14 @@ function showToastNotification(msg) {
     chrome.storage.local.get(['dashUser'], async (result) => {
         if (result.dashUser) {
             currentUser = result.dashUser;
+            // OAuth 토큰 silent 복원 (API 인증용)
+            try {
+                currentOAuthToken = await new Promise((resolve) => {
+                    chrome.identity.getAuthToken({ interactive: false }, (token) => {
+                        resolve(chrome.runtime.lastError ? null : token);
+                    });
+                });
+            } catch (_) { /* 토큰 없으면 null 유지 */ }
             // PIN 인증 확인 후 메인 뷰로 전환
             await checkPinAndProceed();
         } else {

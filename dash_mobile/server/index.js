@@ -78,14 +78,19 @@ async function verifyFirebaseAuth(req, res, next) {
   const rawToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : queryToken;
 
   if (!rawToken) {
+    console.warn(`⚠️  [AUTH] 토큰 없음 — ${req.method} ${req.path}`);
     return res.status(401).json({ error: '인증이 필요합니다.' });
   }
+
+  console.log(`🔑 [AUTH] 토큰 수신 — ${req.method} ${req.path}, 토큰 앞 20자: ${rawToken.substring(0, 20)}...`);
 
   // Google OAuth 토큰 검증 (Chrome 확장프로그램용)
   try {
     const googleRes = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${rawToken}`);
+    console.log(`🔑 [AUTH] Google tokeninfo 응답: ${googleRes.status}`);
     if (googleRes.ok) {
       const info = await googleRes.json();
+      console.log(`🔑 [AUTH] Google tokeninfo email: ${info.email}`);
       if (info.email) {
         if (ALLOWED_EMAIL_DOMAINS.length > 0) {
           const domain = info.email.split('@')[1] || '';
