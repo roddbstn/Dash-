@@ -270,7 +270,8 @@ app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
   console.log(`\n📦 [NEW CASE] 아동명: ${case_name}, 동: ${dong} (ID: ${id})`);
   
   try {
-    // 1. 해당 사용자 아이디가 dash_users에 없으면 자동으로 생성
+    // 1. 해당 사용자 아이디가 dash_users에 없으면 자동으로 생성 (이메일 기반 폴백 포함)
+    let resolvedCaseUserId = user_id;
     const [users] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [user_id]);
     if (users.length === 0) {
       console.log(`👤 New Social User detected (${user_id}), creating user record...`);
@@ -280,21 +281,28 @@ app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
         'INSERT IGNORE INTO dash_users (id, email, name, organization_id) VALUES (?, ?, ?, ?)',
         [user_id, userEmail, name, 'DEFAULT_ORG']
       );
+      // INSERT IGNORE가 무시된 경우(이메일 중복) — 이메일로 기존 사용자의 id를 찾아 사용
+      const [check] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [user_id]);
+      if (check.length === 0) {
+        const [byEmail] = await pool.query('SELECT id FROM dash_users WHERE email = ?', [userEmail]);
+        if (byEmail.length > 0) {
+          resolvedCaseUserId = byEmail[0].id;
+          console.log(`🔄 Email conflict — using existing user id: ${resolvedCaseUserId}`);
+        }
+      }
     } else if (user_name) {
-      // 이미 사용자가 있고 이름이 전달되었다면 이름 업데이트 (최초 연동 시 displayName 적용 용도)
-      // 단, 수동으로 이미 이름을 정했거나(NULL이 아니거나) 이메일이 아닌 경우만 스킵
       await pool.query('UPDATE dash_users SET name = ? WHERE id = ? AND (name IS NULL OR name = email OR name = "")', [user_name, user_id]);
     }
 
-    // 2. 사례 저장 (사용자가 보낸 ID를 그대로 사용)
-    const [result] = await pool.query(
+    // 2. 사례 저장
+    await pool.query(
       `INSERT INTO cases (id, user_id, case_name, dong, target_system_code) 
        VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE 
        case_name = VALUES(case_name), 
        dong = VALUES(dong),
        user_id = VALUES(user_id)`,
-      [id, user_id, case_name, dong, target_system_code || 'NCADS_v2']
+      [id, resolvedCaseUserId, case_name, dong, target_system_code || 'NCADS_v2']
     );
     console.log(`✅ Case saved/updated in DB (ID: ${id})`);
     res.json({ id: id, message: 'Case created or updated' });
@@ -334,7 +342,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
         resolvedUserId = users.length > 0 ? users[0].id : null;
       }
       
-      // user_id로 dash_users에 레코드가 없으면 생성
+      // user_id로 dash_users에 레코드가 없으면 생성 (이메일 기반 폴백 포함)
       if (resolvedUserId) {
         const [existingUser] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [resolvedUserId]);
         if (existingUser.length === 0) {
@@ -343,7 +351,17 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
             'INSERT IGNORE INTO dash_users (id, email, organization_id) VALUES (?, ?, ?)',
             [resolvedUserId, email, 'DEFAULT_ORG']
           );
-          console.log(`👤 Auto-created user: ${resolvedUserId} (${email})`);
+          // INSERT IGNORE가 무시된 경우(이메일 중복) — 이메일로 기존 사용자 id를 사용
+          const [check] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [resolvedUserId]);
+          if (check.length === 0) {
+            const [byEmail] = await pool.query('SELECT id FROM dash_users WHERE email = ?', [email]);
+            if (byEmail.length > 0) {
+              resolvedUserId = byEmail[0].id;
+              console.log(`🔄 Email conflict — using existing user id: ${resolvedUserId}`);
+            }
+          } else {
+            console.log(`👤 Auto-created user: ${resolvedUserId} (${email})`);
+          }
         }
       }
       
