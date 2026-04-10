@@ -8,6 +8,14 @@ const cron = require('node-cron');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// 치명적 에러 발생 시 로그를 남기고 안전하게 처리
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 const path = require('path');
 const admin = require('firebase-admin');
 
@@ -765,9 +773,9 @@ app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`\n========================================`);
-  console.log(`🚀 Dash Server running on http://localhost:${port}`);
+  console.log(`🚀 Dash Server running on 0.0.0.0:${port}`);
   console.log(`========================================\n`);
 });
 
