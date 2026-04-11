@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
+import 'package:dash_mobile/security_detail_screen.dart';
+import 'package:dash_mobile/analytics_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class UserGuideScreen extends StatelessWidget {
+class UserGuideScreen extends StatefulWidget {
   const UserGuideScreen({super.key});
+
+  @override
+  State<UserGuideScreen> createState() => _UserGuideScreenState();
+}
+
+class _UserGuideScreenState extends State<UserGuideScreen> {
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.screenUserGuide();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,8 +82,7 @@ class UserGuideScreen extends StatelessWidget {
               step: 1,
               icon: Icons.person_add_outlined,
               title: '새 사례 등록',
-              description: '홈 화면 하단의 + 버튼을 눌러 새 사례를 만드세요.\n'
-                  '아동 이름과 동(읍·면·동) 정보를 입력하면 사례가 생성됩니다.',
+              description: '홈 화면 하단의 + 버튼을 눌러 새 사례를 만드세요.',
               tip: '아동 이름은 마스킹되어 외부에 노출되지 않습니다.',
             ),
             _StepConnector(),
@@ -79,9 +91,8 @@ class UserGuideScreen extends StatelessWidget {
               step: 2,
               icon: Icons.edit_note_outlined,
               title: '상담 기록 작성',
-              description: '등록된 사례를 탭하면 상담 기록 폼이 열립니다.\n'
-                  '제공 구분, 방법, 서비스 유형, 일시, 내용 등을 입력하세요.\n'
-                  '태블릿과 휴대폰 모두 지원합니다.',
+              description: '\'사무실 밖에서 DB쓰기\'를 터치하여 사례를 선택합니다.\n'
+                  '실제 DB를 쓰듯이 작성해보세요.',
               tip: '저장한 기록은 서버 연결 없이도 기기에 보관되며, 연결 복구 시 자동 동기화됩니다.',
             ),
             _StepConnector(),
@@ -153,6 +164,36 @@ class UserGuideScreen extends StatelessWidget {
                   _securityRow('모든 상담 내용은 기기에서 AES-256으로 암호화됩니다.'),
                   _securityRow('DASH 서버는 내용을 열람하거나 저장하지 않습니다.'),
                   _securityRow('시스템 전송 완료 후 서버 데이터는 즉시 삭제됩니다.'),
+                  const SizedBox(height: 6),
+                  const Divider(height: 1, color: Color(0xFFDBEAFE)),
+                  const SizedBox(height: 8),
+                  Builder(
+                    builder: (context) => GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SecurityDetailScreen(),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            '암호화 구조 자세히 보기',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2563EB),
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                          SizedBox(width: 3),
+                          Icon(Icons.arrow_forward_ios,
+                              size: 10, color: Color(0xFF2563EB)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

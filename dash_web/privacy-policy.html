@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>개인정보처리방침 — DASH</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+                   'Malgun Gothic', sans-serif;
+      background: #F7F8FA;
+      color: #374151;
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page-wrapper {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 0 60px;
+    }
+
+    /* ── 상단 네비 ──────────────────────────────────── */
+    .top-nav {
+      background: #fff;
+      border-bottom: 1px solid #E5E7EB;
+      padding: 12px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .top-nav a {
+      color: #3B6BFF;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+    }
+    .top-nav a:hover { text-decoration: underline; }
+
+    /* ── 페이지 헤더 ────────────────────────────────── */
+    .page-header {
+      background: #fff;
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid #F3F4F6;
+    }
+    .page-header h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #1A1A2E;
+      letter-spacing: -0.5px;
+    }
+    .meta-date {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #9CA3AF;
+      letter-spacing: -0.1px;
+    }
+
+    /* ── 보안 상세 배너 ─────────────────────────────── */
+    .security-banner {
+      margin: 16px 20px 0;
+      background: linear-gradient(135deg, #3B6BFF 0%, #2255DD 100%);
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-decoration: none;
+      transition: opacity 0.15s ease;
+    }
+    .security-banner:hover { opacity: 0.92; }
+    .security-banner-text {
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .security-banner-sub {
+      color: rgba(255,255,255,0.8);
+      font-size: 11px;
+      margin-top: 2px;
+      letter-spacing: -0.1px;
+    }
+    .security-banner-arrow {
+      color: rgba(255,255,255,0.9);
+      font-size: 20px;
+      font-weight: 300;
+    }
+
+    /* ── 인트로 박스 ────────────────────────────────── */
+    .intro-box {
+      margin: 16px 20px 0;
+      background: #EEF2FF;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #3B6BFF;
+      line-height: 1.7;
+      font-weight: 500;
+      letter-spacing: -0.2px;
+    }
+
+    /* ── 콘텐츠 영역 ────────────────────────────────── */
+    .content {
+      padding: 20px 20px 0;
+    }
+
+    /* ── 섹션 ───────────────────────────────────────── */
+    .section {
+      margin-bottom: 28px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .section-number {
+      width: 22px;
+      height: 22px;
+      background: rgba(59, 107, 255, 0.1);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 11px;
+      font-weight: 800;
+      color: #3B6BFF;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #1A1A2E;
+      letter-spacing: -0.3px;
+    }
+    .section-body {
+      padding-left: 4px;
+    }
+
+    /* ── 바디 텍스트 ────────────────────────────────── */
+    .body-text {
+      font-size: 13px;
+      color: #374151;
+      line-height: 1.7;
+      letter-spacing: -0.2px;
+      white-space: pre-line;
+    }
+
+    /* ── 하이라이트 박스 (녹색) ─────────────────────── */
+    .highlight-box {
+      background: #F0FDF4;
+      border: 1px solid #86EFAC;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 12px;
+      color: #166534;
+      line-height: 1.7;
+      letter-spacing: -0.1px;
+      white-space: pre-line;
+      margin-bottom: 12px;
+    }
+
+    /* ── 경고 박스 (노란색) ─────────────────────────── */
+    .warn-box {
+      background: #FEF3C7;
+      border: 1px solid #FBBF24;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .warn-box-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #92400E;
+      letter-spacing: -0.2px;
+      margin-bottom: 8px;
+    }
+    .warn-box-body {
+      font-size: 12px;
+      color: #92400E;
+      line-height: 1.7;
+      letter-spacing: -0.1px;
+      white-space: pre-line;
+    }
+
+    /* ── 주의 박스 (파란 배경) ──────────────────────── */
+    .info-box {
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #1D4ED8;
+      line-height: 1.7;
+      letter-spacing: -0.1px;
+      margin-bottom: 12px;
+    }
+
+    /* ── 테이블 ─────────────────────────────────────── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #E5E7EB;
+      margin-bottom: 12px;
+    }
+    .data-table th {
+      background: #F9FAFB;
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #374151;
+      text-align: left;
+      letter-spacing: -0.1px;
+      border-bottom: 1px solid #E5E7EB;
+    }
+    .data-table td {
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #6B7280;
+      vertical-align: top;
+      border-bottom: 1px solid #F3F4F6;
+      line-height: 1.55;
+      letter-spacing: -0.1px;
+      white-space: pre-line;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+
+    /* 아동 테이블 헤더 색상 */
+    .child-table th {
+      background: #FFF7ED;
+      color: #9A3412;
+    }
+
+    /* ── CPO 카드 ────────────────────────────────────── */
+    .cpo-card {
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .cpo-row {
+      display: flex;
+      gap: 0;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .cpo-row:last-child { margin-bottom: 0; }
+    .cpo-label {
+      width: 70px;
+      flex-shrink: 0;
+      font-weight: 700;
+      color: #374151;
+    }
+    .cpo-value { color: #6B7280; }
+
+    /* ── 푸터 ───────────────────────────────────────── */
+    footer {
+      margin-top: 40px;
+      padding: 20px;
+      border-top: 1px solid #E5E7EB;
+      font-size: 12px;
+      color: #9CA3AF;
+      text-align: center;
+      line-height: 1.7;
+    }
+    footer a { color: #3B6BFF; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── 반응형 ─────────────────────────────────────── */
+    @media (max-width: 680px) {
+      .security-banner { margin: 12px 16px 0; }
+      .intro-box { margin: 12px 16px 0; }
+      .content { padding: 16px 16px 0; }
+      .top-nav { padding: 12px 16px; }
+      .page-header { padding: 16px 16px 14px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- 상단 네비 -->
+  <nav class="top-nav">
+    <a href="index.html">← DASH 홈</a>
+  </nav>
+
+  <!-- 페이지 헤더 -->
+  <header class="page-header">
+    <h1>개인정보처리방침</h1>
+    <p class="meta-date">시행일자: 2026년 4월 2일</p>
+  </header>
+
+  <!-- 보안 상세 배너 -->
+  <a class="security-banner" href="security-detail.html">
+    <div>
+      <div class="security-banner-text">🔐 데이터 처리 방식 자세히 보기</div>
+      <div class="security-banner-sub">암호화 구조·PIN 보호·서버 저장 방식 상세 안내</div>
+    </div>
+    <div class="security-banner-arrow">→</div>
+  </a>
+
+  <!-- 인트로 -->
+  <div class="intro-box">
+    DASH(이하 "서비스")는 이용자의 개인정보를 소중히 여기며, 「개인정보 보호법」을 준수합니다.
+    본 방침은 서비스가 어떤 개인정보를 수집하고, 어떻게 이용하며, 언제 파기하는지에 대해 안내합니다.
+  </div>
+
+  <!-- 콘텐츠 -->
+  <main class="content">
+
+    <!-- 섹션 0 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">0</div>
+        <h2 class="section-title">DASH 서비스의 개인정보 처리 원칙</h2>
+      </div>
+      <div class="section-body">
+        <div class="highlight-box">🔒 DASH 서버는 상담 내용을 볼 수 없습니다.
+
+상담원이 모바일에 내용을 입력하면, 전송 전에 자물쇠가 채워집니다. 이것을 암호화라고 합니다. 암호화된 내용은 알아볼 수 없는 문자 덩어리가 되어 서버로 이동합니다. 자물쇠를 여는 것은 복호화라고 하는데, 열쇠는 오직 상담원 본인의 PC 확장 프로그램에만 있습니다. DASH는 열쇠를 갖고 있지 않기 때문에 내용을 볼 수 없습니다.
+
+— 사용 기술 안내 —
+∙ AES-256: 미국 정부·금융기관·군에서 사용하는 암호화 방식입니다. 현재 기술로는 풀 수 없다고 알려져 있습니다.
+∙ 종단간 암호화(E2EE): 보내는 기기에서 잠기고, 받는 기기에서만 열리는 방식입니다. 카카오톡 비밀채팅에 적용된 것과 같은 원리입니다.
+∙ PIN 잠금 보관함: 열쇠 자체도 상담원이 설정한 PIN 번호로 한 번 더 잠겨 있어 기기를 분실해도 내용이 보호됩니다.
+
+∙ 모바일 입력 → 암호화(자물쇠) → 서버 경유 → 본인 PC에서만 잠금 해제 → 공식 시스템 입력
+∙ 아동 이름은 중간 글자만 가려서(예: 김O재) 저장됩니다.
+∙ 아동 정보는 오직 기관 공식 시스템에만 최종 저장됩니다.</div>
+      </div>
+    </div>
+
+    <!-- 섹션 1 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">1</div>
+        <h2 class="section-title">개인정보 처리 항목 및 목적</h2>
+      </div>
+      <div class="section-body">
+        <p class="body-text" style="margin-bottom:12px;">서비스는 다음의 목적으로 개인정보를 처리합니다. 처리한 개인정보는 다음의 목적 이외의 용도로 사용되지 않습니다.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:22%">구분</th>
+              <th style="width:38%">처리 항목</th>
+              <th>처리 목적</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>필수</td>
+              <td>이름(닉네임), 이메일</td>
+              <td>본인 확인, 서비스 제공</td>
+            </tr>
+            <tr>
+              <td>필수</td>
+              <td>앱 사용 기록</td>
+              <td>서비스 품질 향상</td>
+            </tr>
+            <tr>
+              <td>업무용 임시처리</td>
+              <td>상담 기록, 사례 정보&#10;(암호화 상태, 전송 후 삭제)</td>
+              <td>공식 시스템 자동 입력 보조</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 섹션 2 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">2</div>
+        <h2 class="section-title">아동의 개인정보 처리</h2>
+      </div>
+      <div class="section-body">
+        <div class="highlight-box">👶 이 항목이 중요한 이유
+
+DASH는 아동보호전문기관 상담원이 업무 중 입력하는 아동 관련 정보를 공식 시스템(NCIS 등)에 자동 입력하기 위해 임시 처리합니다. 아동 정보는 DASH에 영구 저장되지 않으며, 전송 완료 후 즉시 삭제됩니다.</div>
+        <p class="body-text" style="margin-bottom:12px;">개인정보보호법 제22조의2(아동의 개인정보 보호)에 따라, DASH가 업무 보조 목적으로 임시 처리하는 아동 개인정보 항목은 다음과 같습니다.</p>
+        <table class="data-table child-table">
+          <thead>
+            <tr>
+              <th style="width:24%">구분</th>
+              <th style="width:40%">처리 항목</th>
+              <th>처리 목적</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>아동 식별</td>
+              <td>이름(마스킹 처리)&#10;생년월일, 성별</td>
+              <td>상담 대상 아동 식별</td>
+            </tr>
+            <tr>
+              <td>가족 관계</td>
+              <td>보호자 관계, 가족 구성</td>
+              <td>사례 환경 파악</td>
+            </tr>
+            <tr>
+              <td>상담 내용</td>
+              <td>학대 유형, 상담 경위&#10;상담 내용 요약</td>
+              <td>공식 시스템&#10;(NCIS) 입력 보조</td>
+            </tr>
+            <tr>
+              <td>보호 조치</td>
+              <td>조치 사항, 사후 관리 계획</td>
+              <td>사례 관리 연속성</td>
+            </tr>
+            <tr>
+              <td>주소 정보</td>
+              <td>아동 소재지(시/군/구 단위)</td>
+              <td>관할 기관 연계</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="warn-box">
+          <div class="warn-box-title">🛡️ 아동 정보 보호 조치</div>
+          <div class="warn-box-body">∙ 아동 이름은 마스킹 처리(예: 김○재)하여 저장합니다.
+∙ 모든 아동 정보는 AES-256으로 암호화된 상태로만 서버에 존재합니다.
+∙ 공식 시스템 전송이 완료되면 앱에서 즉시 삭제됩니다.
+∙ DASH 서버는 복호화 키를 보유하지 않아 내용을 열람할 수 없습니다.
+∙ 아동 정보는 제3자에게 절대 제공·공유되지 않습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 섹션 3 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">3</div>
+        <h2 class="section-title">개인정보 보유기간 및 파기 정책</h2>
+      </div>
+      <div class="section-body">
+        <p class="body-text" style="margin-bottom:12px;">처리된 개인정보는 목적 달성 후 아래 기준에 따라 파기됩니다.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:28%">구분</th>
+              <th style="width:38%">보유기간</th>
+              <th>근거 법령</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>일반 개인정보&#10;(이름, 이메일)</td>
+              <td>회원 탈퇴 후 즉시 파기</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>아동 관련 기록&#10;(service_drafts)</td>
+              <td>전송 완료 시 즉시 삭제&#10;미완료 시 최대 5년 후&#10;자동 파기</td>
+              <td>아동복지법 제28조</td>
+            </tr>
+            <tr>
+              <td>로그인 기록</td>
+              <td>1년</td>
+              <td>통신비밀보호법</td>
+            </tr>
+            <tr>
+              <td>결제 기록&#10;(해당 시)</td>
+              <td>5년</td>
+              <td>전자상거래 소비자보호법</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="highlight-box">📌 자동 파기 정책
+법정 보존기간이 경과된 상담 기록은 매일 새벽 2시에 자동으로 파기됩니다. 파기 이력은 retention_policy_log 테이블에 기록되어 관리됩니다.</div>
+      </div>
+    </div>
+
+    <!-- 섹션 4 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">4</div>
+        <h2 class="section-title">민감정보 임시 처리</h2>
+      </div>
+      <div class="section-body">
+        <p class="body-text" style="margin-bottom:8px;">개인정보보호법 제23조에 따라 아동학대 상담 기록은 민감정보로 분류됩니다. DASH는 이를 공식 시스템 자동 입력 목적으로만 임시 처리하며, 이용자(상담원)의 별도 동의를 받아 처리합니다.</p>
+        <p class="body-text">∙ 상담 내용은 기기에서 자물쇠가 채워진 뒤(암호화, AES-256) 서버로 전송됩니다.
+  → 서버에는 잠긴 내용만 있어 DASH는 내용을 볼 수 없습니다.
+  → 잠금을 풀 수 있는 열쇠(복호화 키)는 상담원 본인의 PC에만 있습니다.
+∙ 기입 완료된 기록은 앱에서 즉시 삭제 처리됩니다.
+∙ 미완료 기록은 아동복지법 제28조에 따라 최대 5년 보존 후 자동 파기됩니다.
+∙ 업무 목적 외 제3자에게 제공되지 않습니다.</p>
+      </div>
+    </div>
+
+    <!-- 섹션 5 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">5</div>
+        <h2 class="section-title">개인정보 처리위탁</h2>
+      </div>
+      <div class="section-body">
+        <p class="body-text" style="margin-bottom:12px;">서비스는 원활한 서비스 제공을 위해 아래와 같이 개인정보 처리 업무를 위탁하고 있습니다.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:30%">수탁업체</th>
+              <th style="width:38%">위탁 업무 내용</th>
+              <th>보유 및 이용기간</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Google LLC&#10;(Firebase Auth)</td>
+              <td>이용자 인증 처리&#10;(Google 로그인)</td>
+              <td>위탁 계약 종료 시까지</td>
+            </tr>
+            <tr>
+              <td>Google LLC&#10;(Firebase Cloud Messaging)</td>
+              <td>앱 푸시 알림 발송</td>
+              <td>위탁 계약 종료 시까지</td>
+            </tr>
+            <tr>
+              <td>Railway&#10;(Cloudflare 인프라)</td>
+              <td>서버 및 데이터베이스 호스팅</td>
+              <td>위탁 계약 종료 시까지</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="body-text">위탁업체가 처리하는 개인정보는 위탁 목적 범위 내에서만 이용되며, 개인정보보호법 제26조에 따라 수탁자를 교육·관리하고 있습니다.</p>
+      </div>
+    </div>
+
+    <!-- 섹션 6 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">6</div>
+        <h2 class="section-title">정보주체의 권리·의무 및 행사 방법</h2>
+      </div>
+      <div class="section-body">
+        <p class="body-text" style="margin-bottom:8px;">이용자는 언제든지 아래의 권리를 행사할 수 있습니다.</p>
+        <p class="body-text" style="margin-bottom:8px;">∙ 개인정보 열람 요청 (처리 10일 이내)
+∙ 오류 정정 요청
+∙ 삭제 요청 (법정 보존기간 해당 시 제외)
+∙ 처리 정지 요청</p>
+        <p class="body-text">권리 행사는 앱 내 [설정 → 내 데이터 관리] 또는 아래 개인정보 보호책임자 이메일로 신청하실 수 있습니다.</p>
+      </div>
+    </div>
+
+    <!-- 섹션 7 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">7</div>
+        <h2 class="section-title">개인정보 안전성 확보 조치</h2>
+      </div>
+      <div class="section-body">
+        <p class="body-text" style="margin-bottom:8px;">서비스는 개인정보보호법 제29조에 따라 다음과 같이 안전성 확보 조치를 시행합니다.</p>
+        <p class="body-text">∙ 종단간 암호화(E2EE): 민감 상담 기록 암호화 저장·전송
+∙ 전송구간 암호화: TLS/HTTPS 통신 적용
+∙ RSA 공개키 기반 키 분리 보관(user_key_vault)
+∙ 접근 권한 최소화: 서비스 담당자만 접근 허용
+∙ 정기적 보안 점검</p>
+      </div>
+    </div>
+
+    <!-- 섹션 8 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">8</div>
+        <h2 class="section-title">개인정보 보호책임자(CPO)</h2>
+      </div>
+      <div class="section-body">
+        <p class="body-text" style="margin-bottom:12px;">이용자의 개인정보 관련 문의·불만 처리 및 피해 구제 등을 위해 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.</p>
+        <div class="cpo-card">
+          <div class="cpo-row"><span class="cpo-label">성명</span><span class="cpo-value">강윤수</span></div>
+          <div class="cpo-row"><span class="cpo-label">직책</span><span class="cpo-value">대표</span></div>
+          <div class="cpo-row"><span class="cpo-label">이메일</span><span class="cpo-value">yunsooga@gmail.com</span></div>
+          <div class="cpo-row"><span class="cpo-label">전화번호</span><span class="cpo-value">010-4871-3893</span></div>
+        </div>
+        <p class="body-text">개인정보 침해 신고는 개인정보 침해신고센터(<a href="https://privacy.kisa.or.kr" target="_blank" rel="noopener" style="color:#3B6BFF;text-decoration:none;">privacy.kisa.or.kr</a>)에도 신청하실 수 있습니다.</p>
+      </div>
+    </div>
+
+    <!-- 섹션 9 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-number">9</div>
+        <h2 class="section-title">개인정보처리방침 변경 고지</h2>
+      </div>
+      <div class="section-body">
+        <p class="body-text">본 개인정보처리방침은 법령·정책 변경 및 서비스 내용에 따라 변경될 수 있습니다. 변경 시 앱 내 공지사항 또는 이메일을 통해 사전 고지합니다.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 푸터 -->
+  <footer>
+    <p>시행일자: 2026년 4월 2일</p>
+    <p style="margin-top:4px;">
+      <a href="index.html">DASH 홈</a>
+      &nbsp;·&nbsp;
+      <a href="security-detail.html">암호화 구조 안내</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:yunsooga@gmail.com">문의하기</a>
+    </p>
+    <p style="margin-top:8px; color:#C4C9D4; font-size:11px;">© 2026 DASH. All rights reserved.</p>
+  </footer>
+
+</div>
+</body>
+</html>

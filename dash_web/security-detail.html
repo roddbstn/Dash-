@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>암호화 구조 안내 — DASH</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+                   'Malgun Gothic', sans-serif;
+      background: #F7F8FA;
+      color: #374151;
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page-wrapper {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 0 60px;
+    }
+
+    /* ── 상단 네비 ──────────────────────────────────── */
+    .top-nav {
+      background: #fff;
+      border-bottom: 1px solid #E5E7EB;
+      padding: 12px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .top-nav a {
+      color: #3B6BFF;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+    }
+    .top-nav a:hover { text-decoration: underline; }
+
+    /* ── 페이지 헤더 ────────────────────────────────── */
+    .page-header {
+      background: #fff;
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid #F3F4F6;
+    }
+    .page-header h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #1A1A2E;
+      letter-spacing: -0.5px;
+    }
+
+    /* ── 콘텐츠 ─────────────────────────────────────── */
+    .content {
+      padding: 20px 20px 0;
+    }
+
+    /* ── 인트로 카드 (파란 배경) ────────────────────── */
+    .intro-card {
+      background: linear-gradient(135deg, #3B6BFF 0%, #2255DD 100%);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 28px;
+    }
+    .intro-card h2 {
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.4px;
+      margin-bottom: 6px;
+    }
+    .intro-card p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.88);
+      line-height: 1.65;
+      letter-spacing: -0.2px;
+    }
+
+    /* ── 섹션 타이틀 ────────────────────────────────── */
+    .section-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #111827;
+      letter-spacing: -0.3px;
+      margin-bottom: 12px;
+    }
+    .section-subtitle {
+      font-size: 13px;
+      font-weight: 700;
+      color: #6B7280;
+      letter-spacing: -0.2px;
+      margin-bottom: 10px;
+    }
+
+    /* ── 섹션 블록 ──────────────────────────────────── */
+    .section-block {
+      margin-bottom: 32px;
+    }
+
+    /* ── FLOW 스텝 카드 ─────────────────────────────── */
+    .flow-step {
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .flow-step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .flow-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      color: #fff;
+    }
+    .flow-step-meta {
+      flex: 1;
+    }
+    .flow-step-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      line-height: 1.3;
+    }
+    .flow-step-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.3px;
+      line-height: 1.3;
+    }
+    .flow-tag {
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .flow-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+    .flow-row-icon {
+      font-size: 13px;
+      flex-shrink: 0;
+      line-height: 1.5;
+    }
+    .flow-row-text {
+      font-size: 12px;
+      color: #374151;
+      line-height: 1.55;
+      letter-spacing: -0.1px;
+      white-space: pre-line;
+    }
+
+    /* ── 화살표 ─────────────────────────────────────── */
+    .arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .arrow-line {
+      width: 2px;
+      height: 10px;
+      background: #CBD5E1;
+    }
+    .arrow-chevron {
+      color: #CBD5E1;
+      font-size: 18px;
+      line-height: 1;
+      margin-top: -2px;
+    }
+
+    /* ── 두 갈래 레이아웃 ───────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .flow-step-small {
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .flow-step-small-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .flow-step-small-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      line-height: 1.3;
+      margin-bottom: 2px;
+    }
+    .flow-step-small-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.3px;
+      line-height: 1.45;
+      margin-bottom: 10px;
+    }
+    .bullet-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+      margin-bottom: 5px;
+    }
+    .bullet-dot {
+      font-size: 12px;
+      color: #9CA3AF;
+      flex-shrink: 0;
+      line-height: 1.5;
+    }
+    .bullet-text {
+      font-size: 11px;
+      color: #374151;
+      line-height: 1.55;
+      letter-spacing: -0.1px;
+    }
+    .bullet-highlight {
+      background: #FEF9C3;
+      border-radius: 6px;
+      padding: 3px 6px;
+    }
+    .bullet-highlight .bullet-text::after {
+      content: ' *';
+      color: #D97706;
+      font-weight: 800;
+      font-size: 10px;
+    }
+
+    /* ── 복호화 설명 박스 ───────────────────────────── */
+    .decode-box {
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .decode-box-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #92400E;
+      letter-spacing: -0.2px;
+      margin-bottom: 7px;
+    }
+    .decode-box-body {
+      font-size: 12px;
+      color: #78350F;
+      line-height: 1.65;
+      letter-spacing: -0.1px;
+    }
+
+    /* ── PIN 섹션 ────────────────────────────────────── */
+    .pin-card {
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .pin-effect-box {
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .pin-effect-icon {
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .pin-effect-text {
+      font-size: 12px;
+      color: #1D4ED8;
+      line-height: 1.65;
+      letter-spacing: -0.1px;
+    }
+    .pin-heading {
+      font-size: 13px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.3px;
+      margin-bottom: 6px;
+    }
+    .pin-sub {
+      font-size: 12px;
+      color: #6B7280;
+      line-height: 1.65;
+      letter-spacing: -0.1px;
+      margin-bottom: 16px;
+    }
+    .pin-case-card {
+      background: #F7F8FA;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .pin-case-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      margin-bottom: 8px;
+    }
+    .pin-step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      margin-bottom: 4px;
+    }
+    .pin-step-num {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .pin-step-text {
+      font-size: 12px;
+      color: #374151;
+      line-height: 1.55;
+      letter-spacing: -0.1px;
+    }
+    .pin-note {
+      background: #FEF3C7;
+      border-radius: 6px;
+      padding: 6px 8px;
+      display: flex;
+      align-items: flex-start;
+      gap: 5px;
+      margin-top: 6px;
+    }
+    .pin-note-text {
+      font-size: 11px;
+      color: #92400E;
+      line-height: 1.55;
+      letter-spacing: -0.1px;
+    }
+    .pin-footnote {
+      font-size: 11px;
+      color: #9CA3AF;
+      line-height: 1.55;
+      letter-spacing: -0.1px;
+      margin-top: 14px;
+    }
+
+    /* ── 접근 권한 테이블 ───────────────────────────── */
+    .access-card {
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .access-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #F3F4F6;
+    }
+    .access-row:last-child { border-bottom: none; }
+    .access-icon-wrap {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .access-icon-wrap.ok { background: #DCFCE7; }
+    .access-icon-wrap.no { background: #FEE2E2; }
+    .access-info { flex: 1; }
+    .access-subject-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+    .access-subject {
+      font-size: 13px;
+      font-weight: 600;
+      color: #111827;
+      letter-spacing: -0.2px;
+    }
+    .access-badge {
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .access-badge.ok { background: #DCFCE7; color: #16A34A; }
+    .access-badge.no { background: #FEE2E2; color: #DC2626; }
+    .access-reason {
+      font-size: 11px;
+      color: #6B7280;
+      line-height: 1.55;
+      letter-spacing: -0.1px;
+    }
+
+    /* ── 코드 블록 ──────────────────────────────────── */
+    .code-card {
+      background: #1E293B;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 10px;
+      overflow-x: auto;
+    }
+    .code-comment {
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: 10px;
+      color: #64748B;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .code-section-comment {
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: 10px;
+      color: #64748B;
+      margin-bottom: 4px;
+      margin-top: 8px;
+    }
+    .code-section-comment:first-child { margin-top: 0; }
+    .code-line {
+      margin-bottom: 7px;
+    }
+    .code-line-main {
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .code-key { color: #7DD3FC; }
+    .code-val-plain { color: #86EFAC; }
+    .code-val-encrypted { color: #FCA5A5; }
+    .code-desc {
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: 10px;
+      color: #64748B;
+      padding-left: 4px;
+      margin-top: 1px;
+    }
+    .code-legend {
+      font-size: 12px;
+      color: #6B7280;
+      line-height: 1.65;
+      letter-spacing: -0.1px;
+    }
+
+    /* ── 기술 명세 카드 ─────────────────────────────── */
+    .spec-card {
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .spec-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #F3F4F6;
+    }
+    .spec-row:last-child { border-bottom: none; }
+    .spec-label {
+      width: 100px;
+      flex-shrink: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #6B7280;
+      letter-spacing: -0.1px;
+    }
+    .spec-value {
+      font-size: 12px;
+      color: #111827;
+      line-height: 1.55;
+      letter-spacing: -0.1px;
+      white-space: pre-line;
+    }
+
+    /* ── 푸터 ───────────────────────────────────────── */
+    footer {
+      margin-top: 40px;
+      padding: 20px;
+      border-top: 1px solid #E5E7EB;
+      font-size: 12px;
+      color: #9CA3AF;
+      text-align: center;
+      line-height: 1.7;
+    }
+    footer a { color: #3B6BFF; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── 반응형 ─────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .two-col { grid-template-columns: 1fr; }
+      .content { padding: 16px 16px 0; }
+      .top-nav { padding: 12px 16px; }
+      .page-header { padding: 16px 16px 14px; }
+    }
+    @media (max-width: 680px) {
+      .content { padding: 16px 16px 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- 상단 네비 -->
+  <nav class="top-nav">
+    <a href="privacy-policy.html">← 개인정보처리방침으로 돌아가기</a>
+  </nav>
+
+  <!-- 페이지 헤더 -->
+  <header class="page-header">
+    <h1>암호화 구조 안내</h1>
+  </header>
+
+  <main class="content">
+
+    <!-- 인트로 카드 -->
+    <div class="intro-card">
+      <h2>왜 DASH는 내용을 볼 수 없나요?</h2>
+      <p>열쇠가 없기 때문입니다. 상담원님의 데이터를 잠그는 열쇠는<br>
+      상담원님의 기기에서만 만들어지며, DASH 서버에는<br>
+      전달되지 않습니다.</p>
+    </div>
+
+    <!-- ── 섹션 1: 데이터 이동 경로 ──────────────────── -->
+    <div class="section-block">
+      <h2 class="section-title">데이터가 이동하는 경로</h2>
+
+      <!-- STEP 1 -->
+      <div class="flow-step">
+        <div class="flow-step-header">
+          <div class="flow-icon" style="background:#3B6BFF;">📱</div>
+          <div class="flow-step-meta">
+            <div class="flow-step-label" style="color:#3B6BFF;">STEP 1</div>
+            <div class="flow-step-title">상담원 기기 (스마트폰)</div>
+          </div>
+          <div class="flow-tag" style="background:rgba(22,163,74,0.1);color:#16A34A;">열쇠 생성 위치</div>
+        </div>
+        <div class="flow-row"><span class="flow-row-icon">✏️</span><span class="flow-row-text">상담 내용 입력</span></div>
+        <div class="flow-row"><span class="flow-row-icon">🔑</span><span class="flow-row-text">입력 즉시 AES-256 암호화&#10;(열쇠는 기기 안에만 존재)</span></div>
+        <div class="flow-row"><span class="flow-row-icon">📤</span><span class="flow-row-text">암호문만 서버로 전송</span></div>
+      </div>
+
+      <!-- 화살표 -->
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-chevron">⌄</div></div>
+
+      <!-- STEP 2 -->
+      <div class="flow-step">
+        <div class="flow-step-header">
+          <div class="flow-icon" style="background:#64748B;">🖥️</div>
+          <div class="flow-step-meta">
+            <div class="flow-step-label" style="color:#64748B;">STEP 2</div>
+            <div class="flow-step-title">DASH 서버</div>
+          </div>
+          <div class="flow-tag" style="background:rgba(220,38,38,0.1);color:#DC2626;">열쇠 없음</div>
+        </div>
+        <div class="flow-row"><span class="flow-row-icon">🔒</span><span class="flow-row-text">암호문 형태로만 수신·보관</span></div>
+        <div class="flow-row"><span class="flow-row-icon">🚫</span><span class="flow-row-text">열쇠 없음 → 내용 파악 불가</span></div>
+        <div class="flow-row"><span class="flow-row-icon">📋</span><span class="flow-row-text">저장 포맷: a3f9b2c1e8d4… (무의미한 문자열)</span></div>
+      </div>
+
+      <!-- 화살표 -->
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-chevron">⌄</div></div>
+
+      <!-- STEP 3: 두 갈래 -->
+      <p class="section-subtitle">전달 경로 (두 가지)</p>
+      <div class="two-col">
+        <!-- 경로 A -->
+        <div class="flow-step-small">
+          <div class="flow-step-small-icon" style="background:#7C3AED;">🔗</div>
+          <div class="flow-step-small-label" style="color:#7C3AED;">경로 A</div>
+          <div class="flow-step-small-title">공유 링크 → 상사 브라우저</div>
+          <div class="bullet-item"><span class="bullet-dot">∙</span><span class="bullet-text">링크 URL 끝 #뒤에 열쇠 포함</span></div>
+          <div class="bullet-item"><span class="bullet-dot">∙</span><span class="bullet-text">#뒤는 서버에 전달되지 않음 (브라우저 표준)</span></div>
+          <div class="bullet-item bullet-highlight"><span class="bullet-dot">∙</span><span class="bullet-text">상사 브라우저가 열쇠로 직접 복호화</span></div>
+        </div>
+        <!-- 경로 B -->
+        <div class="flow-step-small">
+          <div class="flow-step-small-icon" style="background:#0891B2;">🔌</div>
+          <div class="flow-step-small-label" style="color:#0891B2;">경로 B</div>
+          <div class="flow-step-small-title">크롬 확장프로그램 → NCADS(아동학대정보시스템) 입력</div>
+          <div class="bullet-item"><span class="bullet-dot">∙</span><span class="bullet-text">상담원 본인 구글 계정 로그인 필수</span></div>
+          <div class="bullet-item bullet-highlight"><span class="bullet-dot">∙</span><span class="bullet-text">기기의 열쇠로 자동 복호화</span></div>
+          <div class="bullet-item"><span class="bullet-dot">∙</span><span class="bullet-text">NCADS에 자동 입력</span></div>
+        </div>
+      </div>
+
+      <!-- 복호화 설명 -->
+      <div class="decode-box">
+        <div class="decode-box-title">💡 * 복호화는 뭔가요?</div>
+        <p class="decode-box-body">복호화란 암호화된 데이터를 열쇠(키)를 이용해 원래의 읽을 수 있는 형태로 되돌리는 과정입니다.
+잠긴 금고를 열쇠로 열어 내용물을 꺼내는 것과 같습니다.
+열쇠가 없으면 금고를 열 수 없듯, DASH 서버에는 열쇠가 전달되지 않아 서버에서는 어떤 방법으로도 내용을 복호화할 수 없습니다.</p>
+      </div>
+
+      <!-- 화살표 -->
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-chevron">⌄</div></div>
+
+      <!-- STEP 4 -->
+      <div class="flow-step">
+        <div class="flow-step-header">
+          <div class="flow-icon" style="background:#16A34A;">✅</div>
+          <div class="flow-step-meta">
+            <div class="flow-step-label" style="color:#16A34A;">STEP 4</div>
+            <div class="flow-step-title">전달 완료 후</div>
+          </div>
+          <div class="flow-tag" style="background:rgba(22,163,74,0.1);color:#16A34A;">NCADS 최종 보관</div>
+        </div>
+        <div class="flow-row"><span class="flow-row-icon">✅</span><span class="flow-row-text">NCADS(아동학대정보시스템)에 자동 입력 완료</span></div>
+        <div class="flow-row"><span class="flow-row-icon">🔒</span><span class="flow-row-text">DASH 서버 암호문은 계속 보존&#10;(상담원 케이스 조회 가능, 삭제되지 않음)</span></div>
+        <div class="flow-row"><span class="flow-row-icon">📋</span><span class="flow-row-text">아동 정보는 NCADS에 최종 보관·관리</span></div>
+      </div>
+    </div>
+
+    <!-- ── 섹션: PIN ────────────────────────────────── -->
+    <div class="section-block">
+      <h2 class="section-title">PIN은 왜 필요한가요?</h2>
+      <div class="pin-card">
+
+        <!-- 보호 효과 요약 -->
+        <div class="pin-effect-box">
+          <span class="pin-effect-icon">🛡️</span>
+          <p class="pin-effect-text">PIN을 설정하면 기기를 분실하거나 타인이 기기에 접근하더라도 PIN 없이는 상담 기록을 열람할 수 없습니다. 기기 잠금(지문·패턴)이 우회되더라도 데이터는 암호화된 채로 보호됩니다.</p>
+        </div>
+
+        <p class="pin-heading">PIN = 열쇠를 잠그는 또 다른 열쇠</p>
+        <p class="pin-sub">상담원님의 암호화 열쇠는 기기 안에 그냥 보관되지 않습니다. PIN으로 한 번 더 잠근 상태로 저장됩니다. 즉, PIN은 열쇠를 꺼내기 위한 또 다른 열쇠입니다.</p>
+
+        <!-- 케이스 1 -->
+        <div class="pin-case-card">
+          <div class="pin-case-title" style="color:#3B6BFF;">
+            <span>🔒</span>
+            <span>상담 기록 첫 저장 시 — PIN 설정</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(59,107,255,0.12);color:#3B6BFF;">1</div>
+            <span class="pin-step-text">상담원님이 PIN을 최초 설정</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(59,107,255,0.12);color:#3B6BFF;">2</div>
+            <span class="pin-step-text">기기 내부에서 암호화 열쇠 생성</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(59,107,255,0.12);color:#3B6BFF;">3</div>
+            <span class="pin-step-text">그 열쇠를 PIN으로 한 번 더 암호화하여 기기에 저장</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(59,107,255,0.12);color:#3B6BFF;">4</div>
+            <span class="pin-step-text">이후 모든 상담 기록은 이 열쇠로 암호화됨</span>
+          </div>
+          <div class="pin-note">
+            <span>⚠️</span>
+            <span class="pin-note-text">PIN을 분실하면 암호화된 열쇠를 풀 수 없어, 기존에 저장된 기록을 다시 볼 수 없게 됩니다</span>
+          </div>
+        </div>
+
+        <!-- 케이스 2 -->
+        <div class="pin-case-card">
+          <div class="pin-case-title" style="color:#0891B2;">
+            <span>🔌</span>
+            <span>크롬 익스텐션 최초 로그인 시 — PIN 입력</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(8,145,178,0.12);color:#0891B2;">1</div>
+            <span class="pin-step-text">익스텐션에서 구글 계정으로 로그인</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(8,145,178,0.12);color:#0891B2;">2</div>
+            <span class="pin-step-text">PIN 입력 요청 — 기기에 잠긴 열쇠를 꺼내기 위해</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(8,145,178,0.12);color:#0891B2;">3</div>
+            <span class="pin-step-text">PIN으로 열쇠가 해제됨</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(8,145,178,0.12);color:#0891B2;">4</div>
+            <span class="pin-step-text">익스텐션이 열쇠를 받아 암호문을 복호화</span>
+          </div>
+          <div class="pin-step-item">
+            <div class="pin-step-num" style="background:rgba(8,145,178,0.12);color:#0891B2;">5</div>
+            <span class="pin-step-text">NCADS(아동학대정보시스템)에 자동 입력</span>
+          </div>
+          <div class="pin-note">
+            <span>⚠️</span>
+            <span class="pin-note-text">PIN 인증을 거치면 열쇠가 해제되며, 타인이 기기를 사용하더라도 PIN 없이는 데이터를 열람할 수 없습니다</span>
+          </div>
+        </div>
+
+        <p class="pin-footnote">* PIN번호는 DB를 처음 만들 때 생성하며, 프로필 설정에서 확인할 수 있어요.</p>
+      </div>
+    </div>
+
+    <!-- ── 섹션 2: 누가 볼 수 있나 ─────────────────── -->
+    <div class="section-block">
+      <h2 class="section-title">누가 데이터를 볼 수 있나요?</h2>
+      <div class="access-card">
+        <div class="access-row">
+          <div class="access-icon-wrap ok">👤</div>
+          <div class="access-info">
+            <div class="access-subject-row">
+              <span class="access-subject">상담원 본인</span>
+              <span class="access-badge ok">열람 가능</span>
+            </div>
+            <span class="access-reason">열쇠를 직접 보유하고 있어 복호화 가능</span>
+          </div>
+        </div>
+        <div class="access-row">
+          <div class="access-icon-wrap ok">👥</div>
+          <div class="access-info">
+            <div class="access-subject-row">
+              <span class="access-subject">상담원이 링크를 공유한 상사</span>
+              <span class="access-badge ok">열람 가능</span>
+            </div>
+            <span class="access-reason">공유 링크 안에 열쇠가 포함되어 있어 브라우저에서 복호화 가능</span>
+          </div>
+        </div>
+        <div class="access-row">
+          <div class="access-icon-wrap no">🏢</div>
+          <div class="access-info">
+            <div class="access-subject-row">
+              <span class="access-subject">DASH 운영진 · 서버 관리자</span>
+              <span class="access-badge no">열람 불가</span>
+            </div>
+            <span class="access-reason">서버에 열쇠가 없어 암호문만 볼 수 있음. 기술적으로 열람 불가</span>
+          </div>
+        </div>
+        <div class="access-row">
+          <div class="access-icon-wrap no">🚫</div>
+          <div class="access-info">
+            <div class="access-subject-row">
+              <span class="access-subject">링크를 받지 않은 제3자</span>
+              <span class="access-badge no">열람 불가</span>
+            </div>
+            <span class="access-reason">열쇠도 없고 암호문에 접근할 방법도 없음</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 섹션 3: 서버에 저장되는 포맷 ───────────── -->
+    <div class="section-block">
+      <h2 class="section-title">서버에 실제 저장되는 형태</h2>
+      <div class="code-card">
+        <div class="code-comment">// DASH 서버 DB에 저장된 실제 데이터</div>
+
+        <div class="code-section-comment">// ── 식별 정보 (마스킹 처리) ──</div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"case_name"</span>: <span class="code-val-plain">"김O재"</span></div>
+          <div class="code-desc">// 아동 이름 — 중간 글자 마스킹 처리</div>
+        </div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"dong"</span>: <span class="code-val-plain">"마포구 서교동"</span></div>
+          <div class="code-desc">// 아동이 거주하는 동</div>
+        </div>
+
+        <div class="code-section-comment">// ── 서비스 기록 (평문 저장) ──</div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"status"</span>: <span class="code-val-plain">"Synced"</span></div>
+          <div class="code-desc">// 동기화 상태 — Synced: 서버 저장 완료</div>
+        </div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"service_date"</span>: <span class="code-val-plain">"2024-03-15 14:30"</span></div>
+          <div class="code-desc">// 서비스 제공일시</div>
+        </div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"service_method"</span>: <span class="code-val-plain">"방문"</span></div>
+          <div class="code-desc">// 서비스 제공방법</div>
+        </div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"service_type"</span>: <span class="code-val-plain">"일반사례관리"</span></div>
+          <div class="code-desc">// 서비스 유형 / 제공유형</div>
+        </div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"travel_time"</span>: <span class="code-val-plain">"20"</span></div>
+          <div class="code-desc">// 이동 소요시간 (분)</div>
+        </div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"location"</span>: <span class="code-val-plain">"아동 가정"</span></div>
+          <div class="code-desc">// 서비스 제공 장소</div>
+        </div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"service_count"</span>: <span class="code-val-plain">"3"</span></div>
+          <div class="code-desc">// 제공 횟수</div>
+        </div>
+
+        <div class="code-section-comment">// ── 민감 내용 (AES-256 암호화) ──</div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"encrypted_blob"</span>: <span class="code-val-encrypted">"U2FsdGVkX1+a3f9b2c1e8d4…"</span></div>
+          <div class="code-desc">// AES-256 암호문 — 열쇠 없이 해독 절대 불가</div>
+        </div>
+        <div class="code-line">
+          <div class="code-line-main"><span class="code-key">"service_description"</span>: <span class="code-val-encrypted">"(암호문 내 포함 — 열람 불가)"</span></div>
+          <div class="code-desc">// 서비스 내용 설명</div>
+        </div>
+        <div class="code-line" style="margin-bottom:0;">
+          <div class="code-line-main"><span class="code-key">"agent_opinion"</span>: <span class="code-val-encrypted">"(암호문 내 포함 — 열람 불가)"</span></div>
+          <div class="code-desc">// 상담원 소견</div>
+        </div>
+      </div>
+      <p class="code-legend">초록색 항목은 평문(읽을 수 있는 값)으로 저장되며,<br>
+      붉은색 항목은 암호화된 상태로 DASH를 포함한 누구도 열람할 수 없습니다.</p>
+    </div>
+
+    <!-- ── 섹션 4: 암호화 기술 명세 ─────────────────── -->
+    <div class="section-block">
+      <h2 class="section-title">적용된 암호화 기술</h2>
+      <div class="spec-card">
+        <div class="spec-row">
+          <span class="spec-label">암호화 방식</span>
+          <span class="spec-value">AES-256 (종단간 암호화, E2EE)</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-label">열쇠 생성 위치</span>
+          <span class="spec-value">상담원 기기 내부 (서버 미전송)</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-label">전송 구간</span>
+          <span class="spec-value">HTTPS (전송 중 이중 암호화)</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-label">PIN 저장</span>
+          <span class="spec-value">기기 보안 저장소 (서버 미저장)</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-label">서버 데이터 보존</span>
+          <span class="spec-value">NCADS 자동 입력 후에도 DASH 서버 암호문 보존
+(상담원 케이스 기록 계속 조회 가능)
+최대 5년 후 자동 파기 (아동복지법 제28조)</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 푸터 -->
+  <footer>
+    <p>
+      <a href="privacy-policy.html">← 개인정보처리방침으로 돌아가기</a>
+    </p>
+    <p style="margin-top:8px;">
+      <a href="index.html">DASH 홈</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:yunsooga@gmail.com">문의하기</a>
+    </p>
+    <p style="margin-top:8px; color:#C4C9D4; font-size:11px;">© 2026 DASH. All rights reserved.</p>
+  </footer>
+
+</div>
+</body>
+</html>
