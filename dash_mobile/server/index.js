@@ -633,6 +633,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
         try {
           // Get user's FCM token
           const [userRows] = await pool.query('SELECT fcm_token FROM dash_users WHERE id = ?', [user_id]);
+          console.log(`📱 FCM lookup for user_id=${user_id}, found=${userRows.length}, has_token=${!!(userRows[0]?.fcm_token)}`);
           if (userRows.length > 0 && userRows[0].fcm_token) {
             const fcmToken = userRows[0].fcm_token;
             const message = {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
@@ -9,6 +10,7 @@ import 'package:dash_mobile/widgets/dash_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:dash_mobile/analytics_service.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:encrypt/encrypt.dart' as encrypt;
@@ -48,11 +50,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // 로딩 / 네트워크 상태
   bool _isLoadingInitial = true;   // 앱 첫 진입 시 로딩 스피너 표시용
   bool _serverReachable = true;    // false = 서버 미응답, 오프라인 배너 표시
+  bool _isModalOpen = false;       // 바텀 모달 열림 여부 (FAB 숨김 제어)
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    AnalyticsService.screenHome();
     _loadData();
     _initRealtime();
     _setupFCM();
@@ -62,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       debugPrint('📱 App returned to foreground. Resuming SSE...');
+      AnalyticsService.appForegrounded();
       _initRealtime();
       _loadData();
     } else if (state == AppLifecycleState.paused ||
@@ -120,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _isLoadingData = true;
     _pendingLoadData = false;
 
-    final localDrafts = await StorageService.getDrafts();
+    var localDrafts = await StorageService.getDrafts();
     final cases = await StorageService.getCases();
 
     if (mounted) {
@@ -180,15 +185,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (userId != null) ApiService.fetchNotifications(userId) else Future.value(<dynamic>[]),
       ]);
 
-      final serverRecords = results[0] as List<dynamic>?;
-      final serverNotifs = results[1] as List<dynamic>;
+      final List? serverRecords = results[0];
+      final List serverNotifs = results[1] ?? [];
 
       if (mounted) {
         setState(() {
+          final wasReachable = _serverReachable;
           _serverReachable = serverRecords != null;
+          if (wasReachable && !_serverReachable) AnalyticsService.offlineBannerShown();
           _notifications = serverNotifs;
         });
       }
+
+      // Background sync(_syncRecordInBackground)가 share_token을 저장했을 수 있으므로
+      // 서버 병합 직전 최신 로컬 데이터를 다시 읽어 race condition으로 인한 중복을 방지
+      localDrafts = await StorageService.getDrafts();
 
       if (serverRecords != null && (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
         // 로컬 데이터와 서버 데이터 병합 및 삭제 처리
@@ -232,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 final key = encrypt.Key.fromUtf8(
                   keyStr.padRight(32).substring(0, 32),
                 );
-                final encrypter = encrypt.Encrypter(encrypt.AES(key));
+                final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
                 final decrypted = encrypter.decrypt(encrypted, iv: iv);
                 final decryptedData =
                     jsonDecode(decrypted) as Map<String, dynamic>;
@@ -313,11 +324,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               // 아직 동기화 전인 데이터는 당연히 유지
               updatedDrafts.add(local);
             } else {
-              // 서버에 토큰이 있는데 서버 응답에 없으면 서버에서 삭제된 것이므로 로컬에서도 제거
-              debugPrint(
-                '🗑️ Record with token $localToken not found on server (deleted). Removing local copy.',
+              // 서버 응답 목록에서 해당 토큰을 명시적으로 못 찾은 경우에만 삭제
+              // (서버에 레코드가 있는데 타이밍 문제로 포함 안 됐을 수 있으므로 이중 확인)
+              final bool confirmedDeletedOnServer = serverRecords.every(
+                (s) => s['share_token'] != localToken,
               );
-              // updatedDrafts에 추가하지 않음으로써 로컬에서도 삭제
+              if (confirmedDeletedOnServer) {
+                debugPrint(
+                  '🗑️ Record with token $localToken not found on server (deleted). Removing local copy.',
+                );
+                // updatedDrafts에 추가하지 않음으로써 로컬에서도 삭제
+              } else {
+                // 서버에 있는 레코드인데 병합 로직에서 누락된 경우 — 유지
+                updatedDrafts.add(local);
+              }
             }
           }
         }
@@ -409,6 +429,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // 4. 토큰 획득 및 서버 저장
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      // iOS: 포그라운드에서도 시스템 알림 표시 (기본값은 숨김)
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
       final token = await messaging.getToken();
       final user = FirebaseAuth.instance.currentUser;
       if (token != null && user != null) {
@@ -422,25 +449,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       RemoteNotification? notification = message.notification;
       AndroidNotification? android = message.notification?.android;
 
-      if (notification != null && android != null && mounted) {
-        // 시스템 알림 팝업 표시
-        flutterLocalNotificationsPlugin.show(
-          id: notification.hashCode,
-          title: notification.title,
-          body: notification.body,
-          notificationDetails: NotificationDetails(
-            android: AndroidNotificationDetails(
-              channel.id,
-              channel.name,
-              channelDescription: channel.description,
-              importance: Importance.max,
-              priority: Priority.high,
-              ticker: 'ticker',
-            ),
-          ),
-        );
-
+      if (notification != null && mounted) {
+        AnalyticsService.notificationReceived(notification.title ?? 'unknown');
         _loadData(); // 알림 리스트 및 배지 상태 갱신
+
+        // Android: 직접 로컬 알림 팝업 표시 (iOS는 setForegroundNotificationPresentationOptions로 처리)
+        if (android != null) {
+          flutterLocalNotificationsPlugin.show(
+            id: notification.hashCode,
+            title: notification.title,
+            body: notification.body,
+            notificationDetails: NotificationDetails(
+              android: AndroidNotificationDetails(
+                channel.id,
+                channel.name,
+                channelDescription: channel.description,
+                importance: Importance.max,
+                priority: Priority.high,
+                ticker: 'ticker',
+              ),
+            ),
+          );
+        }
       }
     });
 
@@ -712,7 +742,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required dynamic caseId,
     int? draftId,
   }) async {
-    await Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => FormScreen(
@@ -720,23 +750,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           caseName: maskedName,
           dong: dong,
           draftId: draftId,
+          userName: _userName,
+          // 서버 동기화 완료 후 _loadData() 호출 (race condition 방지)
+          onSyncComplete: () { if (mounted) _loadData(); },
         ),
       ),
     );
-    // 무조건 로드하여 알림 상태 동기화
-    _loadData();
+    // pop 직후: 로컬 스토리지만 읽어 즉시 화면 반영 (서버 매칭 없음)
+    final freshDrafts = await StorageService.getDrafts();
+    final freshCases = await StorageService.getCases();
+    if (mounted) {
+      setState(() {
+        _drafts = freshDrafts;
+        _cases = freshCases;
+      });
+    }
+    if (result == true && draftId != null && mounted) {
+      _showToast('$maskedName 아동 DB가 수정되었습니다');
+    }
   }
 
   void _showCaseSelectionModal() async {
     setState(() {
       _isSelectionMode = false;
       _selectedCaseIds.clear();
+      _isModalOpen = true;
     });
 
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
@@ -749,7 +794,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               maxChildSize: 0.9,
               expand: false,
               builder: (_, scrollController) {
-                return Stack(
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
                   children: [
                     GestureDetector(
                       onTap: () {
@@ -802,8 +853,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                             setState(() {
                                               _isSelectionMode =
                                                   !_isSelectionMode;
-                                              if (!_isSelectionMode)
+                                              if (!_isSelectionMode) {
                                                 _selectedCaseIds.clear();
+                                              }
                                             });
                                             setModalState(() {});
                                           }
@@ -952,7 +1004,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ],
-                );
+                ),
+              );
               },
             );
           },
@@ -960,10 +1013,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       },
     );
 
-    setState(() {
-      _isSelectionMode = false;
-      _selectedCaseIds.clear();
-    });
+    if (mounted) {
+      setState(() {
+        _isSelectionMode = false;
+        _selectedCaseIds.clear();
+        _isModalOpen = false;
+      });
+    }
   }
 
   int _currentIndex = 0;
@@ -1026,7 +1082,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
       ),
-      floatingActionButton: _currentIndex != 0
+      floatingActionButton: (_currentIndex != 0 || _isModalOpen)
           ? null
           : Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -1046,6 +1102,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: AppColors.textMain,
+                  surfaceTintColor: Colors.transparent,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 16,
@@ -1430,6 +1487,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 setState(() {
                   _userName = newName;
                 });
+                // 기존 케이스들의 user_name도 서버에 갱신 (syncCase가 서버 프로필 이름 사용)
+                for (final c in _cases) {
+                  ApiService.syncCase(c);
+                }
                 _showToast('이름이 수정되었습니다.');
               } else {
                 _showToast('이름 수정에 실패했습니다.');
@@ -1749,6 +1810,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final pin = await StorageService.getPin();
     if (!mounted) return;
 
+    // PIN 미설정 상태 → 최초 PIN 생성 모달
+    if (pin == null) {
+      _showPinCreationDialog();
+      return;
+    }
+
+    // 서버 vault를 현재 로컬 PIN으로 재동기화 (옛날 PIN 무효화)
+    unawaited(_syncPinToVault(pin));
+
+    // PIN 설정 상태 → 기존 PIN 관리 모달
     showDialog(
       context: context,
       builder: (ctx) {
@@ -1780,21 +1851,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        pin == null ? '미설정 상태' : (showPin ? pin : '****'),
+                        showPin ? pin : '****',
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 4,
                         ),
                       ),
-                      if (pin != null)
-                        IconButton(
-                          onPressed: () => setStateSB(() => showPin = !showPin),
-                          icon: Icon(
-                            showPin ? Icons.visibility_off : Icons.visibility,
-                            color: AppColors.primary,
-                          ),
+                      IconButton(
+                        onPressed: () => setStateSB(() => showPin = !showPin),
+                        icon: Icon(
+                          showPin ? Icons.visibility_off : Icons.visibility,
+                          color: AppColors.primary,
                         ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -1834,6 +1904,150 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
       },
     );
+  }
+
+  void _showPinCreationDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        bool obscure = true;
+        return StatefulBuilder(
+          builder: (context, setStateSB) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              contentPadding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 0),
+              actionsPadding: const EdgeInsets.only(right: 16, bottom: 8),
+              title: const Text(
+                '보안 PIN 생성',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'PIN은 크롬 확장 프로그램에서 DB 내용을 열람할 때 사용됩니다.\n4자리 숫자로 설정하세요.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSub,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 4,
+                    obscureText: obscure,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      letterSpacing: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.left,
+                    decoration: InputDecoration(
+                      counterText: '',
+                      filled: true,
+                      fillColor: const Color(0xFFF2F4F6),
+                      contentPadding: const EdgeInsets.only(
+                        left: 20, right: 10, top: 20, bottom: 20,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscure ? Icons.visibility_off : Icons.visibility,
+                          color: const Color(0xFFADB5BD),
+                        ),
+                        onPressed: () => setStateSB(() => obscure = !obscure),
+                      ),
+                    ),
+                    autofocus: true,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    '취소',
+                    style: TextStyle(
+                      color: Color(0xFFADB5BD),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    if (controller.text.length == 4) {
+                      final newPin = controller.text;
+                      await StorageService.savePin(newPin);
+                      await _syncPinToVault(newPin);
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(
+                          content: Text('PIN이 설정되었습니다.'),
+                          backgroundColor: Color(0xFF16A34A),
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text(
+                    '설정 완료',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Encrypts all locally-synced case keys with [newPin] and saves to server vault.
+  /// This must be called whenever the PIN is first created or changed.
+  Future<void> _syncPinToVault(String newPin) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Collect all synced draft keys: { share_token -> encryption_key }
+      final drafts = await StorageService.getDrafts();
+      final Map<String, dynamic> keyMap = {};
+      for (final draft in drafts) {
+        final shareToken = draft['share_token'];
+        final encKey = draft['encryption_key'];
+        if (shareToken != null && encKey != null &&
+            shareToken.toString().isNotEmpty && encKey.toString().isNotEmpty) {
+          keyMap[shareToken.toString()] = encKey.toString();
+        }
+      }
+
+      final vaultKey = encrypt.Key.fromUtf8(newPin.padRight(32).substring(0, 32));
+      final iv = encrypt.IV.fromLength(16);
+      final encrypter = encrypt.Encrypter(encrypt.AES(vaultKey, mode: encrypt.AESMode.cbc));
+      final encrypted = encrypter.encrypt(jsonEncode(keyMap), iv: iv);
+      final encryptedVaultBlob = '${iv.base64}:${encrypted.base64}';
+
+      await ApiService.saveVault(user.uid, encryptedVaultBlob, user.uid);
+      debugPrint('✅ Vault synced with new PIN (${keyMap.length} keys)');
+    } catch (e) {
+      debugPrint('❌ Error syncing vault with new PIN: $e');
+    }
   }
 
   void _showPinResetWarningDialog() {
@@ -1962,8 +2176,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       await ApiService.saveVault(user.uid, '', '');
-      // 3. Delete all active records from the server to prevent them from showing back up
-      await ApiService.syncActiveRecords([]);
+      // 3. 서버 레코드 전체 삭제 (syncActiveRecords([])는 빈 배열 가드로 스킵되므로 전용 API 사용)
+      await ApiService.deleteAllRecords();
     }
 
     setState(() {
@@ -1988,7 +2202,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         style: TextStyle(
           color: AppColors.textMain,
           fontWeight: FontWeight.w600,
-          fontSize: 16,
+          fontSize: 15,
         ),
       ),
       trailing: Transform.scale(
@@ -2509,7 +2723,7 @@ class _InfoBannerState extends State<_InfoBanner> {
                   color: AppColors.bg, // 배경색과 동일한 색으로 변경
                 ),
               ),
-              // Right: 개인 정보
+              // Right: 개인정보처리방침
               Expanded(
                 child: GestureDetector(
                   onTapDown: (_) => setState(() => _isRightPressed = true),
@@ -2542,7 +2756,7 @@ class _InfoBannerState extends State<_InfoBanner> {
                         Text('🔒', style: TextStyle(fontSize: 17)),
                         SizedBox(width: 7),
                         Text(
-                          '개인 정보',
+                          '개인정보처리방침',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -2604,6 +2818,31 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _copyShareLink() async {
+    final token = widget.d['share_token']?.toString();
+    final key = widget.d['encryption_key']?.toString();
+    if (token != null && token.isNotEmpty) {
+      final host = ApiService.serverUrl;
+      final keyFragment = (key != null && key.isNotEmpty) ? '#$key' : '';
+      await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyFragment'));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('링크가 복사되었습니다.', textAlign: TextAlign.center),
+          backgroundColor: Colors.black87,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('저장 후 공유할 수 있어요.', textAlign: TextAlign.center),
+          backgroundColor: Colors.black87,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
@@ -2837,15 +3076,16 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                           );
                         }
 
-                        // ── 세로 모드: 태그 오른쪽 고정 (기존 구조) ──
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                        // ── 세로 모드: 태그 상단, 공유 버튼 우하단 ──
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
+                            // 상단: 타이틀 + 상태 태그
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
                                     '${widget.d['caseName']} 아동',
                                     style: const TextStyle(
                                       color: Color(0xFF222222),
@@ -2856,8 +3096,18 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
+                                ),
+                                const SizedBox(width: 12),
+                                statusTag,
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            // 하단: 서브텍스트 + 공유 버튼
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Text(
                                     '$subLine1\n$subLine2',
                                     style: const TextStyle(
                                       color: Color(0xFF8B95A1),
@@ -2866,11 +3116,31 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                       height: 1.5,
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(width: 12),
+                                GestureDetector(
+                                  onTap: _copyShareLink,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 7,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      '공유',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            statusTag,
                           ],
                         );
                       }),
@@ -2937,7 +3207,7 @@ class _PressableProfileMenuItemState extends State<_PressableProfileMenuItem> {
                       ? AppColors.danger
                       : AppColors.textMain,
                   fontWeight: FontWeight.w600,
-                  fontSize: 16,
+                  fontSize: 15,
                 ),
               ),
             ),
