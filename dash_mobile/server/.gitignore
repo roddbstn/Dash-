@@ -1,0 +1,3 @@
+service-account-file.json
+*.env
+node_modules/
