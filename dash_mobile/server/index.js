@@ -46,11 +46,18 @@ try {
   console.warn('Set FIREBASE_SERVICE_ACCOUNT environment variable with the JSON content to enable FCM in production.');
 }
 // Middleware
-// CORS: 모바일 앱(Origin 없음)과 Chrome 확장프로그램만 허용, 외부 웹 차단
+// CORS: 모바일 앱(Origin 없음), Chrome 확장프로그램, 리뷰어 사이트(동일 서버) 허용
+const ALLOWED_ORIGINS = [
+  'https://dash.qpon',
+  'http://localhost:3000',
+  process.env.ALLOWED_ORIGIN,
+].filter(Boolean);
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);                         // 모바일 앱 / 동일출처
+    if (!origin) return callback(null, true);                         // 모바일 앱 / Origin 없음
     if (origin.startsWith('chrome-extension://')) return callback(null, true); // Chrome 확장
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true); // 리뷰어 사이트 (same-server)
     return callback(new Error('CORS: 허용되지 않은 출처입니다.'));
   },
 }));
@@ -314,9 +321,9 @@ app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
 
 // [Mobile] 2. 상담 기록(Draft) 서버로 동기화
 app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
-  const { 
-    case_id, case_name, dong, user_id, user_email, target, provision_type, method, service_type, service_name, 
-    location, start_time, end_time, service_count, travel_time, 
+  const {
+    case_id, case_name, dong, user_id, user_email, user_name, target, provision_type, method, service_type, service_name,
+    location, start_time, end_time, service_count, travel_time,
     service_description, agent_opinion, encrypted_blob, share_token: client_share_token
   } = req.body;
   
@@ -433,6 +440,11 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);
     }
 
+    // 닉네임 자동 동기화: user_name이 제공된 경우 dash_users.name 업데이트
+    if (user_name && resolvedUserId) {
+      await pool.query('UPDATE dash_users SET name = ? WHERE id = ?', [user_name, resolvedUserId]);
+    }
+
     // Broadcast update via SSE
     broadcastEvent('new_record', { id: recordId, user_email, user_id: resolvedUserId });
 
@@ -478,6 +490,28 @@ app.delete('/api/records/id/:id', verifyFirebaseAuth, async (req, res) => {
     }
   } catch (err) {
     console.error('❌ Record delete error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// [Mobile] PIN 리셋 전용 — 해당 사용자의 서버 레코드 전체 삭제
+app.delete('/api/records/user/all', verifyFirebaseAuth, async (req, res) => {
+  const email = req.firebaseUser?.email;
+  if (!email) return res.status(400).json({ error: 'email required' });
+  console.log(`\n🔑 [PIN RESET] Deleting all records for: ${email}`);
+  try {
+    const [result] = await pool.query(
+      `DELETE r FROM service_drafts r
+       JOIN cases c ON r.case_id = c.id
+       JOIN dash_users u ON c.user_id = u.id
+       WHERE u.email = ?`,
+      [email]
+    );
+    console.log(`✅ [PIN RESET] Deleted ${result.affectedRows} records for ${email}`);
+    broadcastEvent('record_deleted', { user_email: email, reason: 'pin_reset' });
+    res.json({ message: 'All records deleted', deleted_count: result.affectedRows });
+  } catch (err) {
+    console.error('❌ PIN reset delete error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
