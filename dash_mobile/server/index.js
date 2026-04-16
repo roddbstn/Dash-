@@ -610,7 +610,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
 
     if (result.affectedRows > 0) {
       // 📝 Create Notification for the counselor
-      const message = `${case_name} 아동 상담 사례 검토가 완료되었어요. 리포트를 확인해 보세요!`;
+      const message = `동행자가 ${case_name} 아동 DB 내용을 수정했어요. 확인해보세요`;
       // 📝 Mark previous unread notifications for the same record as read (Requirement: Replace with latest for same DB)
       await pool.query(
         'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND record_token = ? AND is_read = 0',
@@ -697,7 +697,7 @@ app.post('/api/records/auth/:token', async (req, res) => {
     const inputName = name.trim();
 
     if (inputName === authorName) {
-      authAttempts.delete(token);
+      authAttempts.set(token, { verified: true, verifiedAt: Date.now() });
       return res.json({ verified: true });
     }
 
@@ -715,19 +715,28 @@ app.post('/api/records/auth/:token', async (req, res) => {
   }
 });
 
-// [Web] 3. 공유 토큰으로 모든 데이터 불러오기
+// [Web] 3. 공유 토큰으로 모든 데이터 불러오기 (이름 인증 필수)
 app.get('/api/records/share/:token', async (req, res) => {
-  console.log(`\n🔗 [WEB ACCESS] Token: ${req.params.token}`);
+  const { token } = req.params;
+  console.log(`\n🔗 [WEB ACCESS] Token: ${token}`);
+
+  // 이름 인증 여부 확인 (4시간 유효)
+  const session = authAttempts.get(token);
+  const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
+  if (!isVerified) {
+    return res.status(401).json({ needs_auth: true });
+  }
+
   try {
     const [rows] = await pool.query(
       `SELECT r.*, c.case_name, c.dong, c.target_system_code, u.name as user_name
-       FROM service_drafts r 
-       JOIN cases c ON r.case_id = c.id 
+       FROM service_drafts r
+       JOIN cases c ON r.case_id = c.id
        LEFT JOIN dash_users u ON c.user_id = u.id
        WHERE r.share_token = ?`,
-      [req.params.token]
+      [token]
     );
-    
+
     if (rows.length === 0) {
       console.log('⚠️  Data not found for token');
       return res.status(404).json({ error: 'Data not found' });

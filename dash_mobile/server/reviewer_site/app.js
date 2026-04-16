@@ -148,39 +148,70 @@ function formatDateTimeRange(startStr, endStr) {
     }
 }
 
-// Initialize
-window.onload = () => {
-    const mainTextarea = document.getElementById('main-editor');
-    const opinionTextarea = document.getElementById('opinion-editor');
-    
-    function autoResize() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
+// 이름 인증 제출
+function submitAuthName() {
+    const input = document.getElementById('auth-name-input');
+    const errorEl = document.getElementById('auth-error');
+    const name = input.value.trim();
+
+    if (!name) {
+        errorEl.textContent = '성함을 입력해주세요.';
+        return;
     }
-    
-    mainTextarea.addEventListener('input', autoResize);
-    opinionTextarea.addEventListener('input', autoResize);
 
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
-    
-    if (token) {
-        console.log(`Fetching record for token: ${token}...`);
-        // 2. Encryption Key from Hash (#)
-        let encKey = "";
-        const hash = window.location.hash.substring(1);
-        if (hash) {
-            // Support both #key=VALUE and #VALUE
-            const parts = hash.split('key=');
-            encKey = parts.length > 1 ? parts[1] : parts[0];
-        }
+    if (!token) { errorEl.textContent = '유효하지 않은 링크입니다.'; return; }
 
-        fetch(`${window.location.origin}/api/records/share/${token}`)
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-                return res.json();
-            })
-            .then(data => {
+    const btn = document.querySelector('#auth-modal button');
+    btn.disabled = true;
+    btn.textContent = '확인 중...';
+
+    fetch(`/api/records/auth/${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })))
+    .then(({ ok, data }) => {
+        if (ok && data.verified) {
+            document.getElementById('auth-modal').style.display = 'none';
+            loadRecord(token);
+        } else if (data.locked) {
+            errorEl.textContent = data.error;
+            input.disabled = true;
+            btn.disabled = true;
+            btn.textContent = '확인';
+        } else {
+            errorEl.textContent = data.remaining
+                ? `${data.error} (남은 시도: ${data.remaining}회)`
+                : data.error;
+            btn.disabled = false;
+            btn.textContent = '확인';
+            input.focus();
+        }
+    })
+    .catch(() => {
+        errorEl.textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+        btn.disabled = false;
+        btn.textContent = '확인';
+    });
+}
+
+function loadRecord(token) {
+    let encKey = "";
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+        const parts = hash.split('key=');
+        encKey = parts.length > 1 ? parts[1] : parts[0];
+    }
+
+    fetch(`${window.location.origin}/api/records/share/${token}`)
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
                 // E2EE Decryption
                 if (data.encrypted_blob && encKey) {
                     try {
@@ -234,7 +265,31 @@ window.onload = () => {
                 const mainArea = document.querySelector('.main-editor-area');
                 if (mainArea) mainArea.innerHTML = '<div style="text-align:center; padding: 40px; color: #ADB5BD; font-size: 16px;">해당 DB는 삭제되었으므로 열람할 수 없습니다.</div>';
             });
+}
+
+// Initialize — 데이터 fetch 없이 인증 모달만 표시
+window.onload = () => {
+    const mainTextarea = document.getElementById('main-editor');
+    const opinionTextarea = document.getElementById('opinion-editor');
+
+    function autoResize() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
     }
+    mainTextarea.addEventListener('input', autoResize);
+    opinionTextarea.addEventListener('input', autoResize);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+
+    if (!token) {
+        // 토큰 없음 — 일반 접속
+        document.getElementById('auth-modal').style.display = 'none';
+        return;
+    }
+
+    // 인증 모달 표시 (데이터 fetch 없음)
+    document.getElementById('auth-name-input').focus();
 };
 
 function updateUI(data) {

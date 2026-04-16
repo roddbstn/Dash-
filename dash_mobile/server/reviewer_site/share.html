@@ -106,6 +106,38 @@
 
 
     </div>
+
+    <!-- 이름 인증 오버레이 -->
+    <div id="auth-modal" style="
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 9999; backdrop-filter: blur(6px);">
+        <div style="
+            background: #fff; border-radius: 20px; padding: 36px 32px;
+            width: 100%; max-width: 380px; margin: 0 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.18);">
+            <div style="margin-bottom: 8px;">
+                <span style="font-size: 22px;">🔒</span>
+            </div>
+            <h2 style="font-size: 18px; font-weight: 800; color: #191f28; margin-bottom: 8px;">공유 메모 열기</h2>
+            <p style="font-size: 13px; color: #6b7684; line-height: 1.6; margin-bottom: 24px;">
+                이 DB를 공유한 상담원의 이름을 입력해주세요.
+            </p>
+            <input id="auth-name-input" type="text" placeholder="예) 홍길동" maxlength="10"
+                onkeydown="if(event.key==='Enter') submitAuthName()"
+                style="width: 100%; border: 1.5px solid #e5e8eb; border-radius: 10px;
+                padding: 13px 16px; font-size: 15px; font-family: inherit;
+                outline: none; color: #191f28; margin-bottom: 8px;
+                transition: border-color 0.15s;" />
+            <p id="auth-error" style="font-size: 12px; color: #f04452; min-height: 18px; margin-bottom: 16px;"></p>
+            <button onclick="submitAuthName()" style="
+                width: 100%; background: #3182f6; color: #fff;
+                border: none; border-radius: 10px; padding: 14px;
+                font-size: 15px; font-weight: 700; font-family: inherit;
+                cursor: pointer;">확인</button>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 
