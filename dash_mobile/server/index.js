@@ -665,6 +665,56 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
   }
 });
 
+// [Web] 2-5. 공유 링크 접근 전 상담원 이름 인증 (5회 실패 시 10분 잠금)
+const authAttempts = new Map(); // token -> { count, lockedUntil }
+
+app.post('/api/records/auth/:token', async (req, res) => {
+  const { token } = req.params;
+  const { name } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: '이름을 입력해주세요.' });
+  }
+
+  const attempts = authAttempts.get(token) || { count: 0, lockedUntil: null };
+  if (attempts.lockedUntil && Date.now() < attempts.lockedUntil) {
+    const remainingMin = Math.ceil((attempts.lockedUntil - Date.now()) / 60000);
+    return res.status(429).json({ error: `시도 횟수를 초과했습니다. ${remainingMin}분 후 다시 시도해주세요.`, locked: true });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT u.name as user_name FROM service_drafts s
+       JOIN cases c ON s.case_id = c.id
+       LEFT JOIN dash_users u ON c.user_id = u.id
+       WHERE s.share_token = ?`,
+      [token]
+    );
+
+    if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
+
+    const authorName = (rows[0].user_name || '').trim();
+    const inputName = name.trim();
+
+    if (inputName === authorName) {
+      authAttempts.delete(token);
+      return res.json({ verified: true });
+    }
+
+    attempts.count = (attempts.count || 0) + 1;
+    if (attempts.count >= 5) {
+      attempts.lockedUntil = Date.now() + 10 * 60 * 1000;
+      attempts.count = 0;
+      authAttempts.set(token, attempts);
+      return res.status(429).json({ error: '시도 횟수를 초과했습니다. 10분 후 다시 시도해주세요.', locked: true });
+    }
+    authAttempts.set(token, attempts);
+    return res.status(401).json({ error: '이름이 일치하지 않습니다.', remaining: 5 - attempts.count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // [Web] 3. 공유 토큰으로 모든 데이터 불러오기
 app.get('/api/records/share/:token', async (req, res) => {
   console.log(`\n🔗 [WEB ACCESS] Token: ${req.params.token}`);
@@ -887,21 +937,37 @@ app.post('/api/users/vault', verifyFirebaseAuth, async (req, res) => {
 app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   const { email } = req.query;
-  console.log(`\n🗑️ [USER DEletion] User ID: ${id}, Email: ${email}`);
+  console.log(`\n🗑️ [USER DELETION] User ID: ${id}, Email: ${email}`);
   try {
-    let query = 'DELETE FROM dash_users WHERE id = ?';
-    let params = [id];
-    if (email) {
-      query = 'DELETE FROM dash_users WHERE id = ? OR email = ?';
-      params = [id, email];
+    // 삭제 대상 user_id 목록 수집 (Firebase UID & Chrome OAuth ID 모두 포함)
+    const [targetRows] = await pool.query(
+      'SELECT id FROM dash_users WHERE id = ?' + (email ? ' OR email = ?' : ''),
+      email ? [id, email] : [id]
+    );
+
+    if (targetRows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
     }
-    // 모든 유저 데이터(사례, 볼트, 알림 등)는 Foreign Key ON DELETE CASCADE로 자동 삭제됨
-    const [result] = await pool.query(query, params);
-    if (result.affectedRows > 0) {
-      res.json({ success: true, message: 'User data deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'User not found' });
+
+    const targetIds = targetRows.map(r => r.id);
+
+    // cases FK가 ON DELETE SET NULL이라 service_drafts·cases를 명시적으로 삭제
+    for (const uid of targetIds) {
+      await pool.query(
+        'DELETE sd FROM service_drafts sd JOIN cases c ON sd.case_id = c.id WHERE c.user_id = ?',
+        [uid]
+      );
+      await pool.query('DELETE FROM cases WHERE user_id = ?', [uid]);
     }
+
+    // dash_users 삭제 (notifications, vault은 ON DELETE CASCADE로 자동 삭제)
+    const [result] = await pool.query(
+      'DELETE FROM dash_users WHERE id = ?' + (email ? ' OR email = ?' : ''),
+      email ? [id, email] : [id]
+    );
+
+    console.log(`✅ [USER DELETION] Deleted user + ${targetIds.length} uid(s), affected: ${result.affectedRows}`);
+    res.json({ success: true, message: 'User data deleted successfully' });
   } catch (err) {
     console.error('❌ User deletion error:', err.message);
     res.status(500).json({ error: err.message });
