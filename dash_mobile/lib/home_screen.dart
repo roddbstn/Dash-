@@ -11,6 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:dash_mobile/analytics_service.dart';
+import 'package:dash_mobile/vault_service.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:encrypt/encrypt.dart' as encrypt;
@@ -45,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // Real-time event subscription
   StreamSubscription? _eventSub;
+  StreamSubscription? _authSub; // 타 기기 계정 삭제 감지용
   bool _notificationsEnabled = true;
 
   // 로딩 / 네트워크 상태
@@ -57,9 +59,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     AnalyticsService.screenHome();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) AnalyticsService.setUser(uid);
     _loadData();
     _initRealtime();
     _setupFCM();
+
+    // 다른 기기에서 계정 삭제 시 이 기기도 즉시 로그아웃 처리
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user == null && mounted) {
+        _eventSub?.cancel();
+        StorageService.clearAllData().then((_) {
+          GoogleSignIn().signOut().catchError((_) {});
+        });
+      }
+    });
   }
 
   @override
@@ -69,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       AnalyticsService.appForegrounded();
       _initRealtime();
       _loadData();
+      VaultService.retryPendingKeys();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       debugPrint('💤 App backgrounded. Suspending SSE...');
@@ -81,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _eventSub?.cancel();
+    _authSub?.cancel();
     super.dispose();
   }
 
@@ -117,6 +133,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadData() async {
+    // 다른 기기에서 계정 삭제 시 currentUser가 null이 됨 — 즉시 중단
+    if (FirebaseAuth.instance.currentUser == null) return;
+
     // Debounce: if already loading, mark pending and return
     if (_isLoadingData) {
       _pendingLoadData = true;
@@ -164,6 +183,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (syncedAny) {
           await StorageService.saveDrafts(localDrafts);
           await StorageService.savePendingSyncs(remaining);
+          AnalyticsService.pendingSyncRetried(
+            successCount: pending.length - remaining.length,
+            failureCount: remaining.length,
+          );
           if (mounted) {
             setState(() {
               _drafts = localDrafts;
@@ -1086,37 +1109,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ? null
           : Container(
               margin: const EdgeInsets.only(bottom: 12),
-              child: ElevatedButton(
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CreateCaseScreen(),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(color: const Color(0xFFE5E8EB), width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(100),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(100),
+                  onTap: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CreateCaseScreen(),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadData();
+                      _showToast('사례를 생성하였어요. DB를 작성해보세요!');
+                    }
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    child: Text(
+                      '+ 사례 생성',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: AppColors.textMain,
+                      ),
                     ),
-                  );
-                  if (result == true) {
-                    _loadData();
-                    _showToast('사례를 생성하였어요. DB를 작성해보세요!');
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.textMain,
-                  surfaceTintColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(100),
-                    side: const BorderSide(color: Color(0xFFE5E8EB), width: 1),
-                  ),
-                  elevation: 4,
-                  shadowColor: Colors.black.withValues(alpha: 0.2),
-                ),
-                child: const Text(
-                  '+ 사례 생성',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                 ),
               ),
             ),
@@ -1262,7 +1294,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 String dateStr = '';
                 if (n['created_at'] != null) {
                   final dt = DateTime.parse(n['created_at']).toLocal();
-                  dateStr = DateFormat('MM/dd HH:mm').format(dt);
+                  const days = ['월', '화', '수', '목', '금', '토', '일'];
+                  final dayName = days[dt.weekday - 1];
+                  dateStr = '${dt.month}.${dt.day} ($dayName) ${DateFormat('HH:mm').format(dt)}';
                 }
 
                 final String? nToken = n['record_token'];
@@ -1412,10 +1446,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _fetchUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    // Firebase Auth displayName 또는 로컬 닉네임 우선 표시
     if (_userName == null) {
-      setState(() {
-        _userName = user.displayName;
-      });
+      final localNickname = await StorageService.getUserNickname();
+      if (mounted) {
+        setState(() {
+          _userName = user.displayName?.isNotEmpty == true
+              ? user.displayName
+              : localNickname;
+        });
+      }
     }
     try {
       final serverUser = await ApiService.fetchUser(user.uid);
@@ -1441,7 +1481,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           '이름 수정',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
-        content: TextField(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '입력한 성함은 공유된 DB에 \'작성자\'로 표시됩니다.\n정확한 실명을 입력해주세요.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF8B95A1), height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            TextField(
           controller: controller,
           maxLength: 10, // ✅ 최대 10글자 제한
           decoration: const InputDecoration(
@@ -1457,6 +1506,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           autofocus: true,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -2800,6 +2851,7 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
   double _dragOffset = 0;
   static const double _maxSwipe = 90.0;
   bool _isCardPressed = false;
+  bool _isSharePressed = false;
 
   @override
   void initState() {
@@ -3032,16 +3084,32 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Expanded(
-                                    child: Text(
-                                      '${widget.d['caseName']} 아동',
-                                      style: const TextStyle(
-                                        color: Color(0xFF222222),
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: -0.5,
-                                      ),
+                                    child: RichText(
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
+                                      text: TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text: '${widget.d['caseName']} 아동',
+                                            style: const TextStyle(
+                                              color: Color(0xFF222222),
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: -0.5,
+                                            ),
+                                          ),
+                                          if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
+                                            TextSpan(
+                                              text: '  ${widget.d['dong']}',
+                                              style: const TextStyle(
+                                                color: Color(0xFFB0B8C1),
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w400,
+                                                letterSpacing: -0.2,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -3085,16 +3153,32 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    '${widget.d['caseName']} 아동',
-                                    style: const TextStyle(
-                                      color: Color(0xFF222222),
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.5,
-                                    ),
+                                  child: RichText(
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
+                                    text: TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: '${widget.d['caseName']} 아동',
+                                          style: const TextStyle(
+                                            color: Color(0xFF222222),
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -0.5,
+                                          ),
+                                        ),
+                                        if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
+                                          TextSpan(
+                                            text: '  ${widget.d['dong']}',
+                                            style: const TextStyle(
+                                              color: Color(0xFFB0B8C1),
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w400,
+                                              letterSpacing: -0.2,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -3120,21 +3204,41 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                 const SizedBox(width: 12),
                                 GestureDetector(
                                   onTap: _copyShareLink,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 7,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Text(
-                                      '공유',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
+                                  onTapDown: (_) => setState(() => _isSharePressed = true),
+                                  onTapUp: (_) => setState(() => _isSharePressed = false),
+                                  onTapCancel: () => setState(() => _isSharePressed = false),
+                                  child: AnimatedScale(
+                                    scale: _isSharePressed ? 0.95 : 1.0,
+                                    duration: const Duration(milliseconds: 100),
+                                    curve: Curves.easeOutCubic,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 100),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 18,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _isSharePressed
+                                            ? Color.lerp(AppColors.primary, Colors.black, 0.1)
+                                            : AppColors.primary,
+                                        borderRadius: BorderRadius.circular(100),
+                                        boxShadow: _isSharePressed
+                                            ? []
+                                            : [
+                                                BoxShadow(
+                                                  color: AppColors.primary.withValues(alpha: 0.25),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 3),
+                                                ),
+                                              ],
+                                      ),
+                                      child: const Text(
+                                        '공유',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
                                   ),
