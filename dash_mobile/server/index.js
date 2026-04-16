@@ -322,7 +322,7 @@ app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
 // [Mobile] 2. 상담 기록(Draft) 서버로 동기화
 app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
   const {
-    case_id, case_name, dong, user_id, user_email, user_name, target, provision_type, method, service_type, service_name,
+    case_id, case_name, dong, user_id, user_email, user_name, target, provision_type, method, service_type, service_category, service_name,
     location, start_time, end_time, service_count, travel_time,
     service_description, agent_opinion, encrypted_blob, share_token: client_share_token
   } = req.body;
@@ -406,23 +406,24 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
       if (existing.length > 0) {
         recordId = existing[0].id;
         await pool.query(
-          `UPDATE service_drafts SET 
-            status='Synced', 
-            provision_type=?, 
-            method=?, 
-            service_type=?, 
-            service_name=?, 
-            location=?, 
-            start_time=?, 
-            end_time=?, 
-            service_count=?, 
-            travel_time=?, 
+          `UPDATE service_drafts SET
+            status='Synced',
+            provision_type=?,
+            method=?,
+            service_type=?,
+            service_category=?,
+            service_name=?,
+            location=?,
+            start_time=?,
+            end_time=?,
+            service_count=?,
+            travel_time=?,
             service_description=?,
             agent_opinion=?,
             encrypted_blob=?,
             target=?
           WHERE id=?`,
-          [provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', recordId]
+          [provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', recordId]
         );
         console.log(`🔄 Record updated successfully (DB ID: ${recordId})`);
       }
@@ -431,10 +432,10 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
     if (!recordId) {
       share_token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
       const [result] = await pool.query(
-        `INSERT INTO service_drafts 
-        (case_id, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
-        [case_id, provision_type, method, service_type, service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token]
+        `INSERT INTO service_drafts
+        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
+        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token]
       );
       recordId = result.insertId;
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);
@@ -995,6 +996,18 @@ app.listen(port, '0.0.0.0', () => {
 // - 상담 기록(service_drafts): 아동복지법 제28조 → 5년 보존 후 파기
 // - 알림(notifications): 1년 보존 후 파기
 // ============================================================
+async function ensureSchemaUpdates() {
+  try {
+    await pool.query(`
+      ALTER TABLE service_drafts
+      ADD COLUMN IF NOT EXISTS service_category VARCHAR(100) DEFAULT '' COMMENT '서비스세부목표(대분류)'
+    `);
+    console.log('✅ service_drafts.service_category 컬럼 확인 완료');
+  } catch (err) {
+    console.warn('⚠️  service_category 컬럼 추가 실패:', err.message);
+  }
+}
+
 async function ensureRetentionLogTable() {
   try {
     await pool.query(`
@@ -1064,3 +1077,6 @@ cron.schedule('0 2 * * *', runRetentionPurge, {
   timezone: 'Asia/Seoul',
 });
 console.log('⏰ 개인정보 자동 파기 스케줄러 등록 완료 (매일 02:00 KST)');
+
+// 서버 시작 시 DB 스키마 업데이트
+ensureSchemaUpdates();

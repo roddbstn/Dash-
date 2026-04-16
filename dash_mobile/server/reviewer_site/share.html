@@ -18,11 +18,7 @@
             <div class="header-left">
             </div>
             <div class="header-right">
-                <div class="status-indicator">
-                    <span class="pulse-dot"></span>
-                    <span class="status-text">검토 대기</span>
-                </div>
-                <button class="btn btn-action" onclick="openNotifyModal()">완료 알림</button>
+                <button class="btn btn-action" onclick="openNotifyModal()">저장 알림</button>
             </div>
         </header>
 
@@ -66,7 +62,7 @@
                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                             <h1 id="page-title" style="font-size: 26px;">강O수 아동 사례</h1>
                             <!-- Status moved here -->
-                            <div id="save-status" class="save-status">방금 저장됨</div>
+                            <div id="save-status" class="save-status"></div>
                         </div>
                         <div class="editor-meta">
                             <span id="author-name">강윤수 상담원 작성</span>
@@ -89,17 +85,17 @@
 
         <!-- Bottom CTA Button (Mobile) -->
         <div class="mobile-cta-container">
-            <button class="btn btn-primary-full" onclick="openNotifyModal()">검토 완료 알림 보내기</button>
+            <button class="btn btn-primary-full" onclick="openNotifyModal()">수정 내용 저장하고 알리기</button>
         </div>
 
         <!-- Notifications & Modals -->
         <div id="modal-container" class="modal-backdrop">
             <div class="modal">
-                <h2>검토 리포트 알림</h2>
-                <p>수정된 내용을 담당자에게 알리고 검토를 완료할까요?</p>
+                <h2>공유 메모 저장</h2>
+                <p>수정한 내용을 저장하고 담당자에게 알릴까요?</p>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" onclick="closeModal()">취소</button>
-                    <button class="btn btn-primary" onclick="confirmNotify()">알림 보내기</button>
+                    <button class="btn btn-primary" onclick="confirmNotify()">저장하기</button>
                 </div>
             </div>
         </div>

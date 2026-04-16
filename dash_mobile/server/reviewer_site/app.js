@@ -288,7 +288,8 @@ window.onload = () => {
         return;
     }
 
-    // 인증 모달 표시 (데이터 fetch 없음)
+    // 인증 모달 명시적 표시 (데이터 fetch 없음)
+    document.getElementById('auth-modal').style.display = 'flex';
     document.getElementById('auth-name-input').focus();
 };
 
@@ -301,28 +302,10 @@ function updateUI(data) {
         authorEl.textContent = `${data.user_name || '관리자'} 상담원 작성`;
     }
     
-    // Status badges update
-    const isReviewed = data.status === 'Reviewed';
-    const statusText = isReviewed ? '검토 완료' : '검토 대기';
-    const statusColor = isReviewed ? '#4CAF50' : '#2196F3';
-    const statusBg = isReviewed ? '#E8F5E9' : '#E3F2FD';
-    
-    const headerStatus = document.querySelector('.main-header .status-indicator');
-    if (headerStatus) {
-        headerStatus.style.background = statusBg;
-        headerStatus.querySelector('.pulse-dot').style.background = statusColor;
-        const textEl = headerStatus.querySelector('.status-text');
-        textEl.textContent = statusText;
-        textEl.style.color = statusColor;
-    }
-
     const mobileTag = document.getElementById('mobile-child-tag');
     if (mobileTag) {
         mobileTag.innerHTML = `
-            <div class="status-indicator" style="display: inline-flex; background: ${statusBg}; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 100px; width: fit-content;">
-                <span class="pulse-dot" style="background: ${statusColor}; width: 6px; height: 6px; border-radius: 50%;"></span>
-                <span class="status-text" style="color: ${statusColor}; font-weight: 700; font-size: 13px; white-space: nowrap;">${statusText}</span>
-            </div>
+            <span style="font-size: 13px; font-weight: 600; color: #4e5968;">${data.user_name || '담당자'} 작성</span>
         `;
     }
     
