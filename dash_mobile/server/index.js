@@ -984,10 +984,19 @@ app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
-app.listen(port, '0.0.0.0', () => {
+const server = app.listen(port, '0.0.0.0', () => {
   console.log(`\n========================================`);
   console.log(`🚀 Dash Server running on 0.0.0.0:${port}`);
   console.log(`========================================\n`);
+});
+
+// Graceful shutdown — Railway/Docker가 SIGTERM을 보낼 때 정상 종료
+process.on('SIGTERM', () => {
+  console.log('⚡ SIGTERM received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed.');
+    process.exit(0);
+  });
 });
 
 // ============================================================
