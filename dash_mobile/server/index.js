@@ -998,11 +998,21 @@ app.listen(port, '0.0.0.0', () => {
 // ============================================================
 async function ensureSchemaUpdates() {
   try {
-    await pool.query(`
-      ALTER TABLE service_drafts
-      ADD COLUMN IF NOT EXISTS service_category VARCHAR(100) DEFAULT '' COMMENT '서비스세부목표(대분류)'
+    const [columns] = await pool.query(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'service_drafts'
+        AND COLUMN_NAME = 'service_category'
     `);
-    console.log('✅ service_drafts.service_category 컬럼 확인 완료');
+    if (columns.length === 0) {
+      await pool.query(`
+        ALTER TABLE service_drafts
+        ADD COLUMN service_category VARCHAR(100) DEFAULT '' COMMENT '서비스세부목표(대분류)'
+      `);
+      console.log('✅ service_drafts.service_category 컬럼 추가 완료');
+    } else {
+      console.log('✅ service_drafts.service_category 컬럼 이미 존재');
+    }
   } catch (err) {
     console.warn('⚠️  service_category 컬럼 추가 실패:', err.message);
   }
