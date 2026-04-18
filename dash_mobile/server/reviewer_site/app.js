@@ -59,7 +59,9 @@ function closeModal() {
 function confirmNotify() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
-    const encKey = window.location.hash.substring(1); // Get key from fragment
+    // 쿼리 파라미터 ?key= 우선, fragment #key 폴백
+    const _qp = new URLSearchParams(window.location.search);
+    const encKey = _qp.get('key') || window.location.hash.substring(1);
 
     if (!token) {
         alert('토큰 정보가 없어 완료할 수 없습니다.');
@@ -218,10 +220,18 @@ function showEncryptionNotice(reason) {
 
 function loadRecord(token) {
     let encKey = "";
-    const hash = window.location.hash.substring(1);
-    if (hash) {
-        const parts = hash.split('key=');
-        encKey = parts.length > 1 ? parts[1] : parts[0];
+    // 1) 쿼리 파라미터 ?key= 우선 (메시지 앱이 fragment를 제거하는 경우 대응)
+    const urlParams = new URLSearchParams(window.location.search);
+    const qKey = urlParams.get('key');
+    if (qKey) {
+        encKey = qKey;
+    } else {
+        // 2) 이전 방식 호환: URL fragment #key 또는 #KEY
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+            const parts = hash.split('key=');
+            encKey = parts.length > 1 ? parts[1] : parts[0];
+        }
     }
 
     fetch(`${window.location.origin}/api/records/share/${token}`)

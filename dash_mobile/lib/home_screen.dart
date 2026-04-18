@@ -18,6 +18,7 @@ import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/privacy_policy_screen.dart';
+import 'package:dash_mobile/security_detail_screen.dart';
 import 'package:dash_mobile/terms_screen.dart';
 import 'package:dash_mobile/user_guide_screen.dart';
 
@@ -64,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadData();
     _initRealtime();
     _setupFCM();
+    _fetchUserProfile();
 
     // 다른 기기에서 계정 삭제 시 이 기기도 즉시 로그아웃 처리
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
@@ -236,8 +238,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final localIdx = localDrafts.indexWhere((l) {
             final String? localToken = l['share_token'];
             final String localId = l['id'].toString();
+            final bool isUnsynced = localToken == null || localToken.isEmpty;
             return (serverToken != null && serverToken == localToken) ||
-                (serverId == localId);
+                (serverId == localId) ||
+                (isUnsynced && l['caseName'] == s['case_name']);
           });
 
           if (localIdx != -1) {
@@ -1841,19 +1845,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 보안상 바로 삭제가 안 될 수 있지만, 서버 데이터는 위에서 지웠으므로 진행
       }
 
-      // [3] 세션 파괴 (가장 중요: 다음에 계정 선택창이 뜨도록)
-      // signOut() 전에 토스트 표시 — signOut 후 context가 unmount될 수 있음
-      if (mounted) _showToast('계정이 정상적으로 탈퇴되었습니다.');
+      // [3] 세션 파괴 및 로컬 데이터 초기화
+      await StorageService.clearAllData();
       await GoogleSignIn().disconnect().catchError((_) => null);
       await GoogleSignIn().signOut().catchError((_) => null);
       await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        _showToast('계정이 정상적으로 탈퇴되었습니다.');
+        Navigator.of(context).pushNamedAndRemoveUntil('/onboarding', (route) => false);
+      }
     } catch (e) {
       debugPrint('❌ Account deletion error: $e');
-      // 에러 발생 시에도 일단 세션은 강제 종료
-      if (mounted) _showToast('탈퇴 및 로그아웃이 완료되었습니다.');
+      await StorageService.clearAllData();
       await GoogleSignIn().disconnect().catchError((_) => null);
       await GoogleSignIn().signOut().catchError((_) => null);
       await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        _showToast('탈퇴 및 로그아웃이 완료되었습니다.');
+        Navigator.of(context).pushNamedAndRemoveUntil('/onboarding', (route) => false);
+      }
     }
   }
 
@@ -1884,9 +1894,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 borderRadius: BorderRadius.circular(20),
               ),
               contentPadding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 0),
-              actionsPadding: const EdgeInsets.only(right: 16, bottom: 8),
+              actionsPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+              actionsAlignment: MainAxisAlignment.spaceBetween,
               title: const Text(
-                '보안 PIN 관리',
+                '보안 PIN 설정',
                 style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
               ),
               content: Column(
@@ -1939,6 +1950,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
               actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SecurityDetailScreen()),
+                    );
+                  },
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                  child: const Text(
+                    '→ 왜 설정하나요?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
                   child: const Text(
@@ -2301,9 +2330,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildCtaCard(),
-                      const SizedBox(height: 12),
+                      _buildUserGreeting(),
+                      if (_userName != null && _userName!.trim().isNotEmpty)
+                        const SizedBox(height: 8),
                       _InfoBanner(),
+                      const SizedBox(height: 12),
+                      _buildCtaCard(),
                     ],
                   ),
                 ),
@@ -2447,11 +2479,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildUserGreeting() {
+    if (_userName == null || _userName!.trim().isEmpty) return const SizedBox.shrink();
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: _userName,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF222222),
+              letterSpacing: -0.4,
+            ),
+          ),
+          const TextSpan(
+            text: '님',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w400,
+              color: Color(0xFF8B95A1),
+              letterSpacing: -0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGuideAndCta() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildUserGreeting(),
+        if (_userName != null && _userName!.trim().isNotEmpty)
+          const SizedBox(height: 20),
         _InfoBanner(),
         const SizedBox(height: 15),
         _buildCtaCard(),
@@ -2876,9 +2939,30 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
     final token = widget.d['share_token']?.toString();
     final key = widget.d['encryption_key']?.toString();
     if (token != null && token.isNotEmpty) {
+      // 암호화 키 없는 레코드 공유 시 경고 (리뷰어 사이트에서 내용 복호화 불가)
+      if ((key == null || key.isEmpty) && mounted) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('주의', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            content: const Text(
+              '이 레코드의 암호화 키를 찾을 수 없어\n서비스 내용·상담원 소견이 리뷰어 화면에 표시되지 않을 수 있습니다.\n\n앱을 재설치했거나 다른 기기에서 생성된 경우 발생합니다.',
+              style: TextStyle(fontSize: 14, height: 1.5),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('그래도 공유', style: TextStyle(color: AppColors.primary))),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
       final host = ApiService.serverUrl;
-      final keyFragment = (key != null && key.isNotEmpty) ? '#$key' : '';
-      await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyFragment'));
+      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
+      await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('링크가 복사되었습니다.', textAlign: TextAlign.center),
@@ -3094,7 +3178,7 @@ class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
                                             style: const TextStyle(
                                               color: Color(0xFF222222),
                                               fontSize: 18,
-                                              fontWeight: FontWeight.w800,
+                                              fontWeight: FontWeight.w900,
                                               letterSpacing: -0.5,
                                             ),
                                           ),

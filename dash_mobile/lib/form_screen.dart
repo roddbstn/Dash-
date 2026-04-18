@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -5,12 +6,15 @@ import 'package:flutter/services.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:dash_mobile/widgets/provision_date_time_picker.dart';
 import 'package:dash_mobile/api_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dash_mobile/widgets/dash_button.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:dash_mobile/analytics_service.dart';
+import 'package:dash_mobile/crash_service.dart';
+import 'package:dash_mobile/vault_service.dart';
+import 'package:dash_mobile/service_data.dart';
 
 class FormScreen extends StatefulWidget {
   final dynamic caseId;
@@ -18,6 +22,8 @@ class FormScreen extends StatefulWidget {
   final String dong;
   final int? draftId;
   final bool isEmbedded;
+  final VoidCallback? onSyncComplete;
+  final String? userName;
 
   const FormScreen({
     super.key,
@@ -26,6 +32,8 @@ class FormScreen extends StatefulWidget {
     required this.dong,
     this.draftId,
     this.isEmbedded = false,
+    this.onSyncComplete,
+    this.userName,
   });
 
   @override
@@ -38,7 +46,8 @@ class _FormScreenState extends State<FormScreen> {
   String _selectedProvisionType = '제공';
   String _selectedMethod = '방문';
   String _selectedServiceType = '아보전';
-  String _selectedService = '아동권리교육';
+  String _selectedServiceCategory = '아동학대대상자 및 가족 지원';
+  String _selectedService = '아동 안전점검 및 상담';
   String _selectedLocation = '기관내';
   int _travelTime = 30;
   DateTime? _startDate;
@@ -61,6 +70,7 @@ class _FormScreenState extends State<FormScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.screenForm();
     _travelTimeController.text = ""; 
     if (widget.draftId != null) {
       _loadDraftData();
@@ -80,10 +90,6 @@ class _FormScreenState extends State<FormScreen> {
     super.dispose();
   }
 
-  final List<String> _serviceOptions = [
-    '의류지원', '성폭력(예방)교육', '사례회의', '아동 양육기술 상담/교육', '식품지원', '아동권리교육',
-    '외부기관연계지원', '복지서비스정보물제공', '안전교육', '아동 안전점검 및 상담', '사건처리 및 절차지원', '학대예방교육'
-  ];
 
   Future<void> _loadDraftData() async {
     final drafts = await StorageService.getDrafts();
@@ -110,6 +116,7 @@ class _FormScreenState extends State<FormScreen> {
         _selectedProvisionType = draft['provision_type'] ?? '제공';
         _selectedServiceType = draft['service_type'] ?? '아보전';
         _selectedService = draft['service_name'] ?? '아동권리교육';
+        _selectedServiceCategory = draft['service_category'] ?? findServiceCategory(_selectedService);
         _selectedLocation = draft['location'] ?? '기관내';
         if (_selectedLocation != '기관내' && _selectedLocation != '아동가정' && _selectedLocation != '유관기관') {
            _showOtherLocationField = true;
@@ -134,6 +141,8 @@ class _FormScreenState extends State<FormScreen> {
   }
 
   void _handleSave() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
     final drafts = await StorageService.getDrafts();
     
     List<String> finalTargets = _selectedTargets.where((t) => t != '기타').toList();
@@ -165,10 +174,12 @@ class _FormScreenState extends State<FormScreen> {
     final draftData = {
       'id': widget.draftId ?? DateTime.now().millisecondsSinceEpoch,
       'caseName': widget.caseName,
+      'dong': widget.dong,
       'target': targetValue,
       'provision_type': _selectedProvisionType,
       'method': _selectedMethod,
       'service_type': _selectedServiceType,
+      'service_category': _selectedServiceCategory,
       'service_name': _selectedService,
       'location': _selectedLocation == '기타' ? _otherLocationController.text : _selectedLocation,
       'datetime': dateTimeString,
@@ -184,7 +195,7 @@ class _FormScreenState extends State<FormScreen> {
 
     final key = encrypt.Key.fromUtf8(encryptionKey.padRight(32).substring(0, 32));
     final iv = encrypt.IV.fromLength(16);
-    final encrypter = encrypt.Encrypter(encrypt.AES(key));
+    final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
     final encrypted = encrypter.encrypt(jsonEncode(draftData), iv: iv);
     final encryptedBlob = "${iv.base64}:${encrypted.base64}";
 
@@ -197,21 +208,18 @@ class _FormScreenState extends State<FormScreen> {
     }
 
     await StorageService.saveDrafts(drafts);
-    setState(() => _isLoading = true);
-    
+
     final String targetFullList = finalTargets.isNotEmpty ? finalTargets.join(', ') : '-';
 
     final userId = await StorageService.getUserId();
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
 
-    // [Security] 1. PIN Check & Vault Sync
+    // [Security] PIN 확인 (로컬, 빠름)
     String? pin = await StorageService.getPin();
     if (pin == null) {
       pin = await _showPinSetupDialog();
-      if (pin == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
+      if (pin != null) AnalyticsService.pinSet();
+      if (pin == null) return;
     }
 
     final serverDraftData = {
@@ -220,26 +228,62 @@ class _FormScreenState extends State<FormScreen> {
       'dong': widget.dong,
       'user_id': userId,
       'user_email': userEmail,
-      'target': targetFullList, // ✅ 모든 대상자가 리뷰어 사이트에서 보이도록 전체 전송
+      'user_name': widget.userName,
+      'target': targetFullList,
       'provision_type': _selectedProvisionType,
       'method': _selectedMethod,
       'service_type': _selectedServiceType,
+      'service_category': _selectedServiceCategory,
       'service_name': _selectedService,
       'location': _selectedLocation == '기타' ? _otherLocationController.text : _selectedLocation,
       'start_time': _startDate?.toIso8601String(),
       'end_time': _endDate?.toIso8601String(),
       'service_count': int.tryParse(_serviceCountController.text) ?? 1,
       'travel_time': _travelTime,
-      'service_description': '', // ✅ 민감 정보 비우기 (보안 강화)
-      'agent_opinion': '',       // ✅ 민감 정보 비우기 (보안 강화)
+      'service_description': '',
+      'agent_opinion': '',
       'encrypted_blob': encryptedBlob,
       'share_token': _currentDraft?['share_token'],
     };
-    
+
+    // 로컬 저장 완료 → 즉시 홈으로 전환, 서버 동기화는 백그라운드에서 진행
+    if (mounted) Navigator.pop(context, true);
+
+    // [Background] 서버 동기화 (화면 전환 후 실행)
+    _syncRecordInBackground(
+      userId: userId,
+      pin: pin,
+      targetId: targetId,
+      serverDraftData: serverDraftData,
+      encryptionKey: encryptionKey,
+      provisionType: _selectedProvisionType,
+      targetFullList: targetFullList,
+      hasServiceDescription: _serviceController.text.isNotEmpty,
+      hasAgentOpinion: _opinionController.text.isNotEmpty,
+    );
+  }
+
+  Future<void> _syncRecordInBackground({
+    required String userId,
+    required String pin,
+    required int targetId,
+    required Map<String, dynamic> serverDraftData,
+    required String encryptionKey,
+    required String provisionType,
+    required String targetFullList,
+    required bool hasServiceDescription,
+    required bool hasAgentOpinion,
+  }) async {
+    try {
     final shareToken = await ApiService.syncRecord(serverDraftData);
     if (shareToken != null) {
-      // [Security] 2. Sync Key to User's Vault - share_token을 키로 사용 (확장앱이 share_token으로 레코드를 식별)
-      await _syncKeyToVault(userId, shareToken, encryptionKey, pin);
+      AnalyticsService.recordSaved(
+        provisionType: provisionType,
+        target: targetFullList,
+        hasServiceDescription: hasServiceDescription,
+        hasAgentOpinion: hasAgentOpinion,
+      );
+      AnalyticsService.recordSyncSuccess();
 
       final updatedDrafts = await StorageService.getDrafts();
       final idx = updatedDrafts.indexWhere((d) => d['id'].toString() == targetId.toString());
@@ -247,22 +291,23 @@ class _FormScreenState extends State<FormScreen> {
         updatedDrafts[idx]['share_token'] = shareToken;
         updatedDrafts[idx]['status'] = 'Synced';
         await StorageService.saveDrafts(updatedDrafts);
-        setState(() { _currentDraft = updatedDrafts[idx]; });
       }
+      unawaited(_syncKeyToVault(userId, shareToken, encryptionKey, pin));
+      // 동기화 완료 → 홈화면에서 _loadData() 트리거 (share_token 저장 후 호출)
+      widget.onSyncComplete?.call();
     } else {
+      AnalyticsService.recordSyncFailure('no_share_token');
       final pending = await StorageService.getPendingSyncs();
       serverDraftData['client_draft_id'] = targetId;
       pending.add(serverDraftData);
       await StorageService.savePendingSyncs(pending);
+      // 오프라인 큐 저장 후에도 콜백 (홈화면 로컬 상태 갱신)
+      widget.onSyncComplete?.call();
     }
-    
-    setState(() => _isLoading = false);
-    if (mounted) {
-      if (shareToken != null) {
-         Navigator.pop(context, true);
-      } else {
-        _showSuccessDialog(true);
-      }
+    } catch (e, stack) {
+      CrashService.recordError(e, stack, reason: 'syncRecordInBackground');
+      AnalyticsService.recordSyncFailure('unexpected_error');
+      widget.onSyncComplete?.call();
     }
   }
 
@@ -279,7 +324,7 @@ class _FormScreenState extends State<FormScreen> {
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('개인정보 보안 설정 (PIN 번호)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          title: const Text('개인정보 보안 (PIN 번호 4자리)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,34 +380,152 @@ class _FormScreenState extends State<FormScreen> {
   // [Security] Sync Encryption Key to User's Vault (E2EE)
   Future<void> _syncKeyToVault(String userId, String recordId, String keyStr, String pin) async {
     try {
-      final vaultResponse = await ApiService.fetchVault(userId);
-      Map<String, dynamic> keyMap = {};
-      String? salt = vaultResponse?['salt'] ?? userId;
-
-      if (vaultResponse != null && vaultResponse['encrypted_vault'] != null) {
-        try {
-          final vaultKey = encrypt.Key.fromUtf8(pin.padRight(32).substring(0, 32));
-          final iv = encrypt.IV.fromLength(16);
-          final encrypter = encrypt.Encrypter(encrypt.AES(vaultKey));
-          
-          final parts = vaultResponse['encrypted_vault'].split(':');
-          final decrypted = encrypter.decrypt(encrypt.Encrypted.fromBase64(parts[1]), iv: encrypt.IV.fromBase64(parts[0]));
-          keyMap = jsonDecode(decrypted) as Map<String, dynamic>;
-        } catch (e) {
-          debugPrint('🔒 Sync Log: Creating new vault/Resetting due to PIN mismatch');
-        }
-      }
-
-      keyMap[recordId] = keyStr;
-      final vaultKey = encrypt.Key.fromUtf8(pin.padRight(32).substring(0, 32));
-      final iv = encrypt.IV.fromLength(16);
-      final encrypter = encrypt.Encrypter(encrypt.AES(vaultKey));
-      final encrypted = encrypter.encrypt(jsonEncode(keyMap), iv: iv);
-      final encryptedVaultBlob = "${iv.base64}:${encrypted.base64}";
-      await ApiService.saveVault(userId, encryptedVaultBlob, salt);
-    } catch (e) {
-      debugPrint('❌ Error syncing to vault: $e');
+      await VaultService.syncKey(userId, recordId, keyStr, pin);
+    } catch (e, stack) {
+      debugPrint('❌ Vault sync failed, queuing for retry: $e');
+      CrashService.recordError(e, stack, reason: 'syncKeyToVault');
+      await VaultService.enqueueFailedKey(
+        userId: userId,
+        recordId: recordId,
+        encryptionKey: keyStr,
+      );
     }
+  }
+
+  void _showServicePicker() {
+    String tempCategory = _selectedServiceCategory;
+    String tempService = _selectedService;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          final services = kServiceCategories[tempCategory] ?? [];
+          return SizedBox(
+            height: MediaQuery.of(context).size.height
+                - MediaQuery.of(context).padding.top
+                - kToolbarHeight
+                - 8,
+            child: Column(
+              children: [
+                // 헤더
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('제공서비스 선택',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedServiceCategory = tempCategory;
+                            _selectedService = tempService;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('완료',
+                            style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15)),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 좌: 대분류
+                      SizedBox(
+                        width: 185,
+                        child: ListView(
+                          children: kServiceCategories.keys.map((cat) {
+                            final isActive = cat == tempCategory;
+                            return InkWell(
+                              onTap: () => setModal(() {
+                                tempCategory = cat;
+                                if (!kServiceCategories[cat]!.contains(tempService)) {
+                                  tempService = kServiceCategories[cat]!.first;
+                                }
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 13),
+                                color: isActive
+                                    ? AppColors.primaryLight
+                                    : Colors.transparent,
+                                child: Text(
+                                  cat,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: isActive
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    color: isActive
+                                        ? AppColors.primary
+                                        : AppColors.textMain,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const VerticalDivider(width: 1),
+                      // 우: 소분류
+                      Expanded(
+                        child: ListView(
+                          children: services.map((svc) {
+                            final isActive = svc == tempService;
+                            return InkWell(
+                              onTap: () => setModal(() => tempService = svc),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 13),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        svc,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: isActive
+                                              ? FontWeight.w700
+                                              : FontWeight.w400,
+                                          color: isActive
+                                              ? AppColors.primary
+                                              : AppColors.textMain,
+                                        ),
+                                      ),
+                                    ),
+                                    if (isActive)
+                                      const Icon(Icons.check,
+                                          size: 16, color: AppColors.primary),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _showSuccessDialog(bool isOffline) {
@@ -407,9 +570,9 @@ class _FormScreenState extends State<FormScreen> {
                   DashButton(
                     onTap: () { 
                       Navigator.pop(context); 
-                      _showShareModal(); 
+                      _copyShareLink(); 
                     }, 
-                    text: '공유하기', 
+                    text: '링크 복사하기', 
                     backgroundColor: AppColors.primary, 
                     height: 54
                   ),
@@ -436,84 +599,30 @@ class _FormScreenState extends State<FormScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message, textAlign: TextAlign.center), backgroundColor: Colors.black87, behavior: SnackBarBehavior.floating));
   }
 
-  void _showShareModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('공유하기', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildImageShareItem(
-                    label: '오피스메신저',
-                    imagePath: 'assets/images/office_messenger.png',
-                    onTap: () {
-                      Navigator.pop(context);
-                      final String token = _currentDraft?['share_token'] ?? '';
-                      final String key = _currentDraft?['encryption_key'] ?? '';
-                      final String host = ApiService.baseUrl.replaceAll('/api', '');
-                      final url = "$host/?token=$token${key.isNotEmpty ? '#$key' : ''}";
-                      SharePlus.instance.share(ShareParams(text: '[${widget.caseName} 서비스 제공 DB]\n\n$url'));
-                    },
-                  ),
-                  _buildShareItem(label: '링크 복사', icon: Icons.link, color: const Color(0xFFF2F4F6), iconColor: AppColors.textMain, onTap: () {
-                    Navigator.pop(context);
-                    final String token = _currentDraft?['share_token'] ?? '';
-                    final String key = _currentDraft?['encryption_key'] ?? '';
-                    final String host = ApiService.baseUrl.replaceAll('/api', '');
-                    if (token.isNotEmpty) {
-                      Clipboard.setData(ClipboardData(text: "$host/?token=$token${key.isNotEmpty ? '#$key' : ''}"));
-                      _showToast('링크가 복사되었습니다.');
-                    } else {
-                       _showToast('저장이 필요합니다.');
-                    }
-                  }),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  Future<void> _copyShareLink() async {
+    String? token = _currentDraft?['share_token'];
+    String? key = _currentDraft?['encryption_key'];
+    // 백그라운드 sync가 완료됐을 수 있으므로 스토리지에서 최신 값 재조회
+    if ((token == null || token.isEmpty || key == null || key.isEmpty) && widget.draftId != null) {
+      final drafts = await StorageService.getDrafts();
+      final fresh = drafts.firstWhere(
+        (d) => d['id'].toString() == widget.draftId.toString(),
+        orElse: () => null,
+      );
+      token = fresh?['share_token'] ?? token;
+      key = fresh?['encryption_key'] ?? key;
+    }
+    final String host = ApiService.baseUrl.replaceAll('/api', '');
+    if (token != null && token.isNotEmpty) {
+      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
+      Clipboard.setData(ClipboardData(text: "$host/?token=$token$keyParam"));
+      AnalyticsService.linkCopied();
+      _showToast('링크가 복사되었습니다.');
+    } else {
+      _showToast('저장이 필요합니다.');
+    }
   }
 
-  Widget _buildImageShareItem({required String label, required String imagePath, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.asset(imagePath, width: 56, height: 56, fit: BoxFit.cover),
-          ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSub)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildShareItem({required String label, required IconData icon, required Color color, required Color iconColor, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(width: 56, height: 56, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16)), child: Icon(icon, color: iconColor)),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSub)),
-        ],
-      ),
-    );
-  }
 
   Future<void> _selectDateTime() async {
     final result = await showModalBottomSheet<Map<String, DateTime>>(
@@ -565,7 +674,7 @@ class _FormScreenState extends State<FormScreen> {
           title: Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           centerTitle: true,
           actions: [
-            if (widget.draftId != null) IconButton(icon: const Icon(Icons.ios_share, size: 22), onPressed: _showShareModal),
+            if (widget.draftId != null) IconButton(icon: const Icon(Icons.ios_share, size: 24), onPressed: _copyShareLink),
           ],
         ),
         body: _isLoading
@@ -613,10 +722,10 @@ class _FormScreenState extends State<FormScreen> {
             if (widget.draftId != null) ...[
               if (showBackButton)
                 GestureDetector(
-                  onTap: _showShareModal,
+                  onTap: _copyShareLink,
                   child: const Padding(
                     padding: EdgeInsets.only(right: 8),
-                    child: Icon(Icons.ios_share, size: 20, color: AppColors.textSub),
+                    child: Icon(Icons.ios_share, size: 22, color: AppColors.textSub),
                   ),
                 ),
               Container(
@@ -694,7 +803,28 @@ class _FormScreenState extends State<FormScreen> {
       _buildSection(label: '제공구분', child: Wrap(spacing: 8, children: ['제공', '부가업무', '거부'].map((t) => _buildChip(t, _selectedProvisionType == t, (val) => setState(() => _selectedProvisionType = val))).toList())),
       _buildSection(label: '제공방법', child: Wrap(spacing: 8, children: ['방문', '내방', '전화'].map((t) => _buildChip(t, _selectedMethod == t, (val) => setState(() => _selectedMethod = val))).toList())),
       _buildSection(label: '서비스유형', child: Wrap(spacing: 8, children: ['아보전', '연계', '통합'].map((t) => _buildChip(t, _selectedServiceType == t, (val) => setState(() => _selectedServiceType = val))).toList())),
-      _buildSection(label: '제공서비스', child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: _selectedService, items: _serviceOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => setState(() => _selectedService = v!)))),
+      _buildSection(
+        label: '제공서비스',
+        child: InkWell(
+          onTap: _showServicePicker,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '$_selectedServiceCategory :: $_selectedService',
+                    style: const TextStyle(fontSize: 13, color: AppColors.textMain),
+                  ),
+                ),
+                const Icon(Icons.keyboard_arrow_down,
+                    size: 20, color: AppColors.textSub),
+              ],
+            ),
+          ),
+        ),
+      ),
       _buildSection(
         label: '제공장소',
         child: Wrap(
