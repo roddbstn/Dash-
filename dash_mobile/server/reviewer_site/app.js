@@ -198,6 +198,24 @@ function submitAuthName() {
     });
 }
 
+function showEncryptionNotice(reason) {
+    const existing = document.getElementById('enc-notice');
+    if (existing) return;
+    const notice = document.createElement('div');
+    notice.id = 'enc-notice';
+    notice.style.cssText = [
+        'background:#FFF8E1', 'border:1px solid #FFD54F', 'border-radius:10px',
+        'padding:12px 16px', 'margin:12px 20px 0', 'font-size:13px',
+        'color:#795548', 'line-height:1.6', 'display:flex', 'align-items:flex-start', 'gap:8px'
+    ].join(';');
+    const msg = reason === 'no_key'
+        ? '🔒 이 링크에 암호화 키가 포함되어 있지 않아 서비스 내용과 상담원 소견을 표시할 수 없습니다.<br>원래 공유 링크(#으로 끝나는 키 포함)를 다시 받아 열어주세요.'
+        : '🔒 복호화에 실패했습니다. 링크가 변형됐거나 다른 기기에서 생성된 레코드일 수 있습니다.<br>담당 상담원에게 공유 링크를 다시 요청해 주세요.';
+    notice.innerHTML = `<span>${msg}</span>`;
+    const editorArea = document.querySelector('.editor-area') || document.querySelector('.writing-workspace');
+    if (editorArea) editorArea.insertAdjacentElement('afterbegin', notice);
+}
+
 function loadRecord(token) {
     let encKey = "";
     const hash = window.location.hash.substring(1);
@@ -220,22 +238,22 @@ function loadRecord(token) {
                         const iv = CryptoJS.enc.Base64.parse(parts[0]);
                         const ciphertext = parts[1];
                         const key = CryptoJS.enc.Utf8.parse(encKey.padEnd(32).substring(0, 32));
-                        
+
                         const decrypted = CryptoJS.AES.decrypt(
-                            { ciphertext: CryptoJS.enc.Base64.parse(ciphertext) }, 
-                            key, 
+                            { ciphertext: CryptoJS.enc.Base64.parse(ciphertext) },
+                            key,
                             { iv: iv }
                         );
                         const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
                         if (!decryptedText) throw new Error("Empty decryption result");
-                        
+
                         const decryptedData = JSON.parse(decryptedText);
                         console.log("Decrypted successful:", decryptedData);
-                        
+
                         // Merge decrypted data into the row object
                         // Handle camelCase from Flutter vs snake_case from DB
-                        data = { 
-                            ...data, 
+                        data = {
+                            ...data,
                             ...decryptedData,
                             case_name: decryptedData.caseName || data.case_name,
                             service_description: decryptedData.serviceDescription || decryptedData.service_description || data.service_description,
@@ -254,8 +272,10 @@ function loadRecord(token) {
                         window.currentRecord = data; // Store for re-encryption
                     } catch (e) {
                         console.error("Decryption failed:", e);
-                        // If decryption failed, we still have the raw data in 'data'
+                        showEncryptionNotice('decrypt_failed');
                     }
+                } else if (data.encrypted_blob && !encKey) {
+                    showEncryptionNotice('no_key');
                 }
                 updateUI(data);
             })
