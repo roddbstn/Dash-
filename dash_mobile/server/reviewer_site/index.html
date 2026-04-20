@@ -63,11 +63,11 @@
                 <div class="editor-container">
                     <div class="editor-header">
                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                            <h1 id="page-title">강O수 아동 사례</h1>
+                            <h1 id="page-title">불러오는 중...</h1>
                             <div id="save-status" class="save-status">방금 저장됨</div>
                         </div>
                         <div class="editor-meta">
-                            <span id="author-name">강윤수 상담원 작성</span>
+                            <span id="author-name"></span>
                         </div>
                     </div>
 
@@ -99,6 +99,54 @@
                     <button class="btn btn-secondary" onclick="closeModal()">취소</button>
                     <button class="btn btn-primary" onclick="confirmNotify()">알림 보내기</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- 이름 인증 모달 (최초 진입 시 강제 표시) -->
+        <div id="auth-modal" style="
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.55);
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px;
+        ">
+            <div style="
+                background: #fff; border-radius: 20px;
+                padding: 32px 28px; width: 100%; max-width: 400px;
+                box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+            ">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <span style="font-size: 32px;">🔒</span>
+                    <h2 style="margin: 12px 0 8px; font-size: 18px; font-weight: 800; color: #1a1a2e;">본인 확인</h2>
+                    <p style="font-size: 14px; color: #8b95a1; line-height: 1.6; margin: 0;">
+                        이 DB를 공유한 상담원의<br>성함을 입력해주세요.
+                    </p>
+                </div>
+                <input id="auth-name-input" type="text" placeholder="예) 홍길동"
+                    style="
+                        width: 100%; box-sizing: border-box;
+                        border: 1.5px solid #e5e8eb; border-radius: 12px;
+                        padding: 14px 16px; font-size: 15px; font-weight: 600;
+                        outline: none; font-family: inherit;
+                        transition: border-color 0.2s;
+                    "
+                    onfocus="this.style.borderColor='#4e73df'"
+                    onblur="this.style.borderColor='#e5e8eb'"
+                    onkeydown="if(event.key==='Enter') submitAuthName()"
+                />
+                <p id="auth-error" style="
+                    color: #e74c3c; font-size: 13px; margin: 10px 0 0;
+                    min-height: 18px; text-align: center;
+                "></p>
+                <button onclick="submitAuthName()" style="
+                    width: 100%; margin-top: 16px;
+                    background: #4e73df; color: #fff;
+                    border: none; border-radius: 12px;
+                    padding: 14px; font-size: 15px; font-weight: 700;
+                    cursor: pointer; font-family: inherit;
+                    transition: background 0.2s;
+                " onmouseover="this.style.background='#3a5bc7'" onmouseout="this.style.background='#4e73df'">
+                    확인
+                </button>
             </div>
         </div>
     </div>
