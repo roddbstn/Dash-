@@ -104,6 +104,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   bool _isInitializingSse = false;
   void _initRealtime() async {
+    // 이미 SSE가 살아있으면 재연결 불필요
+    if (_eventSub != null) return;
     if (_isInitializingSse) return;
     _isInitializingSse = true;
 
@@ -119,7 +121,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final email = user?.email;
     if (email != null) {
       debugPrint('🚀 Initializing SSE for email: $email');
-      _eventSub?.cancel();
       _eventSub = ApiService.streamEvents(email).listen((event) {
         final String? ev = event['event'];
         debugPrint('🔔 Server Event Received: $ev');
@@ -128,6 +129,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (ev != 'connected') {
           _loadData();
         }
+      }, onDone: () {
+        // 스트림이 완전히 종료되면 구독 초기화 (재연결 허용)
+        _eventSub = null;
+      }, onError: (_) {
+        _eventSub = null;
       });
     }
 
@@ -1058,13 +1064,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         backgroundColor: AppColors.bg,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: false,
-        titleSpacing: 20,
-        title: Image.asset(
-          'assets/icons/logo.png',
-          height: 28, // height can be adjusted later if needed
-          fit: BoxFit.contain,
-        ),
+        toolbarHeight: 0,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -1692,11 +1692,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       final confirmed = await _showLogoutConfirmationDialog();
                       if (confirmed == true) {
                         await StorageService.clearAllData();
-                        await GoogleSignIn().disconnect().catchError(
-                          (_) => null,
-                        );
+                        // disconnect()는 네트워크 요청이라 hang할 수 있으므로 타임아웃 처리
+                        await GoogleSignIn()
+                            .disconnect()
+                            .timeout(
+                              const Duration(seconds: 3),
+                              onTimeout: () => null,
+                            )
+                            .catchError((_) => null);
                         await GoogleSignIn().signOut().catchError((_) => null);
                         await FirebaseAuth.instance.signOut();
+                        if (mounted) {
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                            '/onboarding',
+                            (route) => false,
+                          );
+                        }
                       }
                     },
                     isDanger: false,
@@ -2487,7 +2498,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           TextSpan(
             text: _userName,
             style: const TextStyle(
-              fontSize: 17,
+              fontSize: 20,
               fontWeight: FontWeight.w800,
               color: Color(0xFF222222),
               letterSpacing: -0.4,
@@ -2496,7 +2507,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const TextSpan(
             text: '님',
             style: TextStyle(
-              fontSize: 17,
+              fontSize: 20,
               fontWeight: FontWeight.w400,
               color: Color(0xFF8B95A1),
               letterSpacing: -0.4,
