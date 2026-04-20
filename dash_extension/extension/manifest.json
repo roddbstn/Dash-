@@ -2,6 +2,7 @@
     "manifest_version": 3,
     "name": "Dash",
     "version": "3.1",
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsydxCVQfliTw9N8LAlk/5/bEuupg/YWEZXBjLONwFbqwC2A+lT4tVg8C4Pbqci37LhLDrjtO5l2Xd9MA7EDIcgCw66aKr3zCK3Y++DyiokHJuZIKxiNd6g44TyjOC/MW5pfR7Uce4BI7T92uGwQdjko5jt9SuTalnPY1td2rMBr7FtISXItx+WecrG5tyIPyLN1CY8lbuSl1PTR/zox+jsnZuttD9hJ8cRhBEZ3bqqawplZAyYIRTDXQLYEjMLiTp9eUQxEL8TeZb0NkMqlITqUK8MeYsqbxbt3fMLs0MO0rloSnwgZItCq5ezWbBRzZtFoxupAy9Bn6PykoBHeGpQIDAQAB",
     "description": "모바일에서 작성한 상담 기록을 아동학대정보시스템에 1초 만에 주입합니다.",
     "permissions": [
         "storage",
@@ -12,10 +13,12 @@
     "host_permissions": [
         "*://localhost:*/*",
         "*://ncads.go.kr/*",
-        "*://*.ncads.go.kr/*"
+        "*://*.ncads.go.kr/*",
+        "*://dash.qpon/*",
+        "*://www.googleapis.com/*"
     ],
     "oauth2": {
-        "client_id": "893541530756-3u37iv22m0ivj7on65vmof2gln8uun5f.apps.googleusercontent.com",
+        "client_id": "918773436696-ncvqmvrgrp5l1h10g0boe9hddv7s70fo.apps.googleusercontent.com",
         "scopes": [
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/userinfo.profile"
