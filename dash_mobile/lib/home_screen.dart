@@ -12,15 +12,14 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:dash_mobile/vault_service.dart';
-import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dash_mobile/privacy_policy_screen.dart';
-import 'package:dash_mobile/security_detail_screen.dart';
-import 'package:dash_mobile/terms_screen.dart';
-import 'package:dash_mobile/user_guide_screen.dart';
+import 'package:dash_mobile/widgets/home_widgets.dart';
+import 'package:dash_mobile/screens/notification_tab.dart';
+import 'package:dash_mobile/screens/profile_tab.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -35,6 +34,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<dynamic> _drafts = [];
+  List<dynamic> _sharedDrafts = [];
   List<dynamic> _cases = [];
   List<dynamic> _notifications = [];
   bool _isSelectionMode = false;
@@ -233,11 +233,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       localDrafts = await StorageService.getDrafts();
 
       if (serverRecords != null && (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
+        // 공유받은 레코드 분리 (병합 로직에서 제외)
+        final List sharedOnly = serverRecords.where((s) => s['record_type'] == 'shared').toList();
+        final List ownedServerRecords = serverRecords.where((s) => s['record_type'] != 'shared').toList();
+        if (mounted) {
+          setState(() => _sharedDrafts = sharedOnly);
+        }
+
         // 로컬 데이터와 서버 데이터 병합 및 삭제 처리
         List<Map<String, dynamic>> updatedDrafts = [];
 
         // 1. 서버에 있는 데이터를 기준으로 로컬과 대조하여 병합
-        for (var s in serverRecords) {
+        for (var s in ownedServerRecords) {
           final String? serverToken = s['share_token'];
           final String serverId = s['id'].toString();
 
@@ -359,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             } else {
               // 서버 응답 목록에서 해당 토큰을 명시적으로 못 찾은 경우에만 삭제
               // (서버에 레코드가 있는데 타이밍 문제로 포함 안 됐을 수 있으므로 이중 확인)
-              final bool confirmedDeletedOnServer = serverRecords.every(
+              final bool confirmedDeletedOnServer = ownedServerRecords.every(
                 (s) => s['share_token'] != localToken,
               );
               if (confirmedDeletedOnServer) {
@@ -512,76 +519,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       debugPrint('🚀 Notification opened app: ${message.data}');
       setState(() => _currentIndex = 1); // 알림 탭으로 이동
     });
-  }
-
-  Future<void> _toggleNotifications(bool value) async {
-    if (value == false) {
-      // 알림 끄기 시 확인 모달 노출
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            '푸시 알림 off',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-          ),
-          content: const Text(
-            'DB 검토 완료 및 중요 소식에 대한\n푸시 알림을 받지 않으시겠습니까?',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSub,
-              height: 1.5,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text(
-                '취소',
-                style: TextStyle(
-                  color: Color(0xFFADB5BD),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                '확인',
-                style: TextStyle(
-                  color: AppColors.danger,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmed == true) {
-        setState(() => _notificationsEnabled = false);
-        _showToast('알림이 비활성화되었습니다.');
-      }
-    } else {
-      // 알림 켜기
-      final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-
-      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        setState(() => _notificationsEnabled = true);
-        _showToast('푸시 알림이 활성화되었습니다. ✨');
-      } else {
-        _showToast('알림 권한이 거부되어 있습니다. 설정에서 허용해주세요.');
-      }
-    }
   }
 
   void _showCaseDeleteConfirmation(BuildContext modalContext) {
@@ -959,7 +896,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           .contains(c['id']);
                                       final int sIndex =
                                           _selectedCaseIds.indexOf(c['id']) + 1;
-                                      return _PressableCaseCard(
+                                      return PressableCaseCard(
                                         caseData: c,
                                         isSelected: isSelected,
                                         sIndex: sIndex,
@@ -1177,8 +1114,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       );
     }
-    if (_currentIndex == 1) return _buildNotificationTab();
-    return _buildProfileTab();
+    if (_currentIndex == 1) return NotificationTab(
+      notifications: _notifications,
+      drafts: _drafts,
+      onRefresh: _loadData,
+      onGoToForm: _goToForm,
+      onShowToast: _showToast,
+      onNotificationRead: (notifId) {
+        setState(() {
+          final index = _notifications.indexWhere((n) => n['id'] == notifId);
+          if (index != -1) {
+            _notifications[index]['is_read'] = 1;
+          }
+        });
+      },
+    );
+    return ProfileTab(
+      userName: _userName,
+      isProfileLoading: _isProfileLoading,
+      notificationsEnabled: _notificationsEnabled,
+      cases: _cases,
+      drafts: _drafts,
+      notifications: _notifications,
+      onNameChanged: (newName) {
+        setState(() => _userName = newName);
+      },
+      onNotificationsChanged: (enabled) {
+        setState(() => _notificationsEnabled = enabled);
+      },
+      onResetComplete: () {
+        setState(() {
+          _drafts = [];
+          _cases = [];
+          _notifications = [];
+        });
+      },
+      onCasesChanged: (cases) {
+        setState(() => _cases = cases);
+      },
+      onShowToast: _showToast,
+    );
   }
 
   Widget _buildOfflineBanner() {
@@ -1219,231 +1194,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildNotificationTab() {
-    // 중복 제거: 동일한 record_token(또는 사례명)에 대해 가장 최신 알림만 남김
-    final Map<String, dynamic> uniqueNotifs = {};
-    for (var n in _notifications) {
-      if (n['is_read'] == 0 || n['is_read'] == false) {
-        // 토큰이 없으면 사례명을 키로 사용 (구형 알림 대응)
-        final String key = n['record_token'] ?? "name_${n['case_name']}";
-
-        if (!uniqueNotifs.containsKey(key)) {
-          uniqueNotifs[key] = n;
-        } else {
-          // 이미 존재하면 생성 시각이 더 최신인 것으로 교체
-          final existingTime = uniqueNotifs[key]['created_at'] ?? '';
-          final newTime = n['created_at'] ?? '';
-          if (newTime.compareTo(existingTime) > 0) {
-            uniqueNotifs[key] = n;
-          }
-        }
-      }
-    }
-
-    final unreadNotifs = uniqueNotifs.values.toList();
-    unreadNotifs.sort(
-      (a, b) => (b['created_at'] ?? '').compareTo(a['created_at'] ?? ''),
-    );
-
-    if (unreadNotifs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.notifications_none_rounded,
-              size: 64,
-              color: AppColors.border.withValues(alpha: 0.8),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '아직 도착한 알림이 없어요',
-              style: TextStyle(
-                color: Color(0xFFADB5BD),
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
-          child: Text(
-            '알림',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF222222),
-            ),
-          ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _loadData,
-            color: AppColors.primary,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: unreadNotifs.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final n = unreadNotifs[index];
-                final String caseName = n['case_name'] ?? '미지정';
-
-                String dateStr = '';
-                if (n['created_at'] != null) {
-                  final dt = DateTime.parse(n['created_at']).toLocal();
-                  const days = ['월', '화', '수', '목', '금', '토', '일'];
-                  final dayName = days[dt.weekday - 1];
-                  dateStr = '${dt.month}.${dt.day} ($dayName) ${DateFormat('HH:mm').format(dt)}';
-                }
-
-                final String? nToken = n['record_token'];
-                final int? notifId = n['id'];
-
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    debugPrint('🔔 Notification tapped: $notifId');
-                    // 1. 알림 읽음 처리 (서버 및 로컬 즉시 반영)
-                    if (notifId != null) {
-                      ApiService.markNotificationRead(notifId);
-                      setState(() {
-                        // 로컬 알림 리스트에서 해당 알림 읽음 처리 (배지 점을 즉시 없애기 위함)
-                        final index = _notifications.indexWhere(
-                          (n) => n['id'] == notifId,
-                        );
-                        if (index != -1) {
-                          _notifications[index]['is_read'] = 1;
-                        }
-                      });
-                    }
-
-                    debugPrint('🔍 Found drafts length: ${_drafts.length}');
-                    // 2. 기록 매칭 및 이동
-                    Map<String, dynamic>? foundDraft;
-                    for (var d in _drafts) {
-                      final bool matchToken =
-                          (nToken != null && d['share_token'] == nToken);
-                      final bool matchName = (d['caseName'] == caseName);
-                      if (matchToken || matchName) {
-                        foundDraft = Map<String, dynamic>.from(d);
-                        break;
-                      }
-                    }
-                    debugPrint('🔍 Matched draft: $foundDraft');
-
-                    if (foundDraft != null) {
-                      final dong = foundDraft['dong'] ?? '';
-                      _goToForm(
-                        foundDraft['caseName'] ?? caseName,
-                        foundDraft['caseName'] ?? caseName,
-                        dong,
-                        caseId: foundDraft['case_id'] ?? foundDraft['id'],
-                        draftId: foundDraft['id'],
-                      );
-                    } else {
-                      _showToast('해당 사례를 찾을 수 없어요. 😊');
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFF2F4F6)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF1F7FF),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.assignment_turned_in_rounded,
-                            color: AppColors.primary,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "$caseName 아동",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                "DB 내용이 검토 완료되었어요.\n수정 사항을 확인해 보세요.",
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  height: 1.5,
-                                  color: Color(0xFF4E5968),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    dateStr,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFFADB5BD),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const Row(
-                                    children: [
-                                      Text(
-                                        '자세히 보기',
-                                        style: TextStyle(
-                                          color: Color(0xFF8B95A1),
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                      SizedBox(width: 4),
-                                      Icon(
-                                        Icons.chevron_right_rounded,
-                                        size: 16,
-                                        color: Color(0xFFADB5BD),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   String? _userName;
   bool _isProfileLoading = false;
 
@@ -1471,846 +1221,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('Error fetching profile: $e');
     }
-  }
-
-  void _showEditNameDialog() {
-    final controller = TextEditingController(text: _userName);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          '이름 수정',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '입력한 성함은 공유된 DB에 \'작성자\'로 표시됩니다.\n정확한 실명을 입력해주세요.',
-              style: TextStyle(fontSize: 13, color: Color(0xFF8B95A1), height: 1.5),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-          controller: controller,
-          maxLength: 10, // ✅ 최대 10글자 제한
-          decoration: const InputDecoration(
-            hintText: '실명을 입력해주세요',
-            hintStyle: TextStyle(fontSize: 14, color: Color(0xFFADB5BD)),
-            counterText: "", // ✅ 글자수 카운터 숨기기
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFF2F4F6)),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.primary),
-            ),
-          ),
-          autofocus: true,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              '취소',
-              style: TextStyle(
-                color: Color(0xFFADB5BD),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              final newName = controller.text.trim();
-              if (newName.isEmpty) return;
-              Navigator.pop(context);
-              setState(() {
-                _isProfileLoading = true;
-              });
-              final user = FirebaseAuth.instance.currentUser;
-              final success = await ApiService.updateUserProfile(
-                user?.uid ?? '',
-                newName,
-                user?.email,
-              );
-              if (success) {
-                setState(() {
-                  _userName = newName;
-                });
-                // 기존 케이스들의 user_name도 서버에 갱신 (syncCase가 서버 프로필 이름 사용)
-                for (final c in _cases) {
-                  ApiService.syncCase(c);
-                }
-                _showToast('이름이 수정되었습니다.');
-              } else {
-                _showToast('이름 수정에 실패했습니다.');
-              }
-              setState(() {
-                _isProfileLoading = false;
-              });
-            },
-            child: const Text(
-              '저장',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileTab() {
-    if (_userName == null && !_isProfileLoading) {
-      _fetchUserProfile();
-    }
-
-    final user = FirebaseAuth.instance.currentUser;
-    final email = user?.email ?? '-';
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircleAvatar(
-              radius: 54,
-              backgroundColor: Color(0xFFF2F4F6),
-              child: Icon(Icons.person, size: 54, color: Color(0xFF8B95A1)),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '${_userName ?? '사용자'}님',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 24,
-                    color: AppColors.textMain,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _showEditNameDialog,
-                  icon: const Icon(
-                    Icons.edit,
-                    size: 20,
-                    color: Color(0xFF8B95A1),
-                  ),
-                  tooltip: '이름 수정',
-                ),
-              ],
-            ),
-            Text(
-              email,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textSub,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 48),
-            Container(
-              width: double.infinity,
-              clipBehavior: Clip.hardEdge,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
-                  _buildNotificationToggleItem(),
-                  const Divider(
-                    height: 1,
-                    indent: 20,
-                    endIndent: 20,
-                    color: AppColors.border,
-                  ),
-                  _PressableProfileMenuItem(
-                    icon: Icons.lock_outline,
-                    title: '개인정보처리방침',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PrivacyPolicyScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(
-                    height: 1,
-                    indent: 20,
-                    endIndent: 20,
-                    color: AppColors.border,
-                  ),
-                  _PressableProfileMenuItem(
-                    icon: Icons.description_outlined,
-                    title: '서비스 약관',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const TermsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(
-                    height: 1,
-                    indent: 20,
-                    endIndent: 20,
-                    color: AppColors.border,
-                  ),
-                  _PressableProfileMenuItem(
-                    icon: Icons.password_outlined,
-                    title: '보안 PIN 확인',
-                    onTap: () {
-                      _showPinManagementDialog();
-                    },
-                  ),
-                  const Divider(
-                    height: 1,
-                    indent: 20,
-                    endIndent: 20,
-                    color: AppColors.border,
-                  ),
-                  _PressableProfileMenuItem(
-                    icon: Icons.logout,
-                    title: '로그아웃',
-                    onTap: () async {
-                      final confirmed = await _showLogoutConfirmationDialog();
-                      if (confirmed == true) {
-                        await StorageService.clearAllData();
-                        // disconnect()는 네트워크 요청이라 hang할 수 있으므로 타임아웃 처리
-                        await GoogleSignIn()
-                            .disconnect()
-                            .timeout(
-                              const Duration(seconds: 3),
-                              onTimeout: () => null,
-                            )
-                            .catchError((_) => null);
-                        await GoogleSignIn().signOut().catchError((_) => null);
-                        await FirebaseAuth.instance.signOut();
-                        if (mounted) {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            '/onboarding',
-                            (route) => false,
-                          );
-                        }
-                      }
-                    },
-                    isDanger: false,
-                  ), // 로그아웃은 이제 검정색
-                  const Divider(
-                    height: 1,
-                    indent: 20,
-                    endIndent: 20,
-                    color: AppColors.border,
-                  ),
-                  _PressableProfileMenuItem(
-                    icon: Icons.delete_forever_outlined,
-                    title: '계정 탈퇴',
-                    onTap: () async {
-                      final confirmed =
-                          await _showDeleteAccountConfirmationDialog();
-                      if (confirmed == true) {
-                        await StorageService.clearAllData();
-                        await _deleteAccount();
-                      }
-                    },
-                    isDanger: true,
-                  ), // 계정 탈퇴는 빨간색
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<bool?> _showLogoutConfirmationDialog() async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            '로그아웃',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-          ),
-          content: const Text(
-            '정말 로그아웃 하시겠습니까?',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSub,
-              height: 1.5,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text(
-                '취소',
-                style: TextStyle(
-                  color: Color(0xFFADB5BD),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                '확인',
-                style: TextStyle(
-                  color: AppColors.textMain,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<bool?> _showDeleteAccountConfirmationDialog() async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            '계정 탈퇴',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-          ),
-          content: const Text(
-            '정말 탈퇴하시겠습니까?\n계정은 복구되지 않아요.',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSub,
-              height: 1.5,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text(
-                '아니오',
-                style: TextStyle(
-                  color: Color(0xFFADB5BD),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                '탈퇴하기',
-                style: TextStyle(
-                  color: AppColors.danger,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _deleteAccount() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final uid = user.uid;
-    final email = user.email;
-    try {
-      // [1] 서버 데이터(상례, 볼트 등) 삭제 요청 (404 무시)
-      await ApiService.deleteUser(uid, email: email);
-
-      // [2] Firebase Auth 계정 삭제 시도
-      try {
-        await user.delete();
-      } catch (e) {
-        debugPrint('🔒 Firebase Auth delete require re-auth: $e');
-        // 보안상 바로 삭제가 안 될 수 있지만, 서버 데이터는 위에서 지웠으므로 진행
-      }
-
-      // [3] 세션 파괴 및 로컬 데이터 초기화
-      await StorageService.clearAllData();
-      await GoogleSignIn().disconnect().catchError((_) => null);
-      await GoogleSignIn().signOut().catchError((_) => null);
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        _showToast('계정이 정상적으로 탈퇴되었습니다.');
-        Navigator.of(context).pushNamedAndRemoveUntil('/onboarding', (route) => false);
-      }
-    } catch (e) {
-      debugPrint('❌ Account deletion error: $e');
-      await StorageService.clearAllData();
-      await GoogleSignIn().disconnect().catchError((_) => null);
-      await GoogleSignIn().signOut().catchError((_) => null);
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        _showToast('탈퇴 및 로그아웃이 완료되었습니다.');
-        Navigator.of(context).pushNamedAndRemoveUntil('/onboarding', (route) => false);
-      }
-    }
-  }
-
-  void _showPinManagementDialog() async {
-    final pin = await StorageService.getPin();
-    if (!mounted) return;
-
-    // PIN 미설정 상태 → 최초 PIN 생성 모달
-    if (pin == null) {
-      _showPinCreationDialog();
-      return;
-    }
-
-    // 서버 vault를 현재 로컬 PIN으로 재동기화 (옛날 PIN 무효화)
-    unawaited(_syncPinToVault(pin));
-
-    // PIN 설정 상태 → 기존 PIN 관리 모달
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        bool showPin = false;
-        return StatefulBuilder(
-          builder: (context, setStateSB) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              contentPadding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 0),
-              actionsPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-              actionsAlignment: MainAxisAlignment.spaceBetween,
-              title: const Text(
-                '보안 PIN 설정',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '현재 설정된 보안 PIN 번호입니다.',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSub),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        showPin ? pin : '****',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 4,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => setStateSB(() => showPin = !showPin),
-                        icon: Icon(
-                          showPin ? Icons.visibility_off : Icons.visibility,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(height: 1, color: AppColors.border),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _showPinResetWarningDialog();
-                    },
-                    child: const Text(
-                      'PIN 초기화하기',
-                      style: TextStyle(
-                        color: Color(0xFFADB5BD),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SecurityDetailScreen()),
-                    );
-                  },
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                  child: const Text(
-                    '→ 왜 설정하나요?',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    '닫기',
-                    style: TextStyle(
-                      color: AppColors.textMain,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showPinCreationDialog() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        bool obscure = true;
-        return StatefulBuilder(
-          builder: (context, setStateSB) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              contentPadding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 0),
-              actionsPadding: const EdgeInsets.only(right: 16, bottom: 8),
-              title: const Text(
-                '보안 PIN 생성',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'PIN은 크롬 확장 프로그램에서 DB 내용을 열람할 때 사용됩니다.\n4자리 숫자로 설정하세요.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSub,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    maxLength: 4,
-                    obscureText: obscure,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      letterSpacing: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.left,
-                    decoration: InputDecoration(
-                      counterText: '',
-                      filled: true,
-                      fillColor: const Color(0xFFF2F4F6),
-                      contentPadding: const EdgeInsets.only(
-                        left: 20, right: 10, top: 20, bottom: 20,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          obscure ? Icons.visibility_off : Icons.visibility,
-                          color: const Color(0xFFADB5BD),
-                        ),
-                        onPressed: () => setStateSB(() => obscure = !obscure),
-                      ),
-                    ),
-                    autofocus: true,
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    '취소',
-                    style: TextStyle(
-                      color: Color(0xFFADB5BD),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    if (controller.text.length == 4) {
-                      final newPin = controller.text;
-                      await StorageService.savePin(newPin);
-                      await _syncPinToVault(newPin);
-                      if (!ctx.mounted) return;
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(
-                          content: Text('PIN이 설정되었습니다.'),
-                          backgroundColor: Color(0xFF16A34A),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text(
-                    '설정 완료',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  /// Encrypts all locally-synced case keys with [newPin] and saves to server vault.
-  /// This must be called whenever the PIN is first created or changed.
-  Future<void> _syncPinToVault(String newPin) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      // Collect all synced draft keys: { share_token -> encryption_key }
-      final drafts = await StorageService.getDrafts();
-      final Map<String, dynamic> keyMap = {};
-      for (final draft in drafts) {
-        final shareToken = draft['share_token'];
-        final encKey = draft['encryption_key'];
-        if (shareToken != null && encKey != null &&
-            shareToken.toString().isNotEmpty && encKey.toString().isNotEmpty) {
-          keyMap[shareToken.toString()] = encKey.toString();
-        }
-      }
-
-      final vaultKey = encrypt.Key.fromUtf8(newPin.padRight(32).substring(0, 32));
-      final iv = encrypt.IV.fromLength(16);
-      final encrypter = encrypt.Encrypter(encrypt.AES(vaultKey, mode: encrypt.AESMode.cbc));
-      final encrypted = encrypter.encrypt(jsonEncode(keyMap), iv: iv);
-      final encryptedVaultBlob = '${iv.base64}:${encrypted.base64}';
-
-      await ApiService.saveVault(user.uid, encryptedVaultBlob, user.uid);
-      debugPrint('✅ Vault synced with new PIN (${keyMap.length} keys)');
-    } catch (e) {
-      debugPrint('❌ Error syncing vault with new PIN: $e');
-    }
-  }
-
-  void _showPinResetWarningDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        String input = '';
-        return StatefulBuilder(
-          builder: (context, setStateSB) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: const Row(
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: AppColors.danger,
-                    size: 28,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    '주의사항',
-                    style: TextStyle(
-                      color: AppColors.danger,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'PIN 번호를 초기화하면 모든 사례와 DB가 삭제되며 복구가 불가능해요. 진행하시겠습니까?',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textMain,
-                      height: 1.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    "동의하신다면 아래에 '초기화'를 입력해주세요.",
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.danger,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    onChanged: (val) => setStateSB(() => input = val.trim()),
-                    decoration: InputDecoration(
-                      hintText: '\'초기화\' 입력',
-                      hintStyle: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFFBEC4CC),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: AppColors.danger,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    '취소',
-                    style: TextStyle(
-                      color: Color(0xFFADB5BD),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: input == '초기화'
-                      ? () async {
-                          Navigator.pop(ctx);
-                          await _executePinReset();
-                        }
-                      : null,
-                  child: Text(
-                    '확인',
-                    style: TextStyle(
-                      color: input == '초기화'
-                          ? AppColors.danger
-                          : const Color(0xFFADB5BD),
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _executePinReset() async {
-    // 1. Wipe local storage (clears PIN, cases, drafts, salt)
-    await StorageService.clearAllData();
-
-    // 2. Wipe server vault memory specifically to prevent decrypting old data
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await ApiService.saveVault(user.uid, '', '');
-      // 3. 서버 레코드 전체 삭제 (syncActiveRecords([])는 빈 배열 가드로 스킵되므로 전용 API 사용)
-      await ApiService.deleteAllRecords();
-    }
-
-    setState(() {
-      _drafts = [];
-      _cases = [];
-      _notifications = [];
-    });
-
-    _showToast('PIN 및 로컬 DB 데이터가 안전하게 완전히 삭제되었습니다.');
-  }
-
-  Widget _buildNotificationToggleItem() {
-    return ListTile(
-      enabled: false, // 영역 터치 피드백 비활성화
-      leading: const Icon(
-        Icons.notifications_none,
-        color: AppColors.textMain,
-        size: 22,
-      ),
-      title: const Text(
-        '알림 설정',
-        style: TextStyle(
-          color: AppColors.textMain,
-          fontWeight: FontWeight.w600,
-          fontSize: 15,
-        ),
-      ),
-      trailing: Transform.scale(
-        scale: 0.85,
-        child: Switch(
-          value: _notificationsEnabled,
-          onChanged: _toggleNotifications,
-          activeThumbColor: Colors.white,
-          activeTrackColor: AppColors.primary,
-          inactiveThumbColor: Colors.white,
-          inactiveTrackColor: const Color(0xFFE5E8EB),
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-    );
   }
 
   Widget _buildHomeTab() {
@@ -2344,7 +1254,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       _buildUserGreeting(),
                       if (_userName != null && _userName!.trim().isNotEmpty)
                         const SizedBox(height: 8),
-                      _InfoBanner(),
+                      InfoBanner(),
                       const SizedBox(height: 12),
                       _buildCtaCard(),
                     ],
@@ -2526,7 +1436,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _buildUserGreeting(),
         if (_userName != null && _userName!.trim().isNotEmpty)
           const SizedBox(height: 20),
-        _InfoBanner(),
+        InfoBanner(),
         const SizedBox(height: 15),
         _buildCtaCard(),
       ],
@@ -2537,6 +1447,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_sharedDrafts.isNotEmpty) ...[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '공유받은 DB 목록',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ..._sharedDrafts.map((d) => _buildSharedDraftCard(d)),
+          const SizedBox(height: 30),
+        ],
         if (_drafts.isNotEmpty) ...[
           const Align(
             alignment: Alignment.centerLeft,
@@ -2620,7 +1546,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       orElse: () => null,
     );
 
-    return _SwipeableDraftCard(
+    return SwipeableDraftCard(
       key: ValueKey(d['id']),
       d: d,
       onTap: () => _goToForm(
@@ -2640,777 +1566,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       },
     );
   }
-}
 
-class _PressableCaseCard extends StatefulWidget {
-  final Map<String, dynamic> caseData;
-  final bool isSelected;
-  final int sIndex;
-  final bool isSelectionMode;
-  final VoidCallback onTap;
+  Widget _buildSharedDraftCard(dynamic d) {
+    final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
+    final String authorName = d['author_name'] ?? '담당자';
+    final String? shareToken = d['share_token'];
+    final String shareUrl = shareToken != null
+        ? '${ApiService.serverUrl}/share?token=$shareToken'
+        : '';
 
-  const _PressableCaseCard({
-    required this.caseData,
-    required this.isSelected,
-    required this.sIndex,
-    required this.isSelectionMode,
-    required this.onTap,
-  });
-
-  @override
-  State<_PressableCaseCard> createState() => _PressableCaseCardState();
-}
-
-class _PressableCaseCardState extends State<_PressableCaseCard> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _isPressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOutCubic,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          decoration: BoxDecoration(
-            color: _isPressed ? const Color(0xFFF2F4F6) : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: widget.isSelected
-                ? Border.all(color: AppColors.primary, width: 2)
-                : Border.all(color: Colors.black.withValues(alpha: 0.05)),
-            boxShadow: _isPressed
-                ? []
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-          ),
-          child: Stack(
-            children: [
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      widget.caseData['maskedName'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      widget.caseData['dong'],
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSub.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (widget.isSelectionMode)
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: widget.isSelected
-                          ? AppColors.primary
-                          : Colors.white,
-                      border: Border.all(
-                        color: widget.isSelected
-                            ? AppColors.primary
-                            : AppColors.border,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        widget.isSelected ? '${widget.sIndex}' : '',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoBanner extends StatefulWidget {
-  const _InfoBanner();
-
-  @override
-  State<_InfoBanner> createState() => _InfoBannerState();
-}
-
-class _InfoBannerState extends State<_InfoBanner> {
-  bool _isLeftPressed = false;
-  bool _isRightPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isAnyPressed = _isLeftPressed || _isRightPressed;
-
-    return AnimatedScale(
-      scale: isAnyPressed ? 0.98 : 1.0,
-      duration: const Duration(milliseconds: 100),
-      curve: Curves.easeOutCubic,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        width: double.infinity,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border),
-          boxShadow: isAnyPressed
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE0E7FF)),
         ),
-        child: IntrinsicHeight(
-          child: Row(
-            children: [
-              // Left: 이용 안내
-              Expanded(
-                child: GestureDetector(
-                  onTapDown: (_) => setState(() => _isLeftPressed = true),
-                  onTapUp: (_) => setState(() => _isLeftPressed = false),
-                  onTapCancel: () => setState(() => _isLeftPressed = false),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const UserGuideScreen(),
-                      ),
-                    );
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 100),
-                    decoration: BoxDecoration(
-                      color: _isLeftPressed
-                          ? const Color(0xFFF2F4F6)
-                          : Colors.white,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        bottomLeft: Radius.circular(20),
-                      ),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 22),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Text('📋', style: TextStyle(fontSize: 17)),
-                        SizedBox(width: 7),
-                        Text(
-                          '이용 안내',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF222222),
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Vertical divider
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Container(
-                  width: 1,
-                  color: AppColors.bg, // 배경색과 동일한 색으로 변경
-                ),
-              ),
-              // Right: 개인정보처리방침
-              Expanded(
-                child: GestureDetector(
-                  onTapDown: (_) => setState(() => _isRightPressed = true),
-                  onTapUp: (_) => setState(() => _isRightPressed = false),
-                  onTapCancel: () => setState(() => _isRightPressed = false),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PrivacyPolicyScreen(),
-                      ),
-                    );
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 100),
-                    decoration: BoxDecoration(
-                      color: _isRightPressed
-                          ? const Color(0xFFF2F4F6)
-                          : Colors.white,
-                      borderRadius: const BorderRadius.only(
-                        topRight: Radius.circular(20),
-                        bottomRight: Radius.circular(20),
-                      ),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 22),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Text('🔒', style: TextStyle(fontSize: 17)),
-                        SizedBox(width: 7),
-                        Text(
-                          '개인정보처리방침',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF222222),
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SwipeableDraftCard extends StatefulWidget {
-  final dynamic d;
-  final VoidCallback onTap;
-  final Future<bool> Function() onDelete;
-
-  const _SwipeableDraftCard({
-    super.key,
-    required this.d,
-    required this.onTap,
-    required this.onDelete,
-  });
-
-  @override
-  State<_SwipeableDraftCard> createState() => _SwipeableDraftCardState();
-}
-
-class _SwipeableDraftCardState extends State<_SwipeableDraftCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-  double _dragOffset = 0;
-  static const double _maxSwipe = 90.0;
-  bool _isCardPressed = false;
-  bool _isSharePressed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _animation = Tween<double>(
-      begin: 0,
-      end: -_maxSwipe,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _copyShareLink() async {
-    final token = widget.d['share_token']?.toString();
-    final key = widget.d['encryption_key']?.toString();
-    if (token != null && token.isNotEmpty) {
-      // 암호화 키 없는 레코드 공유 시 경고 (리뷰어 사이트에서 내용 복호화 불가)
-      if ((key == null || key.isEmpty) && mounted) {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('주의', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-            content: const Text(
-              '이 레코드의 암호화 키를 찾을 수 없어\n서비스 내용·상담원 소견이 리뷰어 화면에 표시되지 않을 수 있습니다.\n\n앱을 재설치했거나 다른 기기에서 생성된 경우 발생합니다.',
-              style: TextStyle(fontSize: 14, height: 1.5),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('그래도 공유', style: TextStyle(color: AppColors.primary))),
-            ],
-          ),
-        );
-        if (confirmed != true) return;
-      }
-      final host = ApiService.serverUrl;
-      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
-      await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('링크가 복사되었습니다.', textAlign: TextAlign.center),
-          backgroundColor: Colors.black87,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('저장 후 공유할 수 있어요.', textAlign: TextAlign.center),
-          backgroundColor: Colors.black87,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    }
-  }
-
-  void _onHorizontalDragUpdate(DragUpdateDetails details) {
-    setState(() {
-      _dragOffset += details.primaryDelta!;
-      if (_dragOffset > 0) _dragOffset = 0;
-      if (_dragOffset < -_maxSwipe * 1.2) _dragOffset = -_maxSwipe * 1.2;
-    });
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) async {
-    if (_dragOffset < -_maxSwipe * 0.7) {
-      _controller.forward(from: _dragOffset / -_maxSwipe);
-      _dragOffset = -_maxSwipe;
-      final confirmed = await widget.onDelete();
-      if (!confirmed && mounted) {
-        _controller.reverse();
-        setState(() => _dragOffset = 0);
-      }
-    } else if (_dragOffset < -_maxSwipe / 3) {
-      _controller.forward(from: _dragOffset / -_maxSwipe);
-      _dragOffset = -_maxSwipe;
-    } else {
-      _controller.reverse(from: _dragOffset / -_maxSwipe);
-      _dragOffset = 0;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        final offset = _controller.isAnimating ? _animation.value : _dragOffset;
-        return AnimatedScale(
-          scale: _isCardPressed ? 0.98 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.danger.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: GestureDetector(
-                        onTap: () async {
-                          final confirmed = await widget.onDelete();
-                          if (!confirmed && mounted) {
-                            _controller.reverse();
-                            setState(() => _dragOffset = 0);
-                          }
-                        },
-                        child: Container(
-                          width: _maxSwipe,
-                          height: double.infinity,
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.delete,
-                            color: Colors.white,
-                            size: 30,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Transform.translate(
-                  offset: Offset(offset, 0),
-                  child: GestureDetector(
-                    onHorizontalDragUpdate: _onHorizontalDragUpdate,
-                    onHorizontalDragEnd: _onHorizontalDragEnd,
-                    onTapDown: (_) => setState(() => _isCardPressed = true),
-                    onTapUp: (_) => setState(() => _isCardPressed = false),
-                    onTapCancel: () => setState(() => _isCardPressed = false),
-                    onTap: widget.onTap,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 100),
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: _isCardPressed
-                            ? const Color(0xFFF2F4F6)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.border),
-                        boxShadow: _isCardPressed
-                            ? []
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                      ),
-                      child: Builder(builder: (context) {
-                        final bool isReviewed = widget.d['status']?.toString().toLowerCase() == 'reviewed';
-                        final bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-
-                        // ── 대상 텍스트 ──────────────────────────
-                        final targets = widget.d['target'].toString().split(', ');
-                        final String targetText = targets.length > 1
-                            ? "${targets[0]} 외 ${targets.length - 1}"
-                            : widget.d['target'].toString();
-                        final String subLine1 = '대상: $targetText | ${widget.d['method'] ?? '방문'}';
-
-                        // ── 제공일시 텍스트 ──────────────────────
-                        final startStr = widget.d['startTime'];
-                        final endStr = widget.d['endTime'];
-                        String subLine2;
-                        if (startStr == null || endStr == null) {
-                          subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
-                        } else {
-                          final start = DateTime.tryParse(startStr);
-                          final end = DateTime.tryParse(endStr);
-                          if (start == null || end == null) {
-                            subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
-                          } else {
-                            final bool isSameDay = start.year == end.year &&
-                                start.month == end.month &&
-                                start.day == end.day;
-                            final days = ['월', '화', '수', '목', '금', '토', '일'];
-                            final String startFmt =
-                                "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
-                            if (isSameDay) {
-                              subLine2 = "$startFmt ~ ${DateFormat('HH:mm').format(end)}";
-                            } else {
-                              final String endFmt =
-                                  "${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}";
-                              subLine2 = "$startFmt ~ $endFmt";
-                            }
-                          }
-                        }
-
-                        // ── 상태 태그 위젯 ──────────────────────
-                        final Widget statusTag = Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isReviewed
-                                ? AppColors.successLight
-                                : AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: isReviewed
-                                      ? AppColors.success
-                                      : AppColors.primary,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                isReviewed ? '검토 완료' : '검토 대기',
-                                style: TextStyle(
-                                  color: isReviewed
-                                      ? AppColors.success
-                                      : AppColors.primary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        // ── 가로 모드: 태그를 타이틀 오른쪽에 ────
-                        if (isLandscape) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 타이틀 + 태그 (태그는 오른쪽 끝 고정)
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Expanded(
-                                    child: RichText(
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      text: TextSpan(
-                                        children: [
-                                          TextSpan(
-                                            text: '${widget.d['caseName']} 아동',
-                                            style: const TextStyle(
-                                              color: Color(0xFF222222),
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: -0.5,
-                                            ),
-                                          ),
-                                          if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
-                                            TextSpan(
-                                              text: '  ${widget.d['dong']}',
-                                              style: const TextStyle(
-                                                color: Color(0xFFB0B8C1),
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w400,
-                                                letterSpacing: -0.2,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  statusTag,
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              // 서브텍스트 1: 대상 | 방법 (1줄)
-                              Text(
-                                subLine1,
-                                style: const TextStyle(
-                                  color: Color(0xFF8B95A1),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              // 서브텍스트 2: 제공일시 (1줄)
-                              Text(
-                                subLine2,
-                                style: const TextStyle(
-                                  color: Color(0xFF8B95A1),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          );
-                        }
-
-                        // ── 세로 모드: 태그 상단, 공유 버튼 우하단 ──
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 상단: 타이틀 + 상태 태그
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: RichText(
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    text: TextSpan(
-                                      children: [
-                                        TextSpan(
-                                          text: '${widget.d['caseName']} 아동',
-                                          style: const TextStyle(
-                                            color: Color(0xFF222222),
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: -0.5,
-                                          ),
-                                        ),
-                                        if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
-                                          TextSpan(
-                                            text: '  ${widget.d['dong']}',
-                                            style: const TextStyle(
-                                              color: Color(0xFFB0B8C1),
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w400,
-                                              letterSpacing: -0.2,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                statusTag,
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            // 하단: 서브텍스트 + 공유 버튼
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '$subLine1\n$subLine2',
-                                    style: const TextStyle(
-                                      color: Color(0xFF8B95A1),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.5,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                GestureDetector(
-                                  onTap: _copyShareLink,
-                                  onTapDown: (_) => setState(() => _isSharePressed = true),
-                                  onTapUp: (_) => setState(() => _isSharePressed = false),
-                                  onTapCancel: () => setState(() => _isSharePressed = false),
-                                  child: AnimatedScale(
-                                    scale: _isSharePressed ? 0.95 : 1.0,
-                                    duration: const Duration(milliseconds: 100),
-                                    curve: Curves.easeOutCubic,
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 100),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 18,
-                                        vertical: 10,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _isSharePressed
-                                            ? Color.lerp(AppColors.primary, Colors.black, 0.1)
-                                            : AppColors.primary,
-                                        borderRadius: BorderRadius.circular(100),
-                                        boxShadow: _isSharePressed
-                                            ? []
-                                            : [
-                                                BoxShadow(
-                                                  color: AppColors.primary.withValues(alpha: 0.25),
-                                                  blurRadius: 8,
-                                                  offset: const Offset(0, 3),
-                                                ),
-                                              ],
-                                      ),
-                                      child: const Text(
-                                        '공유',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        );
-                      }),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PressableProfileMenuItem extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final VoidCallback onTap;
-  final bool isDanger;
-
-  const _PressableProfileMenuItem({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    this.isDanger = false,
-  });
-
-  @override
-  State<_PressableProfileMenuItem> createState() =>
-      _PressableProfileMenuItemState();
-}
-
-class _PressableProfileMenuItemState extends State<_PressableProfileMenuItem> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        decoration: BoxDecoration(
-          color: _isPressed ? const Color(0xFFF2F4F6) : Colors.white,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Row(
           children: [
-            Icon(
-              widget.icon,
-              color: widget.isDanger ? AppColors.danger : AppColors.textMain,
-              size: 22,
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF2FF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.folder_shared_rounded, color: AppColors.primary, size: 22),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                widget.title,
-                style: TextStyle(
-                  color: widget.isDanger
-                      ? AppColors.danger
-                      : AppColors.textMain,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$caseName 아동',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$authorName 상담원이 공유함',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1)),
+                  ),
+                ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.border, size: 20),
+            if (shareUrl.isNotEmpty)
+              GestureDetector(
+                onTap: () async {
+                  final uri = Uri.parse(shareUrl);
+                  if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    '웹에서 보기',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

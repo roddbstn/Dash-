@@ -938,20 +938,29 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
     if (email) {
       // 같은 이메일의 모든 user_id로 레코드 조회 (Chrome OAuth id, Firebase UID 모두 포함)
       [rows] = await queryWithTimeout(
-        `SELECT r.*, c.case_name, c.dong 
-         FROM service_drafts r 
-         JOIN cases c ON r.case_id = c.id 
-         WHERE c.user_id IN (SELECT id FROM dash_users WHERE email = ?) 
-         ORDER BY r.created_at DESC`,
-        [email]
+        `SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'owned' AS record_type
+         FROM service_drafts r
+         JOIN cases c ON r.case_id = c.id
+         LEFT JOIN dash_users u ON c.user_id = u.id
+         WHERE c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+         UNION
+         SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'shared' AS record_type
+         FROM service_drafts r
+         JOIN cases c ON r.case_id = c.id
+         LEFT JOIN dash_users u ON c.user_id = u.id
+         WHERE r.reviewer_user_id = (SELECT id FROM dash_users WHERE email = ? LIMIT 1)
+           AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
+         ORDER BY created_at DESC`,
+        [email, email, email]
       );
       console.log(`✅ Found ${rows.length} records for email: ${email}`);
     } else {
       [rows] = await queryWithTimeout(
-        `SELECT r.*, c.case_name, c.dong 
-         FROM service_drafts r 
-         JOIN cases c ON r.case_id = c.id 
-         WHERE c.user_id = ? 
+        `SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'owned' AS record_type
+         FROM service_drafts r
+         JOIN cases c ON r.case_id = c.id
+         LEFT JOIN dash_users u ON c.user_id = u.id
+         WHERE c.user_id = ?
          ORDER BY r.created_at DESC`,
         [userId]
       );
