@@ -680,7 +680,7 @@ class _OnboardingPage2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return _PageLayout(
       title: '작성한 DB를\n곧바로 시스템에',
-      subtitle: '클릭 한 번으로\n자동 기입하세요',
+      subtitle: '크롬 확장프로그램으로\n클릭 한 번에 자동 기입돼요',
       illustration: _Page2Illustration(),
     );
   }

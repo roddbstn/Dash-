@@ -82,12 +82,16 @@ function updateUndoRedoButtons() {
     const canRedo = historyIndex < editHistory.length - 1;
 
     undoBtn.disabled = !canUndo;
-    undoBtn.style.color = canUndo ? '#495057' : '#ADB5BD';
+    undoBtn.style.background = canUndo ? '#4e73df' : '#E9ECEF';
+    undoBtn.style.color = canUndo ? '#fff' : '#ADB5BD';
     undoBtn.style.cursor = canUndo ? 'pointer' : 'not-allowed';
+    undoBtn.style.border = 'none';
 
     redoBtn.disabled = !canRedo;
-    redoBtn.style.color = canRedo ? '#495057' : '#ADB5BD';
+    redoBtn.style.background = canRedo ? '#4e73df' : '#E9ECEF';
+    redoBtn.style.color = canRedo ? '#fff' : '#ADB5BD';
     redoBtn.style.cursor = canRedo ? 'pointer' : 'not-allowed';
+    redoBtn.style.border = 'none';
 }
 
 function updateCTAState() {
@@ -129,6 +133,13 @@ function handleTyping() {
         const last = editHistory[historyIndex] || {};
         if (last.main !== main || last.opinion !== opinion) {
             pushHistory(main, opinion);
+        }
+
+        // 새로고침 후에도 최근 저장 내용 유지
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        if (token) {
+            sessionStorage.setItem('dash_draft_' + token, JSON.stringify({ main, opinion }));
         }
 
         status.textContent = `✓ ${timeStr} 저장됨`;
@@ -286,6 +297,7 @@ function submitAuthName() {
     .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })))
     .then(({ ok, data }) => {
         if (ok && data.verified) {
+            sessionStorage.setItem('dash_auth_' + token, '1');
             document.getElementById('auth-modal').style.display = 'none';
             loadRecord(token);
         } else if (data.locked) {
@@ -439,6 +451,13 @@ window.onload = () => {
         return;
     }
 
+    // 이미 인증된 세션이면 모달 없이 바로 로드
+    if (sessionStorage.getItem('dash_auth_' + token) === '1') {
+        document.getElementById('auth-modal').style.display = 'none';
+        loadRecord(token);
+        return;
+    }
+
     // 인증 모달 명시적 표시 (데이터 fetch 없음)
     document.getElementById('auth-modal').style.display = 'flex';
     document.getElementById('auth-name-input').focus();
@@ -460,9 +479,22 @@ function updateUI(data) {
         `;
     }
     
-    document.getElementById('main-editor').value = data.service_description || '';
-    document.getElementById('opinion-editor').value = data.agent_opinion || '';
-    
+    // 새로고침 전 저장된 초안이 있으면 서버 원본보다 우선 복원
+    const _token = new URLSearchParams(window.location.search).get('token');
+    const _saved = _token ? sessionStorage.getItem('dash_draft_' + _token) : null;
+    let mainVal = data.service_description || '';
+    let opinionVal = data.agent_opinion || '';
+    if (_saved) {
+        try {
+            const parsed = JSON.parse(_saved);
+            mainVal = parsed.main ?? mainVal;
+            opinionVal = parsed.opinion ?? opinionVal;
+        } catch (_) {}
+    }
+
+    document.getElementById('main-editor').value = mainVal;
+    document.getElementById('opinion-editor').value = opinionVal;
+
     // Auto resize after setting value
     document.getElementById('main-editor').dispatchEvent(new Event('input'));
     document.getElementById('opinion-editor').dispatchEvent(new Event('input'));
@@ -495,9 +527,14 @@ function updateUI(data) {
     pcGrid.innerHTML = htmlObj;
     mobileGrid.innerHTML = htmlObj;
 
-    // 히스토리 초기화 (로드된 내용을 baseline으로)
-    editHistory = [{ main: data.service_description || '', opinion: data.agent_opinion || '' }];
+    // 히스토리 초기화 — 저장된 초안이 있으면 baseline과 초안을 함께 넣어 변경사항 유지
+    const _baseline = { main: data.service_description || '', opinion: data.agent_opinion || '' };
+    editHistory = [_baseline];
     historyIndex = 0;
+    if (_saved && (mainVal !== _baseline.main || opinionVal !== _baseline.opinion)) {
+        editHistory.push({ main: mainVal, opinion: opinionVal });
+        historyIndex = 1;
+    }
     updateUndoRedoButtons();
     updateCTAState();
 }

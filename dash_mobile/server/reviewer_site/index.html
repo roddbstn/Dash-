@@ -34,24 +34,7 @@
         <!-- Main Content (Header + Editor) -->
         <div class="main-container">
             <header class="main-header">
-                <div class="header-left" style="display: flex; align-items: center; gap: 4px;">
-                    <button id="btn-undo" onclick="undo()" disabled title="실행 취소" style="
-                        background: none; border: 1px solid #e5e8eb; border-radius: 8px;
-                        cursor: not-allowed; color: #ADB5BD; font-size: 15px;
-                        padding: 6px 10px; line-height: 1; transition: all 0.15s;
-                    ">↩</button>
-                    <button id="btn-redo" onclick="redo()" disabled title="다시 실행" style="
-                        background: none; border: 1px solid #e5e8eb; border-radius: 8px;
-                        cursor: not-allowed; color: #ADB5BD; font-size: 15px;
-                        padding: 6px 10px; line-height: 1; transition: all 0.15s;
-                    ">↪</button>
-                    <button id="btn-edit-toggle" onclick="toggleEditMode()" style="
-                        background: #F1F3F5; border: none; border-radius: 8px;
-                        cursor: pointer; color: #495057; font-size: 13px; font-weight: 600;
-                        padding: 6px 12px; transition: all 0.15s; margin-left: 4px;
-                        font-family: inherit;
-                    ">✏️ 편집</button>
-                </div>
+                <div class="header-left"></div>
                 <div class="header-right">
                     <button class="btn btn-action notify-btn" id="btn-notify-header" onclick="openNotifyModal()" disabled style="opacity:0.45; cursor:not-allowed;">수정 완료 알림</button>
                 </div>
@@ -74,9 +57,31 @@
 
                 <div class="editor-container">
                     <div class="editor-header">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 16px;">
+                            <button id="btn-undo" onclick="undo()" disabled title="실행 취소" style="
+                                display: inline-flex; align-items: center; justify-content: center;
+                                width: 34px; height: 34px; padding: 0;
+                                background: #E9ECEF; border: none; border-radius: 8px;
+                                cursor: not-allowed; color: #ADB5BD; font-size: 16px;
+                                transition: all 0.15s;
+                            ">↩</button>
+                            <button id="btn-redo" onclick="redo()" disabled title="다시 실행" style="
+                                display: inline-flex; align-items: center; justify-content: center;
+                                width: 34px; height: 34px; padding: 0;
+                                background: #E9ECEF; border: none; border-radius: 8px;
+                                cursor: not-allowed; color: #ADB5BD; font-size: 16px;
+                                transition: all 0.15s;
+                            ">↪</button>
+                            <button id="btn-edit-toggle" onclick="toggleEditMode()" style="
+                                background: #F1F3F5; border: none; border-radius: 8px;
+                                cursor: pointer; color: #495057; font-size: 13px; font-weight: 600;
+                                padding: 0 14px; height: 34px; transition: all 0.15s; margin-left: 2px;
+                                font-family: inherit; display: inline-flex; align-items: center;
+                            ">✏️ 편집</button>
+                            <div id="save-status" class="save-status" style="margin-left: 6px;">방금 저장됨</div>
+                        </div>
                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                             <h1 id="page-title">불러오는 중...</h1>
-                            <div id="save-status" class="save-status">방금 저장됨</div>
                         </div>
                         <div class="editor-meta">
                             <span id="author-name"></span>
