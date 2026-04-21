@@ -2,9 +2,110 @@
 
 let isInfoExpanded = false;
 let saveTimeout = null;
+let isEditMode = false;
+let editHistory = []; // [{main, opinion}, ...]
+let historyIndex = -1;
 
-// Handle typing with auto-save simulation
+// ── 편집 모드 토글 ──────────────────────────────────────────
+function toggleEditMode() {
+    isEditMode = !isEditMode;
+    const mainEditor = document.getElementById('main-editor');
+    const opinionEditor = document.getElementById('opinion-editor');
+    const toggleBtn = document.getElementById('btn-edit-toggle');
+
+    if (isEditMode) {
+        mainEditor.readOnly = false;
+        opinionEditor.readOnly = false;
+        mainEditor.style.background = '#fff';
+        mainEditor.style.cursor = 'text';
+        opinionEditor.style.background = '#fff';
+        opinionEditor.style.cursor = 'text';
+        toggleBtn.textContent = '👁 보기';
+        toggleBtn.style.background = '#EFF6FF';
+        toggleBtn.style.color = '#2563EB';
+        mainEditor.focus();
+    } else {
+        mainEditor.readOnly = true;
+        opinionEditor.readOnly = true;
+        mainEditor.style.background = '#f9fafb';
+        mainEditor.style.cursor = 'default';
+        opinionEditor.style.background = '#f9fafb';
+        opinionEditor.style.cursor = 'default';
+        toggleBtn.textContent = '✏️ 편집';
+        toggleBtn.style.background = '#F1F3F5';
+        toggleBtn.style.color = '#495057';
+    }
+    updateCTAState();
+}
+
+// ── Undo / Redo ─────────────────────────────────────────────
+function pushHistory(main, opinion) {
+    editHistory = editHistory.slice(0, historyIndex + 1);
+    editHistory.push({ main, opinion });
+    historyIndex = editHistory.length - 1;
+    updateUndoRedoButtons();
+    updateCTAState();
+}
+
+function undo() {
+    if (historyIndex <= 0) return;
+    historyIndex--;
+    const state = editHistory[historyIndex];
+    document.getElementById('main-editor').value = state.main;
+    document.getElementById('opinion-editor').value = state.opinion;
+    if (window.currentRecord) {
+        window.currentRecord.serviceDescription = state.main;
+        window.currentRecord.agentOpinion = state.opinion;
+    }
+    updateUndoRedoButtons();
+    updateCTAState();
+}
+
+function redo() {
+    if (historyIndex >= editHistory.length - 1) return;
+    historyIndex++;
+    const state = editHistory[historyIndex];
+    document.getElementById('main-editor').value = state.main;
+    document.getElementById('opinion-editor').value = state.opinion;
+    if (window.currentRecord) {
+        window.currentRecord.serviceDescription = state.main;
+        window.currentRecord.agentOpinion = state.opinion;
+    }
+    updateUndoRedoButtons();
+    updateCTAState();
+}
+
+function updateUndoRedoButtons() {
+    const undoBtn = document.getElementById('btn-undo');
+    const redoBtn = document.getElementById('btn-redo');
+    const canUndo = historyIndex > 0;
+    const canRedo = historyIndex < editHistory.length - 1;
+
+    undoBtn.disabled = !canUndo;
+    undoBtn.style.color = canUndo ? '#495057' : '#ADB5BD';
+    undoBtn.style.cursor = canUndo ? 'pointer' : 'not-allowed';
+
+    redoBtn.disabled = !canRedo;
+    redoBtn.style.color = canRedo ? '#495057' : '#ADB5BD';
+    redoBtn.style.cursor = canRedo ? 'pointer' : 'not-allowed';
+}
+
+function updateCTAState() {
+    const hasChanges = historyIndex > 0;
+    const enabled = isEditMode && hasChanges;
+    document.querySelectorAll('.notify-btn').forEach(btn => {
+        btn.disabled = !enabled;
+        btn.style.opacity = enabled ? '1' : '0.45';
+        btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+        if (btn.id === 'btn-notify-mobile') {
+            btn.style.background = enabled ? '' : '#ADB5BD';
+        }
+    });
+}
+
+// ── 자동 저장 (편집 모드일 때만) ────────────────────────────
 function handleTyping() {
+    if (!isEditMode) return;
     const status = document.getElementById('save-status');
     status.textContent = '저장 중...';
     status.style.opacity = '1';
@@ -15,11 +116,19 @@ function handleTyping() {
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-        // E2EE 보안 정책: 민감 정보(서비스 내용, 상담원 소견)를 평문으로 서버에 전송하지 않음
-        // 검토자가 수정한 내용은 메모리에만 임시 보관하고, '검토 완료' 버튼 클릭 시 재암호화하여 전송
+        const main = document.getElementById('main-editor').value;
+        const opinion = document.getElementById('opinion-editor').value || '';
+
+        // E2EE 보안 정책: 수정 내용은 메모리에 임시 보관, '수정 완료 알림' 버튼 클릭 시 재암호화하여 전송
         if (window.currentRecord) {
-            window.currentRecord.serviceDescription = document.getElementById('main-editor').value;
-            window.currentRecord.agentOpinion = document.getElementById('opinion-editor').value || '';
+            window.currentRecord.serviceDescription = main;
+            window.currentRecord.agentOpinion = opinion;
+        }
+
+        // 히스토리에 현재 상태 push (내용이 변경된 경우만)
+        const last = editHistory[historyIndex] || {};
+        if (last.main !== main || last.opinion !== opinion) {
+            pushHistory(main, opinion);
         }
 
         status.textContent = `✓ ${timeStr} 저장됨`;
@@ -302,12 +411,24 @@ window.onload = () => {
     const mainTextarea = document.getElementById('main-editor');
     const opinionTextarea = document.getElementById('opinion-editor');
 
+    // 초기 읽기 모드 설정
+    mainTextarea.readOnly = true;
+    opinionTextarea.readOnly = true;
+    mainTextarea.style.background = '#f9fafb';
+    mainTextarea.style.cursor = 'default';
+    opinionTextarea.style.background = '#f9fafb';
+    opinionTextarea.style.cursor = 'default';
+
     function autoResize() {
         this.style.height = 'auto';
         this.style.height = (this.scrollHeight) + 'px';
     }
     mainTextarea.addEventListener('input', autoResize);
     opinionTextarea.addEventListener('input', autoResize);
+
+    // 초기 CTA 비활성화
+    updateUndoRedoButtons();
+    updateCTAState();
 
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
@@ -373,4 +494,10 @@ function updateUI(data) {
     
     pcGrid.innerHTML = htmlObj;
     mobileGrid.innerHTML = htmlObj;
+
+    // 히스토리 초기화 (로드된 내용을 baseline으로)
+    editHistory = [{ main: data.service_description || '', opinion: data.agent_opinion || '' }];
+    historyIndex = 0;
+    updateUndoRedoButtons();
+    updateCTAState();
 }

@@ -728,35 +728,6 @@ class _FormScreenState extends State<FormScreen> {
                     child: Icon(Icons.ios_share, size: 22, color: AppColors.textSub),
                   ),
                 ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isReviewed ? AppColors.successLight : AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: isReviewed ? AppColors.success : AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      isReviewed ? '검토 완료' : '검토 대기',
-                      style: TextStyle(
-                        color: isReviewed ? AppColors.success : AppColors.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ],
         ),
@@ -974,14 +945,21 @@ class _FormScreenState extends State<FormScreen> {
             if (!focusNode.hasFocus) return const SizedBox.shrink();
             return GestureDetector(
               onTap: () => focusNode.unfocus(),
-              child: const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text(
-                  '완료',
-                  style: TextStyle(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, right: 8, bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
                     color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    '완료',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),

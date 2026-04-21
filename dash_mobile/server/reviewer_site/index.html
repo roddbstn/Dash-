@@ -34,14 +34,26 @@
         <!-- Main Content (Header + Editor) -->
         <div class="main-container">
             <header class="main-header">
-                <div class="header-left">
+                <div class="header-left" style="display: flex; align-items: center; gap: 4px;">
+                    <button id="btn-undo" onclick="undo()" disabled title="실행 취소" style="
+                        background: none; border: 1px solid #e5e8eb; border-radius: 8px;
+                        cursor: not-allowed; color: #ADB5BD; font-size: 15px;
+                        padding: 6px 10px; line-height: 1; transition: all 0.15s;
+                    ">↩</button>
+                    <button id="btn-redo" onclick="redo()" disabled title="다시 실행" style="
+                        background: none; border: 1px solid #e5e8eb; border-radius: 8px;
+                        cursor: not-allowed; color: #ADB5BD; font-size: 15px;
+                        padding: 6px 10px; line-height: 1; transition: all 0.15s;
+                    ">↪</button>
+                    <button id="btn-edit-toggle" onclick="toggleEditMode()" style="
+                        background: #F1F3F5; border: none; border-radius: 8px;
+                        cursor: pointer; color: #495057; font-size: 13px; font-weight: 600;
+                        padding: 6px 12px; transition: all 0.15s; margin-left: 4px;
+                        font-family: inherit;
+                    ">✏️ 편집</button>
                 </div>
                 <div class="header-right">
-                    <div class="status-indicator">
-                        <span class="pulse-dot"></span>
-                        <span class="status-text">검토 대기</span>
-                    </div>
-                    <button class="btn btn-action" onclick="openNotifyModal()">완료 알림</button>
+                    <button class="btn btn-action notify-btn" id="btn-notify-header" onclick="openNotifyModal()" disabled style="opacity:0.45; cursor:not-allowed;">수정 완료 알림</button>
                 </div>
             </header>
 
@@ -73,28 +85,28 @@
 
                     <div class="writing-workspace">
                         <h4 style="margin-bottom: 12px; color: #4e5968; font-weight: 700; font-size: 14px;">서비스 내용</h4>
-                        <textarea id="main-editor" placeholder="서비스 내용을 입력하세요..." oninput="handleTyping()"></textarea>
+                        <textarea id="main-editor" placeholder="서비스 내용을 입력하세요..." oninput="handleTyping()" readonly style="background:#f9fafb; cursor:default; resize:none;"></textarea>
 
                         <h4
                             style="margin-top: 32px; margin-bottom: 12px; color: #4e5968; font-weight: 700; font-size: 14px;">
                             상담원 소견</h4>
                         <textarea id="opinion-editor" placeholder="상담원 소견을 입력하세요..."
-                            oninput="handleTyping()"></textarea>
+                            oninput="handleTyping()" readonly style="background:#f9fafb; cursor:default; resize:none;"></textarea>
                     </div>
                 </div>
             </main>
 
             <!-- Bottom CTA Button (Mobile) -->
             <div class="mobile-cta-container">
-                <button class="btn btn-primary-full" onclick="openNotifyModal()">검토 완료 알림 보내기</button>
+                <button class="btn btn-primary-full notify-btn" id="btn-notify-mobile" onclick="openNotifyModal()" disabled style="opacity:0.45; cursor:not-allowed; background:#ADB5BD;">수정 완료 알림 보내기</button>
             </div>
         </div>
 
         <!-- Modals -->
         <div id="modal-container" class="modal-backdrop">
             <div class="modal">
-                <h2>검토 리포트 알림</h2>
-                <p>수정된 내용을 담당자에게 알리고 검토를 완료할까요?</p>
+                <h2>수정 완료 알림</h2>
+                <p>수정된 내용을 공유한 담당자에게 알림을 보낼까요?</p>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" onclick="closeModal()">취소</button>
                     <button class="btn btn-primary" onclick="confirmNotify()">알림 보내기</button>

@@ -1,0 +1,742 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:dash_mobile/theme.dart';
+import 'package:dash_mobile/api_service.dart';
+import 'package:dash_mobile/privacy_policy_screen.dart';
+import 'package:dash_mobile/user_guide_screen.dart';
+import 'package:intl/intl.dart';
+
+class PressableCaseCard extends StatefulWidget {
+  final Map<String, dynamic> caseData;
+  final bool isSelected;
+  final int sIndex;
+  final bool isSelectionMode;
+  final VoidCallback onTap;
+
+  const PressableCaseCard({
+    super.key,
+    required this.caseData,
+    required this.isSelected,
+    required this.sIndex,
+    required this.isSelectionMode,
+    required this.onTap,
+  });
+
+  @override
+  State<PressableCaseCard> createState() => _PressableCaseCardState();
+}
+
+class _PressableCaseCardState extends State<PressableCaseCard> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          decoration: BoxDecoration(
+            color: _isPressed ? const Color(0xFFF2F4F6) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: widget.isSelected
+                ? Border.all(color: AppColors.primary, width: 2)
+                : Border.all(color: Colors.black.withValues(alpha: 0.05)),
+            boxShadow: _isPressed
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      widget.caseData['maskedName'],
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      widget.caseData['dong'],
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSub.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.isSelectionMode)
+                Positioned(
+                  bottom: 12,
+                  right: 12,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.isSelected
+                          ? AppColors.primary
+                          : Colors.white,
+                      border: Border.all(
+                        color: widget.isSelected
+                            ? AppColors.primary
+                            : AppColors.border,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.isSelected ? '${widget.sIndex}' : '',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class InfoBanner extends StatefulWidget {
+  const InfoBanner({super.key});
+
+  @override
+  State<InfoBanner> createState() => _InfoBannerState();
+}
+
+class _InfoBannerState extends State<InfoBanner> {
+  bool _isLeftPressed = false;
+  bool _isRightPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isAnyPressed = _isLeftPressed || _isRightPressed;
+
+    return AnimatedScale(
+      scale: isAnyPressed ? 0.98 : 1.0,
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOutCubic,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border),
+          boxShadow: isAnyPressed
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // Left: 이용 안내
+              Expanded(
+                child: GestureDetector(
+                  onTapDown: (_) => setState(() => _isLeftPressed = true),
+                  onTapUp: (_) => setState(() => _isLeftPressed = false),
+                  onTapCancel: () => setState(() => _isLeftPressed = false),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const UserGuideScreen(),
+                      ),
+                    );
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    decoration: BoxDecoration(
+                      color: _isLeftPressed
+                          ? const Color(0xFFF2F4F6)
+                          : Colors.white,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        bottomLeft: Radius.circular(20),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 22),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Text('📋', style: TextStyle(fontSize: 17)),
+                        SizedBox(width: 7),
+                        Text(
+                          '이용 안내',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF222222),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Vertical divider
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  width: 1,
+                  color: AppColors.bg, // 배경색과 동일한 색으로 변경
+                ),
+              ),
+              // Right: 개인정보처리방침
+              Expanded(
+                child: GestureDetector(
+                  onTapDown: (_) => setState(() => _isRightPressed = true),
+                  onTapUp: (_) => setState(() => _isRightPressed = false),
+                  onTapCancel: () => setState(() => _isRightPressed = false),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PrivacyPolicyScreen(),
+                      ),
+                    );
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    decoration: BoxDecoration(
+                      color: _isRightPressed
+                          ? const Color(0xFFF2F4F6)
+                          : Colors.white,
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(20),
+                        bottomRight: Radius.circular(20),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 22),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Text('🔒', style: TextStyle(fontSize: 17)),
+                        SizedBox(width: 7),
+                        Text(
+                          '개인정보처리방침',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF222222),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SwipeableDraftCard extends StatefulWidget {
+  final dynamic d;
+  final VoidCallback onTap;
+  final Future<bool> Function() onDelete;
+
+  const SwipeableDraftCard({
+    super.key,
+    required this.d,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  State<SwipeableDraftCard> createState() => _SwipeableDraftCardState();
+}
+
+class _SwipeableDraftCardState extends State<SwipeableDraftCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  double _dragOffset = 0;
+  static const double _maxSwipe = 90.0;
+  bool _isCardPressed = false;
+  bool _isSharePressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _animation = Tween<double>(
+      begin: 0,
+      end: -_maxSwipe,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _copyShareLink() async {
+    final token = widget.d['share_token']?.toString();
+    final key = widget.d['encryption_key']?.toString();
+    if (token != null && token.isNotEmpty) {
+      // 암호화 키 없는 레코드 공유 시 경고 (리뷰어 사이트에서 내용 복호화 불가)
+      if ((key == null || key.isEmpty) && mounted) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('주의', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            content: const Text(
+              '이 레코드의 암호화 키를 찾을 수 없어\n서비스 내용·상담원 소견이 리뷰어 화면에 표시되지 않을 수 있습니다.\n\n앱을 재설치했거나 다른 기기에서 생성된 경우 발생합니다.',
+              style: TextStyle(fontSize: 14, height: 1.5),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('그래도 공유', style: TextStyle(color: AppColors.primary))),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
+      final host = ApiService.serverUrl;
+      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
+      await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('링크가 복사되었습니다.', textAlign: TextAlign.center),
+          backgroundColor: Colors.black87,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('저장 후 공유할 수 있어요.', textAlign: TextAlign.center),
+          backgroundColor: Colors.black87,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _dragOffset += details.primaryDelta!;
+      if (_dragOffset > 0) _dragOffset = 0;
+      if (_dragOffset < -_maxSwipe * 1.2) _dragOffset = -_maxSwipe * 1.2;
+    });
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) async {
+    if (_dragOffset < -_maxSwipe * 0.7) {
+      _controller.forward(from: _dragOffset / -_maxSwipe);
+      _dragOffset = -_maxSwipe;
+      final confirmed = await widget.onDelete();
+      if (!confirmed && mounted) {
+        _controller.reverse();
+        setState(() => _dragOffset = 0);
+      }
+    } else if (_dragOffset < -_maxSwipe / 3) {
+      _controller.forward(from: _dragOffset / -_maxSwipe);
+      _dragOffset = -_maxSwipe;
+    } else {
+      _controller.reverse(from: _dragOffset / -_maxSwipe);
+      _dragOffset = 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final offset = _controller.isAnimating ? _animation.value : _dragOffset;
+        return AnimatedScale(
+          scale: _isCardPressed ? 0.98 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOutCubic,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () async {
+                          final confirmed = await widget.onDelete();
+                          if (!confirmed && mounted) {
+                            _controller.reverse();
+                            setState(() => _dragOffset = 0);
+                          }
+                        },
+                        child: Container(
+                          width: _maxSwipe,
+                          height: double.infinity,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.delete,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Transform.translate(
+                  offset: Offset(offset, 0),
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: _onHorizontalDragUpdate,
+                    onHorizontalDragEnd: _onHorizontalDragEnd,
+                    onTapDown: (_) => setState(() => _isCardPressed = true),
+                    onTapUp: (_) => setState(() => _isCardPressed = false),
+                    onTapCancel: () => setState(() => _isCardPressed = false),
+                    onTap: widget.onTap,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 100),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _isCardPressed
+                            ? const Color(0xFFF2F4F6)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: _isCardPressed
+                            ? []
+                            : [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                      ),
+                      child: Builder(builder: (context) {
+                        final bool isReviewed = widget.d['status']?.toString().toLowerCase() == 'reviewed';
+                        final bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
+                        // ── 대상 텍스트 ──────────────────────────
+                        final targets = widget.d['target'].toString().split(', ');
+                        final String targetText = targets.length > 1
+                            ? "${targets[0]} 외 ${targets.length - 1}"
+                            : widget.d['target'].toString();
+                        final String subLine1 = '대상: $targetText | ${widget.d['method'] ?? '방문'}';
+
+                        // ── 제공일시 텍스트 ──────────────────────
+                        final startStr = widget.d['startTime'];
+                        final endStr = widget.d['endTime'];
+                        String subLine2;
+                        if (startStr == null || endStr == null) {
+                          subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
+                        } else {
+                          final start = DateTime.tryParse(startStr);
+                          final end = DateTime.tryParse(endStr);
+                          if (start == null || end == null) {
+                            subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
+                          } else {
+                            final bool isSameDay = start.year == end.year &&
+                                start.month == end.month &&
+                                start.day == end.day;
+                            final days = ['월', '화', '수', '목', '금', '토', '일'];
+                            final String startFmt =
+                                "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
+                            if (isSameDay) {
+                              subLine2 = "$startFmt ~ ${DateFormat('HH:mm').format(end)}";
+                            } else {
+                              final String endFmt =
+                                  "${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}";
+                              subLine2 = "$startFmt ~ $endFmt";
+                            }
+                          }
+                        }
+
+
+                        // ── 가로 모드: 태그를 타이틀 오른쪽에 ────
+                        if (isLandscape) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 타이틀 + 태그 (태그는 오른쪽 끝 고정)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Expanded(
+                                    child: RichText(
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      text: TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text: '${widget.d['caseName']} 아동',
+                                            style: const TextStyle(
+                                              color: Color(0xFF222222),
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: -0.5,
+                                            ),
+                                          ),
+                                          if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
+                                            TextSpan(
+                                              text: '  ${widget.d['dong']}',
+                                              style: const TextStyle(
+                                                color: Color(0xFFB0B8C1),
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w400,
+                                                letterSpacing: -0.2,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // 서브텍스트 1: 대상 | 방법 (1줄)
+                              Text(
+                                subLine1,
+                                style: const TextStyle(
+                                  color: Color(0xFF8B95A1),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              // 서브텍스트 2: 제공일시 (1줄)
+                              Text(
+                                subLine2,
+                                style: const TextStyle(
+                                  color: Color(0xFF8B95A1),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          );
+                        }
+
+                        // ── 세로 모드: 태그 상단, 공유 버튼 우하단 ──
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 상단: 타이틀 + 상태 태그
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: RichText(
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    text: TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: '${widget.d['caseName']} 아동',
+                                          style: const TextStyle(
+                                            color: Color(0xFF222222),
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -0.5,
+                                          ),
+                                        ),
+                                        if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
+                                          TextSpan(
+                                            text: '  ${widget.d['dong']}',
+                                            style: const TextStyle(
+                                              color: Color(0xFFB0B8C1),
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w400,
+                                              letterSpacing: -0.2,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            // 하단: 서브텍스트 + 공유 버튼
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '$subLine1\n$subLine2',
+                                    style: const TextStyle(
+                                      color: Color(0xFF8B95A1),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                GestureDetector(
+                                  onTap: _copyShareLink,
+                                  onTapDown: (_) => setState(() => _isSharePressed = true),
+                                  onTapUp: (_) => setState(() => _isSharePressed = false),
+                                  onTapCancel: () => setState(() => _isSharePressed = false),
+                                  child: AnimatedScale(
+                                    scale: _isSharePressed ? 0.95 : 1.0,
+                                    duration: const Duration(milliseconds: 100),
+                                    curve: Curves.easeOutCubic,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 100),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 18,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _isSharePressed
+                                            ? Color.lerp(AppColors.primary, Colors.black, 0.1)
+                                            : AppColors.primary,
+                                        borderRadius: BorderRadius.circular(100),
+                                        boxShadow: _isSharePressed
+                                            ? []
+                                            : [
+                                                BoxShadow(
+                                                  color: AppColors.primary.withValues(alpha: 0.25),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 3),
+                                                ),
+                                              ],
+                                      ),
+                                      child: const Text(
+                                        '공유',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class PressableProfileMenuItem extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final bool isDanger;
+
+  const PressableProfileMenuItem({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.isDanger = false,
+  });
+
+  @override
+  State<PressableProfileMenuItem> createState() =>
+      _PressableProfileMenuItemState();
+}
+
+class _PressableProfileMenuItemState extends State<PressableProfileMenuItem> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        decoration: BoxDecoration(
+          color: _isPressed ? const Color(0xFFF2F4F6) : Colors.white,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Icon(
+              widget.icon,
+              color: widget.isDanger ? AppColors.danger : AppColors.textMain,
+              size: 22,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                widget.title,
+                style: TextStyle(
+                  color: widget.isDanger
+                      ? AppColors.danger
+                      : AppColors.textMain,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.border, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:dash_mobile/theme.dart';
-import 'package:dash_mobile/home_screen.dart';
 import 'package:dash_mobile/analytics_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -14,21 +15,71 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+  bool _isLoading = false;
 
   static const int _pageCount = 4;
 
-  Future<void> _finish({bool skip = false}) async {
-    if (skip) {
-      AnalyticsService.onboardingSkip(_currentPage);
-    } else {
-      AnalyticsService.onboardingComplete();
-    }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_v1_completed', true);
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+  static const String _serverClientId =
+      '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com';
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.screenOnboarding(0);
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_isLoading) return;
+    AnalyticsService.onboardingLoginTapped(_currentPage);
+    try {
+      final googleSignIn = GoogleSignIn(serverClientId: _serverClientId);
+      // 계정 선택 모달 강제 표시 (캐시 상태 초기화)
+      await googleSignIn.signOut().catchError((_) {});
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) return;
+      // 계정 선택 완료 후 로딩 표시 (picker가 즉시 열리도록)
+      setState(() => _isLoading = true);
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
+      await FirebaseAuth.instance.signInWithCredential(credential);
+      AnalyticsService.loginSuccess();
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('onboarding_v1_completed', true);
+      AnalyticsService.onboardingComplete();
+    } catch (e) {
+      AnalyticsService.loginFailure(e.toString());
+      if (mounted) {
+        final errStr = e.toString();
+        final bool isSha1Error = errStr.contains('ApiException: 10') ||
+            errStr.contains('DEVELOPER_ERROR') ||
+            errStr.contains('sign_in_failed');
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('로그인 실패'),
+            content: Text(
+              isSha1Error
+                  ? '개발자 오류(code 10): SHA-1 인증서 지문이 Firebase 콘솔에 등록되지 않았거나 앱 설정이 잘못됐습니다.\n\n$errStr'
+                  : errStr,
+              style: const TextStyle(fontSize: 13),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -45,52 +96,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // 상단: 건너뛰기
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(0, 12, 16, 0),
-                child: _currentPage < _pageCount - 1
-                    ? TextButton(
-                        onPressed: () => _finish(skip: true),
-                        child: Text(
-                          '건너뛰기',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textSub,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      )
-                    : const SizedBox(height: 40),
-              ),
-            ),
+            const SizedBox(height: 52),
 
-            // 페이지 본문
             Expanded(
               child: PageView(
                 controller: _pageController,
-                onPageChanged: (i) => setState(() => _currentPage = i),
+                onPageChanged: (i) {
+                  setState(() => _currentPage = i);
+                  AnalyticsService.screenOnboarding(i);
+                },
                 children: const [
-                  _OnboardingPage0(),
-                  _OnboardingPage1(),
                   _OnboardingPage2(),
+                  _OnboardingPage1(),
                   _OnboardingPage3(),
+                  _OnboardingPage0(),
                 ],
               ),
             ),
 
             // 점 인디케이터
             Padding(
-              padding: const EdgeInsets.only(top: 24, bottom: 8),
+              padding: const EdgeInsets.only(top: 20, bottom: 20),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(_pageCount, (i) {
                   final isActive = i == _currentPage;
                   return AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
                     width: isActive ? 20 : 7,
                     height: 7,
                     decoration: BoxDecoration(
@@ -103,63 +136,93 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 }),
               ),
             ),
-            const SizedBox(height: 16),
 
-            // 하단 버튼
+            // 하단 버튼 영역
             Padding(
               padding: EdgeInsets.fromLTRB(
                 24,
                 0,
                 24,
-                MediaQuery.of(context).padding.bottom + 24,
+                MediaQuery.of(context).padding.bottom +
+                    (MediaQuery.of(context).orientation == Orientation.landscape
+                        ? 12
+                        : 24),
               ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: _currentPage < _pageCount - 1
-                    ? ElevatedButton(
-                        onPressed: () {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 350),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _isLoading
+                          ? null
+                          : (_currentPage < _pageCount - 1
+                              ? () => _pageController.nextPage(
+                                    duration:
+                                        const Duration(milliseconds: 350),
+                                    curve: Curves.easeInOut,
+                                  )
+                              : _signInWithGoogle),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _currentPage == _pageCount - 1
+                            ? const Color(0xFFF8FAFC)
+                            : AppColors.primary,
+                        disabledBackgroundColor: _currentPage == _pageCount - 1
+                            ? const Color(0xFFF8FAFC).withValues(alpha: 0.6)
+                            : AppColors.primary.withValues(alpha: 0.6),
+                        side: _currentPage == _pageCount - 1
+                            ? const BorderSide(color: Color(0xFFDDE1E7), width: 1)
+                            : BorderSide.none,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          '다음',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      )
-                    : ElevatedButton(
-                        onPressed: _finish,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          '시작하기',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
+                        elevation: 0,
                       ),
+                      child: _isLoading && _currentPage == _pageCount - 1
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                color: AppColors.primary,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : _currentPage < _pageCount - 1
+                              ? const Text(
+                                  '다음',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    letterSpacing: -0.3,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Image.asset(
+                                      'assets/icons/google_logo.png',
+                                      width: 20,
+                                      height: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Text(
+                                      '구글 계정으로 시작하기',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF222222),
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const SizedBox(height: 52),
+                ],
               ),
             ),
           ],
@@ -169,20 +232,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-// ── 페이지 0: 보안 신뢰 페이지 (첫 화면) ────────────────────────────
+// ── 페이지 0: 보안 신뢰 페이지 (4번째 화면) ─────────────────────────
 class _OnboardingPage0 extends StatelessWidget {
   const _OnboardingPage0();
 
   @override
   Widget build(BuildContext context) {
+    final isTablet = MediaQuery.of(context).size.shortestSide > 600;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 8),
+          SizedBox(height: isTablet ? 48 : 24),
           const Text(
-            '아동 정보,\nDASH에 남지 않습니다',
+            '안전하게 보호받는\nDB 작성내용',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 22,
@@ -194,7 +258,7 @@ class _OnboardingPage0 extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'DASH는 공식 시스템으로 안전하게 전달하는\n보안 전송 도구입니다.',
+            '서버에서는 데이터 열람이 불가능해요',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -203,9 +267,16 @@ class _OnboardingPage0 extends StatelessWidget {
               letterSpacing: -0.2,
             ),
           ),
-          const SizedBox(height: 24),
-          // 흐름도
-          _SecurityFlowDiagram(),
+          const Spacer(),
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: isTablet ? 480 : double.infinity,
+              ),
+              child: _SecurityFlowDiagram(),
+            ),
+          ),
+          const Spacer(),
         ],
       ),
     );
@@ -224,40 +295,44 @@ class _SecurityFlowDiagram extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // 전송 흐름도
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _FlowNode(
-                icon: Icons.phone_iphone,
-                label: '상담원 기기',
-                sublabel: '입력 즉시 암호화',
-                color: AppColors.primary,
-                canSee: true,
+              Expanded(
+                child: _FlowNode(
+                  icon: Icons.phone_iphone,
+                  label: '상담원 기기',
+                  sublabel: 'DB 암호화',
+                  color: AppColors.primary,
+                  canSee: true,
+                ),
               ),
               _DashedArrow(label: 'E2EE\n암호화 전송'),
-              _FlowNode(
-                icon: Icons.sync_alt,
-                label: 'DASH 서버',
-                sublabel: '복호화 불가\n전송 후 즉시 삭제',
-                color: const Color(0xFF6B7280),
-                isDimmed: true,
-                canSee: false,
+              Expanded(
+                child: _FlowNode(
+                  icon: Icons.sync_alt,
+                  label: 'DASH 서버',
+                  sublabel: '복호화 불가\n전송 후 즉시 삭제',
+                  color: const Color(0xFF6B7280),
+                  isDimmed: true,
+                  canSee: false,
+                ),
               ),
               _DashedArrow(label: '자동\n입력'),
-              _FlowNode(
-                icon: Icons.account_balance,
-                label: '공식 시스템',
-                sublabel: '기관 서버\n(NCADS)',
-                color: const Color(0xFF059669),
-                canSee: true,
+              Expanded(
+                child: _FlowNode(
+                  icon: Icons.account_balance,
+                  label: '공식 시스템',
+                  sublabel: '기관 서버\n(NCADS)',
+                  color: const Color(0xFF059669),
+                  canSee: true,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
           const Divider(color: Color(0xFFE2E8F0), height: 1),
           const SizedBox(height: 12),
-          // 열람 주체 범례
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,7 +343,8 @@ class _SecurityFlowDiagram extends StatelessWidget {
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.visibility, size: 12, color: Color(0xFF059669)),
+                          Icon(Icons.visibility,
+                              size: 12, color: Color(0xFF059669)),
                           SizedBox(width: 4),
                           Text(
                             '열람 가능',
@@ -299,7 +375,8 @@ class _SecurityFlowDiagram extends StatelessWidget {
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.visibility_off, size: 12, color: Color(0xFFDC2626)),
+                          Icon(Icons.visibility_off,
+                              size: 12, color: Color(0xFFDC2626)),
                           SizedBox(width: 4),
                           Text(
                             '열람 불가 (E2EE)',
@@ -397,7 +474,9 @@ class _FlowNode extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: isDimmed ? const Color(0xFF9CA3AF) : const Color(0xFF111827),
+              color: isDimmed
+                  ? const Color(0xFF9CA3AF)
+                  : const Color(0xFF111827),
               letterSpacing: -0.1,
             ),
           ),
@@ -406,7 +485,7 @@ class _FlowNode extends StatelessWidget {
             sublabel,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 9,
+              fontSize: 11,
               color: Color(0xFF9CA3AF),
               height: 1.4,
             ),
@@ -424,7 +503,7 @@ class _DashedArrow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(top: 21),
       child: Column(
         children: [
           Row(
@@ -447,7 +526,7 @@ class _DashedArrow extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 8,
+              fontSize: 10,
               color: Color(0xFF94A3B8),
               height: 1.3,
             ),
@@ -478,7 +557,7 @@ class _LegendRow extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 10,
+            fontSize: 12,
             color: Color(0xFF6B7280),
             letterSpacing: -0.1,
           ),
@@ -488,7 +567,7 @@ class _LegendRow extends StatelessWidget {
   }
 }
 
-// ── 공통 페이지 레이아웃 ───────────────────────────────────────────
+// ── 공통 페이지 레이아웃 ─────────────────────────────────────────────
 class _PageLayout extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -502,20 +581,27 @@ class _PageLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isTablet = MediaQuery.of(context).size.shortestSide > 600;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         children: [
-          const SizedBox(height: 8),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
-              letterSpacing: -0.5,
-              height: 1.35,
+          SizedBox(height: isTablet ? 48 : 24),
+          SizedBox(
+            height: 60,
+            child: Align(
+              alignment: Alignment.center,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF111827),
+                  letterSpacing: -0.5,
+                  height: 1.35,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -529,8 +615,7 @@ class _PageLayout extends StatelessWidget {
               letterSpacing: -0.2,
             ),
           ),
-          const SizedBox(height: 24),
-          // 일러스트 영역
+          const SizedBox(height: 14),
           Expanded(child: illustration),
         ],
       ),
@@ -538,15 +623,15 @@ class _PageLayout extends StatelessWidget {
   }
 }
 
-// ── 페이지 1: 태블릿·휴대폰으로 DB 작성 ────────────────────────────
+// ── 페이지 1: 태블릿·휴대폰으로 DB 작성 (2번째 화면) ──────────────────
 class _OnboardingPage1 extends StatelessWidget {
   const _OnboardingPage1();
 
   @override
   Widget build(BuildContext context) {
     return _PageLayout(
-      title: '모바일로 DB 작성',
-      subtitle: '현장에서 바로 기록하세요.',
+      title: '모바일·태블릿으로\nDB 작성하기',
+      subtitle: '현장에서 바로 기록하세요',
       illustration: _Page1Illustration(),
     );
   }
@@ -555,15 +640,39 @@ class _OnboardingPage1 extends StatelessWidget {
 class _Page1Illustration extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: _DBEntryPhoneMockup(),
+    final isTablet = MediaQuery.of(context).size.shortestSide > 600;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const baseW = 185.0;
+        const baseH = 370.0;
+        double targetW = isTablet ? baseW * 1.5 : baseW;
+        double targetH = isTablet ? baseH * 1.5 : baseH;
+        final maxH = constraints.maxHeight - 16;
+        if (targetH > maxH && maxH > 0) {
+          final factor = maxH / targetH;
+          targetW *= factor;
+          targetH = maxH;
+        }
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: targetW,
+              height: targetH,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: _DBEntryPhoneMockup(),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
     );
   }
 }
 
-
-
-// ── 페이지 2: 작성한 DB를 곧바로 시스템에 ────────────────────────────
+// ── 페이지 2: 작성한 DB를 곧바로 시스템에 (1번째 화면) ─────────────────
 class _OnboardingPage2 extends StatelessWidget {
   const _OnboardingPage2();
 
@@ -571,7 +680,7 @@ class _OnboardingPage2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return _PageLayout(
       title: '작성한 DB를\n곧바로 시스템에',
-      subtitle: '클릭 한 번으로 NCADS 등\n업무 시스템에 자동 입력됩니다.',
+      subtitle: '클릭 한 번으로\n자동 기입하세요',
       illustration: _Page2Illustration(),
     );
   }
@@ -587,27 +696,6 @@ class _Page2Illustration extends StatelessWidget {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              height: stackH,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(child: _NCADSBrowserMock()),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    width: 126,
-                    child: _DashExtensionPopup(),
-                  ),
-                  Positioned(
-                    top: 102,
-                    right: 126,
-                    child: _AutoFillArrow(),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -639,6 +727,35 @@ class _Page2Illustration extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 10),
+            Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth:
+                      constraints.maxWidth > 600 ? 520 : double.infinity,
+                ),
+                child: SizedBox(
+                  height: stackH,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(child: _NCADSBrowserMock()),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        width: 126,
+                        child: _DashExtensionPopup(),
+                      ),
+                      Positioned(
+                        top: 102,
+                        right: 126,
+                        child: _AutoFillArrow(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         );
       },
@@ -646,7 +763,7 @@ class _Page2Illustration extends StatelessWidget {
   }
 }
 
-// ── DB 작성 모바일 목업 (온보딩 페이지1) ──────────────────────────
+// ── DB 작성 모바일 목업 ─────────────────────────────────────────────
 class _DBEntryPhoneMockup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -673,7 +790,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
               color: const Color(0xFFF7F8FA),
               child: Column(
                 children: [
-                  // 상태바
                   Container(
                     color: Colors.white,
                     padding: const EdgeInsets.symmetric(
@@ -700,7 +816,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                       ],
                     ),
                   ),
-                  // 앱바
                   Container(
                     color: Colors.white,
                     padding: const EdgeInsets.symmetric(
@@ -726,7 +841,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                       ],
                     ),
                   ),
-                  // 본문
                   Expanded(
                     child: SingleChildScrollView(
                       physics: const NeverScrollableScrollPhysics(),
@@ -734,7 +848,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 6),
-                          // 아동 이름 헤더 (검토 대기 없음)
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
@@ -768,7 +881,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 5),
-                          // 서비스 내용 (포커스 활성화)
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
@@ -819,7 +931,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 5),
-                          // 상담원 소견
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
@@ -854,7 +965,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 5),
-                          // 대상자
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
@@ -892,7 +1002,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 5),
-                          // 제공구분
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
@@ -930,7 +1039,6 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // 저장 버튼
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
@@ -1016,7 +1124,6 @@ class _NCADSBrowserMock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 브라우저 타이틀 바
           Container(
             height: 22,
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1055,7 +1162,8 @@ class _NCADSBrowserMock extends StatelessWidget {
                     child: const Center(
                       child: Text(
                         '아동학대정보시스템',
-                        style: TextStyle(fontSize: 6, color: Color(0xFF6B7280)),
+                        style:
+                            TextStyle(fontSize: 6, color: Color(0xFF6B7280)),
                       ),
                     ),
                   ),
@@ -1064,7 +1172,6 @@ class _NCADSBrowserMock extends StatelessWidget {
               ],
             ),
           ),
-          // NCADS 폼 내용 — SingleChildScrollView로 더 많은 필드를 표시
           Expanded(
             child: SingleChildScrollView(
               physics: const NeverScrollableScrollPhysics(),
@@ -1073,7 +1180,6 @@ class _NCADSBrowserMock extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 보라 강조 헤더 (실제 NCADS 스타일)
                     Row(
                       children: [
                         Container(
@@ -1110,17 +1216,15 @@ class _NCADSBrowserMock extends StatelessWidget {
                         label: '제공장소', value: '기관내', filled: true),
                     _NCADSFormRow(
                       label: '제공일시',
-                      value: '3/17 16:38~17:00',
+                      value: '3/17 16:00~17:00',
                       filled: true,
                     ),
                     _NCADSFormRow(
                         label: '서비스\n제공자', value: '김상담원', filled: true),
-                    // 서비스 내용 — 텍스트에어리어 스타일
                     _NCADSTextareaRow(
                       label: '서비스내용',
                       text: '아동은 낯선 환경에서 심한 불안 증상을 보이며, 보호자와 분리 시 과도한 울음과 신체 증상을 나타냄.',
                     ),
-                    // 상담원 소견 — 빈 텍스트에어리어
                     _NCADSTextareaRow(
                       label: '상담원소견',
                       text: '',
@@ -1184,8 +1288,9 @@ class _NCADSFormRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 7,
                 fontWeight: FontWeight.w600,
-                color:
-                    filled ? const Color(0xFF78350F) : const Color(0xFF374151),
+                color: filled
+                    ? const Color(0xFF78350F)
+                    : const Color(0xFF374151),
                 height: 1.3,
               ),
               overflow: TextOverflow.ellipsis,
@@ -1274,13 +1379,12 @@ class _NCADSTextareaRow extends StatelessWidget {
   }
 }
 
-// DASH 확장 프로그램 팝업 (DB 카드 아이템 표시)
+// DASH 확장 프로그램 팝업
 class _DashExtensionPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
@@ -1289,129 +1393,130 @@ class _DashExtensionPopup extends StatelessWidget {
             offset: const Offset(-2, 4),
           ),
         ],
-        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 확장 프로그램 헤더
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(9)),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.extension, size: 9, color: Colors.white),
-                    SizedBox(width: 3),
-                    Text(
-                      'DASH',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-                Text('×', style: TextStyle(fontSize: 10, color: Colors.white70)),
-              ],
-            ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(10),
           ),
-          // DB 카드
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                color: AppColors.primary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '강O수 아동 사례',
-                            style: TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF111827),
-                              height: 1.3,
-                            ),
-                          ),
-                          Text(
-                            '유천동',
-                            style: TextStyle(
-                                fontSize: 7, color: Color(0xFF6B7280)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD1FAE5),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        '검토 완료',
-                        style: TextStyle(
-                          fontSize: 6,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF059669),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                const SizedBox(height: 5),
-                _ExtCardRow(label: '대상자', value: '피해아동'),
-                _ExtCardRow(label: '제공구분', value: '제공'),
-                _ExtCardRow(label: '제공방법', value: '방문'),
-                _ExtCardRow(label: '서비스유형', value: '아보전'),
-                _ExtCardRow(label: '제공일시', value: '3/17 16:38~17:00'),
-                const SizedBox(height: 7),
-                // 전송 버튼
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: const Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    Row(
                       children: [
-                        Icon(Icons.send, size: 8, color: Colors.white),
+                        Icon(Icons.extension, size: 9, color: Colors.white),
                         SizedBox(width: 3),
                         Text(
-                          '시스템에 전송',
+                          'DASH',
                           style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
                             color: Colors.white,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    Text('×',
+                        style:
+                            TextStyle(fontSize: 10, color: Colors.white70)),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '강O수 아동 사례',
+                            style: const TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF111827),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD1FAE5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '완료',
+                            style: TextStyle(
+                              fontSize: 7,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF059669),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    const Text('유천동',
+                        style:
+                            TextStyle(fontSize: 7, color: Color(0xFF9CA3AF))),
+                    const SizedBox(height: 6),
+                    Container(height: 1, color: const Color(0xFFF3F4F6)),
+                    const SizedBox(height: 6),
+                    _ExtCardRow(label: '제공구분', value: '제공'),
+                    _ExtCardRow(label: '제공서비스', value: '아보전'),
+                    _ExtCardRow(label: '대상자', value: '피해아동'),
+                    _ExtCardRow(label: '제공장소', value: '기관내'),
+                    _ExtCardRow(label: '제공일시', value: '3/17 16:00~17:00'),
+                    const SizedBox(height: 7),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: const Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.bolt, size: 9, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text(
+                              '자동 기입',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1452,7 +1557,6 @@ class _ExtCardRow extends StatelessWidget {
   }
 }
 
-// 확장 → NCADS 자동입력 화살표
 class _AutoFillArrow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1488,82 +1592,80 @@ class _AutoFillArrow extends StatelessWidget {
   }
 }
 
-// ── 페이지 3: 상사분께 공유드리고 검토받기 ──────────────────────────
+// ── 페이지 3: 동행자와 함께 공유 (3번째 화면) ────────────────────────
 class _OnboardingPage3 extends StatelessWidget {
   const _OnboardingPage3();
 
   @override
   Widget build(BuildContext context) {
     return _PageLayout(
-      title: '상사분께 공유드리고\n검토받기',
-      subtitle: '작성 즉시 링크를 공유하고\n검토 완료 알림을 받아보세요.',
+      title: '동행자와 함께\n상담 내용 공유하기',
+      subtitle: '공유 메모로 DB를 관리해요',
       illustration: _Page3Illustration(),
     );
   }
 }
 
 class _Page3Illustration extends StatelessWidget {
+  static const double _basePhoneW = 185.0;
+  static const double _basePhoneH = 370.0;
+  static const double _shadowPad = 16.0;
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // 라벨
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.visibility, size: 12, color: Color(0xFF7C3AED)),
-              SizedBox(width: 5),
-              Text(
-                '내 상사에게 보이는 링크 화면',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF7C3AED),
-                  letterSpacing: -0.2,
+    final isTablet = MediaQuery.of(context).size.shortestSide > 600;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double phoneW = isTablet ? _basePhoneW * 1.5 : _basePhoneW;
+        double phoneH = isTablet ? _basePhoneH * 1.5 : _basePhoneH;
+        final maxAllowedH = constraints.maxHeight - _shadowPad;
+        if (phoneH > maxAllowedH && maxAllowedH > 0) {
+          phoneH = maxAllowedH;
+          phoneW = _basePhoneW * (phoneH / _basePhoneH);
+        }
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Center(
+              child: SizedBox(
+                width: phoneW,
+                height: phoneH,
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(
+                    width: _basePhoneW,
+                    height: _basePhoneH,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1C1C1E),
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.22),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(5),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: const _ReviewerPhoneMockup(),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        // 실제 리뷰어 웹 UI 폰 목업
-        Center(
-          child: SizedBox(
-            width: 185,
-            height: 370,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1E),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.22),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(5),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: _ReviewerPhoneMockup(),
-              ),
             ),
-          ),
-        ),
-      ],
+            const SizedBox(height: _shadowPad),
+          ],
+        );
+      },
     );
   }
 }
 
-// 실제 리뷰어 웹 UI를 재현한 폰 목업 (상사가 실시간으로 소견 작성 중인 상태)
 class _ReviewerPhoneMockup extends StatefulWidget {
   const _ReviewerPhoneMockup({super.key});
   @override
@@ -1595,10 +1697,10 @@ class _ReviewerPhoneMockupState extends State<_ReviewerPhoneMockup>
       color: Colors.white,
       child: Column(
         children: [
-          // 상태바
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Row(
               children: [
                 const Text(
@@ -1610,290 +1712,163 @@ class _ReviewerPhoneMockupState extends State<_ReviewerPhoneMockup>
                   ),
                 ),
                 const Spacer(),
-                const Icon(Icons.signal_cellular_alt, size: 8, color: Color(0xFF111827)),
+                const Icon(Icons.signal_cellular_alt,
+                    size: 8, color: Color(0xFF111827)),
                 const SizedBox(width: 2),
                 const Icon(Icons.wifi, size: 8, color: Color(0xFF111827)),
                 const SizedBox(width: 2),
-                const Icon(Icons.battery_full, size: 8, color: Color(0xFF111827)),
+                const Icon(Icons.battery_full,
+                    size: 8, color: Color(0xFF111827)),
+              ],
+            ),
+          ),
+          Container(
+            color: const Color(0xFFF9FAFB),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 8, vertical: 5),
+            child: Row(
+              children: [
+                const Icon(Icons.lock_outline,
+                    size: 8, color: Color(0xFF9CA3AF)),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'dash.qpon/review?token=...',
+                      style: TextStyle(
+                          fontSize: 5.5, color: Color(0xFF6B7280)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           Expanded(
             child: SingleChildScrollView(
               physics: const NeverScrollableScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 브라우저 주소창
-                  Container(
-                    color: const Color(0xFFF9FAFB),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.lock_outline, size: 8, color: Color(0xFF9CA3AF)),
-                        const SizedBox(width: 3),
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '강O수 아동 사례',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      '홍길동 상담원 작성',
+                      style: TextStyle(
+                          fontSize: 6.5, color: Color(0xFF9CA3AF)),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '서비스 내용',
+                      style: TextStyle(
+                        fontSize: 7,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF4E5968),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE5E7EB),
+                        color: const Color(0xFFF9FAFB),
                         borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
-                      child: const Text(
-                        'dash.qpon/?token=...',
-                        style: TextStyle(
-                          fontSize: 7,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Dash 헤더
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              child: Row(
-                children: [
-                  Icon(Icons.diamond_outlined, size: 10, color: AppColors.primary),
-                  const SizedBox(width: 3),
-                  Text(
-                    'Dash',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primary,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(height: 1, color: const Color(0xFFE5E7EB)),
-            // 페이지 본문
-            Container(
-              color: const Color(0xFFF1F5F9),
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 상태 배지 + 서비스 상세 정보
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD1FAE5),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 4,
-                              height: 4,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF10B981),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 3),
-                            const Text(
-                              '검토 완료',
-                              style: TextStyle(
-                                fontSize: 7,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF065F46),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Text(
-                        '서비스 상세 정보 ▾',
-                        style: TextStyle(
-                          fontSize: 7,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  // 케이스 카드
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(9, 9, 9, 9),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 제목 + 저장됨
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            const Text(
-                              '강O수 아동 사례',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF111827),
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                            const Row(
-                              children: [
-                                Icon(Icons.check,
-                                    size: 7, color: Color(0xFF9CA3AF)),
-                                SizedBox(width: 1),
-                                Text(
-                                  '저장됨',
-                                  style: TextStyle(
-                                    fontSize: 7,
-                                    color: Color(0xFF9CA3AF),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          '강윤수 상담원 작성',
-                          style: TextStyle(
-                            fontSize: 7,
-                            color: Color(0xFF9CA3AF),
-                          ),
-                        ),
-                        const SizedBox(height: 9),
-                        // 서비스 내용
-                        const Text(
-                          '서비스 내용',
-                          style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF374151),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          '방문 상담을 통해 아동 상태 확인 및\n보호자 면담 진행.',
-                          style: TextStyle(
-                            fontSize: 7,
-                            color: Color(0xFF4B5563),
-                            height: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 9),
-                        // 상담원 소견
-                        const Text(
-                          '상담원 소견',
-                          style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF374151),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        // 포커스된 텍스트 입력 영역 (상사가 편집 중)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0F4FF),
-                            borderRadius: BorderRadius.circular(5),
-                            border: Border.all(
-                              color: AppColors.primary.withValues(alpha: 0.5),
-                              width: 1,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                '아동의 안전이 확인되었으며\n보호자와 협력 관계 유지 필요.',
-                                style: TextStyle(
-                                  fontSize: 7,
-                                  color: Color(0xFF374151),
-                                  height: 1.5,
-                                ),
-                              ),
-                              // 현재 입력 중인 줄 + 깜빡이는 커서
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    '지속적 모니터링 권장',
-                                    style: TextStyle(
-                                      fontSize: 7,
-                                      color: Color(0xFF374151),
-                                      height: 1.5,
-                                    ),
-                                  ),
-                                  AnimatedBuilder(
-                                    animation: _cursorController,
-                                    builder: (_, __) => Opacity(
-                                      opacity: _cursorController.value,
-                                      child: Container(
-                                        width: 1.2,
-                                        height: 9,
-                                        margin: const EdgeInsets.only(left: 1),
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // 검토 완료 알림 보내기 버튼
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Center(
                       child: Text(
-                        '검토 완료 알림 보내기',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
-                        ),
+                        '아동은 낯선 환경에서 심한 불안 증상을 보이며, 보호자와 분리 시 과도한 울음과 신체 증상을 나타냄.',
+                        style: const TextStyle(
+                            fontSize: 6.5, color: Color(0xFF374151), height: 1.4),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    const Text(
+                      '상담원 소견',
+                      style: TextStyle(
+                        fontSize: 7,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF4E5968),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                            color: AppColors.primary, width: 1.2),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: const Text(
+                              '지속적인 심리 지원이 필요하며',
+                              style: TextStyle(
+                                  fontSize: 6.5,
+                                  color: Color(0xFF374151),
+                                  height: 1.4),
+                            ),
+                          ),
+                          FadeTransition(
+                            opacity: _cursorController,
+                            child: Container(
+                              width: 1.2,
+                              height: 10,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(7, 4, 7, 8),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Text(
+                  '검토 완료 알림 보내기',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-  ],
-),
-);
+    );
   }
 }
