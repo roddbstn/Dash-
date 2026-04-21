@@ -1,5 +1,60 @@
 // Reviewer Application Logic
 
+// ── Firebase 초기화 ──────────────────────────────────────────
+const _fbConfig = {
+    apiKey: 'AIzaSyASW_FfIITQdQjuppQzazGreivrmUMhfYY',
+    authDomain: 'dash-7cdea.firebaseapp.com',
+    projectId: 'dash-7cdea',
+    storageBucket: 'dash-7cdea.firebasestorage.app',
+    messagingSenderId: '803548605147',
+    appId: '1:803548605147:web:e9b76ac7245af36afc3afe',
+};
+firebase.initializeApp(_fbConfig);
+
+// ── Google 로그인 ────────────────────────────────────────────
+async function signInWithGoogle() {
+    const btn = document.getElementById('btn-google-login');
+    const errorEl = document.getElementById('auth-error');
+    btn.disabled = true;
+    btn.textContent = '로그인 중...';
+    errorEl.textContent = '';
+
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        const result = await firebase.auth().signInWithPopup(provider);
+        await handleReviewerLogin(result.user);
+    } catch (e) {
+        errorEl.textContent = e.code === 'auth/popup-closed-by-user'
+            ? '로그인 창이 닫혔습니다. 다시 시도해주세요.'
+            : '로그인 중 오류가 발생했습니다.';
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.32-8.16 2.32-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Google 계정으로 로그인`;
+    }
+}
+
+async function handleReviewerLogin(user) {
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (!token) return;
+
+    const idToken = await user.getIdToken();
+    const res = await fetch(`/api/records/reviewer-login/${token}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${idToken}` },
+    });
+    const data = await res.json();
+
+    if (res.ok && data.ok) {
+        sessionStorage.setItem('dash_auth_' + token, '1');
+        document.getElementById('auth-modal').style.display = 'none';
+        loadRecord(token);
+    } else {
+        document.getElementById('auth-error').textContent = data.error || '접근 권한이 없습니다.';
+        const btn = document.getElementById('btn-google-login');
+        btn.disabled = false;
+        btn.textContent = 'Google 계정으로 로그인';
+    }
+}
+
 let isInfoExpanded = false;
 let saveTimeout = null;
 let isEditMode = false;
@@ -275,56 +330,6 @@ function formatDateTimeRange(startStr, endStr) {
     }
 }
 
-// 이름 인증 제출
-function submitAuthName() {
-    const input = document.getElementById('auth-name-input');
-    const errorEl = document.getElementById('auth-error');
-    const name = input.value.trim();
-
-    if (!name) {
-        errorEl.textContent = '성함을 입력해주세요.';
-        return;
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    if (!token) { errorEl.textContent = '유효하지 않은 링크입니다.'; return; }
-
-    const btn = document.querySelector('#auth-modal button');
-    btn.disabled = true;
-    btn.textContent = '확인 중...';
-
-    fetch(`/api/records/auth/${token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-    })
-    .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })))
-    .then(({ ok, data }) => {
-        if (ok && data.verified) {
-            sessionStorage.setItem('dash_auth_' + token, '1');
-            document.getElementById('auth-modal').style.display = 'none';
-            loadRecord(token);
-        } else if (data.locked) {
-            errorEl.textContent = data.error;
-            input.disabled = true;
-            btn.disabled = true;
-            btn.textContent = '확인';
-        } else {
-            errorEl.textContent = data.remaining
-                ? `${data.error} (남은 시도: ${data.remaining}회)`
-                : data.error;
-            btn.disabled = false;
-            btn.textContent = '확인';
-            input.focus();
-        }
-    })
-    .catch(() => {
-        errorEl.textContent = '오류가 발생했습니다. 다시 시도해주세요.';
-        btn.disabled = false;
-        btn.textContent = '확인';
-    });
-}
 
 function showEncryptionNotice(reason) {
     const existing = document.getElementById('enc-notice');
@@ -451,21 +456,21 @@ window.onload = () => {
     const token = urlParams.get('token');
 
     if (!token) {
-        // 토큰 없음 — 일반 접속
         document.getElementById('auth-modal').style.display = 'none';
         return;
     }
 
-    // 이미 인증된 세션이면 모달 없이 바로 로드
-    if (sessionStorage.getItem('dash_auth_' + token) === '1') {
-        document.getElementById('auth-modal').style.display = 'none';
-        loadRecord(token);
-        return;
-    }
-
-    // 인증 모달 명시적 표시 (데이터 fetch 없음)
-    document.getElementById('auth-modal').style.display = 'flex';
-    document.getElementById('auth-name-input').focus();
+    // Firebase auth 상태 확인 — 이미 로그인돼 있으면 바로 처리
+    firebase.auth().onAuthStateChanged(async (user) => {
+        if (user) {
+            // 로그인 상태 → 서버에 세션 등록 후 로드
+            document.getElementById('auth-modal').style.display = 'none';
+            await handleReviewerLogin(user);
+        } else {
+            // 미로그인 → 로그인 모달 표시
+            document.getElementById('auth-modal').style.display = 'flex';
+        }
+    });
 };
 
 function updateUI(data) {

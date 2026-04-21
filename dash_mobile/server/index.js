@@ -89,29 +89,31 @@ async function verifyFirebaseAuth(req, res, next) {
     return res.status(401).json({ error: '인증이 필요합니다.' });
   }
 
-  console.log(`🔑 [AUTH] 토큰 수신 — ${req.method} ${req.path}, 토큰 앞 20자: ${rawToken.substring(0, 20)}...`);
+  // Firebase ID Token은 JWT 형식(eyJ...)이므로 tokeninfo 불필요 — 바로 Firebase 검증
+  // Google OAuth Access Token(ya29....)은 Chrome 확장 프로그램에서만 사용
+  const isFirebaseJwt = rawToken.startsWith('eyJ');
 
-  // Google OAuth 토큰 검증 (Chrome 확장프로그램용)
-  try {
-    const googleRes = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${rawToken}`);
-    console.log(`🔑 [AUTH] Google tokeninfo 응답: ${googleRes.status}`);
-    if (googleRes.ok) {
-      const info = await googleRes.json();
-      console.log(`🔑 [AUTH] Google tokeninfo email: ${info.email}`);
-      if (info.email) {
-        if (ALLOWED_EMAIL_DOMAINS.length > 0) {
-          const domain = info.email.split('@')[1] || '';
-          if (!ALLOWED_EMAIL_DOMAINS.includes(domain)) {
-            console.warn(`🚫 [AUTH] 차단된 도메인: ${domain} (${info.email})`);
-            return res.status(403).json({ error: '접근이 허용되지 않은 계정입니다.' });
+  if (!isFirebaseJwt) {
+    // Google OAuth 토큰 검증 (Chrome 확장프로그램용)
+    try {
+      const googleRes = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${rawToken}`);
+      if (googleRes.ok) {
+        const info = await googleRes.json();
+        if (info.email) {
+          if (ALLOWED_EMAIL_DOMAINS.length > 0) {
+            const domain = info.email.split('@')[1] || '';
+            if (!ALLOWED_EMAIL_DOMAINS.includes(domain)) {
+              console.warn(`🚫 [AUTH] 차단된 도메인: ${domain} (${info.email})`);
+              return res.status(403).json({ error: '접근이 허용되지 않은 계정입니다.' });
+            }
           }
+          req.firebaseUser = { email: info.email, uid: info.user_id || info.email };
+          return next();
         }
-        req.firebaseUser = { email: info.email, uid: info.user_id || info.email };
-        return next();
       }
+    } catch (googleErr) {
+      // Google OAuth 검증 실패 시 Firebase 토큰으로 재시도
     }
-  } catch (googleErr) {
-    // Google OAuth 검증 실패 시 Firebase 토큰으로 재시도
   }
 
   // Firebase ID 토큰 검증 (모바일 앱용)
@@ -140,13 +142,21 @@ async function verifyFirebaseAuth(req, res, next) {
 let sseClients = [];
 
 function broadcastEvent(event, data) {
-  console.log(`📡 Broadcasting [${event}] to ${sseClients.length} clients...`);
+  const deadIds = [];
   sseClients.forEach(client => {
-    // Check if client has a filter (like email) or just send to all
     if (!client.email || (data.user_email && client.email === data.user_email)) {
-      client.res.write(`data: ${JSON.stringify({ event, ...data })}\n\n`);
+      try {
+        client.res.write(`data: ${JSON.stringify({ event, ...data })}\n\n`);
+      } catch (e) {
+        // write 실패 = 끊어진 연결, 제거 대상 표시
+        deadIds.push(client.id);
+      }
     }
   });
+  if (deadIds.length > 0) {
+    sseClients = sseClients.filter(c => !deadIds.includes(c.id));
+    console.log(`🧹 Dead SSE clients removed: ${deadIds.length} (Remaining: ${sseClients.length})`);
+  }
 }
 
 // Database Connection
@@ -161,6 +171,64 @@ const pool = mysql.createPool({
   queueLimit: 0,
   dateStrings: true
 });
+
+// ─── DB 헬퍼: 타임아웃 포함 쿼리 ──────────────────────────────────────────
+const _dbQuery = pool.query.bind(pool);
+function queryWithTimeout(sql, params, ms = 8000) {
+  return Promise.race([
+    _dbQuery(sql, params),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`DB query timeout after ${ms}ms: ${sql.substring(0, 60)}`)), ms)
+    ),
+  ]);
+}
+
+// ─── User 헬퍼: UID로 사용자 조회, 없으면 이메일로 폴백 ──────────────────
+async function resolveUserId(uid, emailFallback) {
+  const [rows] = await queryWithTimeout('SELECT id FROM dash_users WHERE id = ?', [uid]);
+  if (rows.length > 0) return uid;
+  if (!emailFallback) return uid;
+  const [byEmail] = await queryWithTimeout('SELECT id FROM dash_users WHERE email = ?', [emailFallback]);
+  if (byEmail.length > 0) {
+    console.log(`🔄 Resolved user id via email: ${byEmail[0].id} (was: ${uid})`);
+    return byEmail[0].id;
+  }
+  return uid;
+}
+
+// ─── User 헬퍼: 없으면 INSERT IGNORE로 생성, 이메일 충돌 시 기존 ID 반환 ──
+async function ensureUserExists(uid, email, name) {
+  const resolvedEmail = email || `user_${uid.substring(0, 8)}@gmail.com`;
+  const [rows] = await queryWithTimeout('SELECT id FROM dash_users WHERE id = ?', [uid]);
+  if (rows.length > 0) {
+    if (name) {
+      await queryWithTimeout(
+        'UPDATE dash_users SET name = ? WHERE id = ? AND (name IS NULL OR name = email OR name = "")',
+        [name, uid]
+      );
+    }
+    return uid;
+  }
+  console.log(`👤 New user detected (${uid}), creating user record...`);
+  const resolvedName = name || resolvedEmail.split('@')[0];
+  await queryWithTimeout(
+    'INSERT IGNORE INTO dash_users (id, email, name, organization_id) VALUES (?, ?, ?, ?)',
+    [uid, resolvedEmail, resolvedName, 'DEFAULT_ORG']
+  );
+  // INSERT IGNORE가 무시된 경우(이메일 중복) — 이메일로 기존 사용자의 id를 찾아 사용
+  const [check] = await queryWithTimeout('SELECT id FROM dash_users WHERE id = ?', [uid]);
+  if (check.length > 0) return uid;
+  const [byEmail] = await queryWithTimeout('SELECT id FROM dash_users WHERE email = ?', [resolvedEmail]);
+  if (byEmail.length > 0) {
+    console.log(`🔄 Email conflict — using existing user id: ${byEmail[0].id}`);
+    return byEmail[0].id;
+  }
+  return uid;
+}
+
+// reviewer_user_id 컬럼이 없으면 자동 추가 (마이그레이션)
+pool.query("ALTER TABLE service_drafts ADD COLUMN IF NOT EXISTS reviewer_user_id VARCHAR(36) DEFAULT NULL")
+  .catch(() => {}); // 이미 있으면 무시
 
 // --- API Endpoints ---
 
@@ -180,14 +248,25 @@ app.get('/api/events', verifyFirebaseAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  
+
   res.write(`data: ${JSON.stringify({ event: 'connected', status: 'ok' })}\n\n`);
-  
+
   const client = { id: Date.now(), res, email };
   sseClients.push(client);
   console.log(`🔌 New SSE client connected: ${email || 'unknown'} (Total: ${sseClients.length})`);
-  
+
+  // Heartbeat: Railway 프록시 idle timeout 방지 (25초마다 keep-alive 전송)
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': heartbeat\n\n');
+    } catch (e) {
+      clearInterval(heartbeat);
+      sseClients = sseClients.filter(c => c.id !== client.id);
+    }
+  }, 25000);
+
   req.on('close', () => {
+    clearInterval(heartbeat);
     sseClients = sseClients.filter(c => c.id !== client.id);
     console.log(`🔌 SSE client disconnected (Total: ${sseClients.length})`);
   });
@@ -197,7 +276,7 @@ app.get('/api/events', verifyFirebaseAuth, (req, res) => {
 app.get('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   try {
-    const [users] = await pool.query('SELECT * FROM dash_users WHERE id = ?', [id]);
+    const [users] = await queryWithTimeout('SELECT * FROM dash_users WHERE id = ?', [id]);
     if (users.length > 0) {
       res.json(users[0]);
     } else {
@@ -213,7 +292,7 @@ app.post('/api/users/update_profile', verifyFirebaseAuth, async (req, res) => {
   console.log(`\n👤 [PROFILE UPDATE] User: ${id}, New Name: ${name}, Email: ${email}`);
   try {
     const resolvedEmail = email || `user_${id.substring(0, 8)}@gmail.com`;
-    const [result] = await pool.query(
+    const [result] = await queryWithTimeout(
       `INSERT INTO dash_users (id, email, name, organization_id) 
        VALUES (?, ?, ?, 'DEFAULT_ORG') 
        ON DUPLICATE KEY UPDATE name = VALUES(name)`,
@@ -232,7 +311,7 @@ app.post('/api/users/fcm_token', verifyFirebaseAuth, async (req, res) => {
   console.log(`\n📱 [FCM TOKEN] User: ${id}, Token: ${token.substring(0, 10)}..., Email: ${email}`);
   try {
     const resolvedEmail = email || `user_${id.substring(0, 8)}@gmail.com`;
-    await pool.query(
+    await queryWithTimeout(
       `INSERT INTO dash_users (id, email, fcm_token, organization_id) 
        VALUES (?, ?, ?, 'DEFAULT_ORG') 
        ON DUPLICATE KEY UPDATE fcm_token = VALUES(fcm_token)`,
@@ -250,7 +329,7 @@ app.post('/api/users/public_key', verifyFirebaseAuth, async (req, res) => {
   const { id, public_key } = req.body;
   console.log(`\n🔑 [PUBLIC KEY] Saving for User: ${id}`);
   try {
-    await pool.query('UPDATE dash_users SET public_key = ? WHERE id = ?', [public_key, id]);
+    await queryWithTimeout('UPDATE dash_users SET public_key = ? WHERE id = ?', [public_key, id]);
     res.json({ message: 'Public key saved' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -260,7 +339,7 @@ app.post('/api/users/public_key', verifyFirebaseAuth, async (req, res) => {
 app.get('/api/users/:id/public_key', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await pool.query('SELECT public_key FROM dash_users WHERE id = ?', [id]);
+    const [rows] = await queryWithTimeout('SELECT public_key FROM dash_users WHERE id = ?', [id]);
     if (rows.length > 0) {
       res.json({ public_key: rows[0].public_key });
     } else {
@@ -278,31 +357,10 @@ app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
   
   try {
     // 1. 해당 사용자 아이디가 dash_users에 없으면 자동으로 생성 (이메일 기반 폴백 포함)
-    let resolvedCaseUserId = user_id;
-    const [users] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [user_id]);
-    if (users.length === 0) {
-      console.log(`👤 New Social User detected (${user_id}), creating user record...`);
-      const userEmail = req.body.user_email || `user_${user_id.substring(0,8)}@gmail.com`;
-      const name = user_name || userEmail.split('@')[0];
-      await pool.query(
-        'INSERT IGNORE INTO dash_users (id, email, name, organization_id) VALUES (?, ?, ?, ?)',
-        [user_id, userEmail, name, 'DEFAULT_ORG']
-      );
-      // INSERT IGNORE가 무시된 경우(이메일 중복) — 이메일로 기존 사용자의 id를 찾아 사용
-      const [check] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [user_id]);
-      if (check.length === 0) {
-        const [byEmail] = await pool.query('SELECT id FROM dash_users WHERE email = ?', [userEmail]);
-        if (byEmail.length > 0) {
-          resolvedCaseUserId = byEmail[0].id;
-          console.log(`🔄 Email conflict — using existing user id: ${resolvedCaseUserId}`);
-        }
-      }
-    } else if (user_name) {
-      await pool.query('UPDATE dash_users SET name = ? WHERE id = ? AND (name IS NULL OR name = email OR name = "")', [user_name, user_id]);
-    }
+    const resolvedCaseUserId = await ensureUserExists(user_id, req.body.user_email, user_name);
 
     // 2. 사례 저장
-    await pool.query(
+    await queryWithTimeout(
       `INSERT INTO cases (id, user_id, case_name, dong, target_system_code) 
        VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE 
@@ -337,42 +395,19 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
   try {
     let resolvedUserId = user_id;
     // 1. 해당 사례(Case)가 DB에 있는지 확인
-    const [cases] = await pool.query('SELECT id FROM cases WHERE id = ?', [case_id]);
-    
+    const [cases] = await queryWithTimeout('SELECT id FROM cases WHERE id = ?', [case_id]);
+
     // 2. 만약 사례가 없다면 (과거 동기화 누락 등), 임시 사례 생성
     if (cases.length === 0) {
       console.log(`⚠️  Case ID ${case_id} not found. Creating placeholder case...`);
-      
-      // user_id가 요청에 포함되어 있으면 사용, 없으면 DB에서 찾기
       if (!resolvedUserId) {
-        const [users] = await pool.query('SELECT id FROM dash_users LIMIT 1');
+        const [users] = await queryWithTimeout('SELECT id FROM dash_users LIMIT 1', []);
         resolvedUserId = users.length > 0 ? users[0].id : null;
       }
-      
-      // user_id로 dash_users에 레코드가 없으면 생성 (이메일 기반 폴백 포함)
       if (resolvedUserId) {
-        const [existingUser] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [resolvedUserId]);
-        if (existingUser.length === 0) {
-          const email = user_email || `user_${resolvedUserId.substring(0,8)}@gmail.com`;
-          await pool.query(
-            'INSERT IGNORE INTO dash_users (id, email, organization_id) VALUES (?, ?, ?)',
-            [resolvedUserId, email, 'DEFAULT_ORG']
-          );
-          // INSERT IGNORE가 무시된 경우(이메일 중복) — 이메일로 기존 사용자 id를 사용
-          const [check] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [resolvedUserId]);
-          if (check.length === 0) {
-            const [byEmail] = await pool.query('SELECT id FROM dash_users WHERE email = ?', [email]);
-            if (byEmail.length > 0) {
-              resolvedUserId = byEmail[0].id;
-              console.log(`🔄 Email conflict — using existing user id: ${resolvedUserId}`);
-            }
-          } else {
-            console.log(`👤 Auto-created user: ${resolvedUserId} (${email})`);
-          }
-        }
+        resolvedUserId = await ensureUserExists(resolvedUserId, user_email, null);
       }
-      
-      await pool.query(
+      await queryWithTimeout(
         `INSERT INTO cases (id, user_id, case_name, dong) VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE case_name = VALUES(case_name), dong = VALUES(dong), user_id = VALUES(user_id)`,
         [case_id, resolvedUserId, case_name || '미지정 사례', dong || '확인 필요']
@@ -381,7 +416,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
       // 사례가 이미 있으면, 이름이 '복구된 사례'인 경우 올바른 이름으로 업데이트
       const existingCase = cases[0];
       if (case_name) {
-        await pool.query(
+        await queryWithTimeout(
           'UPDATE cases SET case_name = ?, dong = ? WHERE id = ? AND case_name = ?',
           [case_name, dong || existingCase.dong, case_id, '복구된 사례']
         );
@@ -402,10 +437,10 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
     let recordId;
 
     if (share_token) {
-      const [existing] = await pool.query('SELECT id FROM service_drafts WHERE share_token = ?', [share_token]);
+      const [existing] = await queryWithTimeout('SELECT id FROM service_drafts WHERE share_token = ?', [share_token]);
       if (existing.length > 0) {
         recordId = existing[0].id;
-        await pool.query(
+        await queryWithTimeout(
           `UPDATE service_drafts SET
             status='Synced',
             provision_type=?,
@@ -431,7 +466,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
 
     if (!recordId) {
       share_token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-      const [result] = await pool.query(
+      const [result] = await queryWithTimeout(
         `INSERT INTO service_drafts
         (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
@@ -443,7 +478,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
 
     // 닉네임 자동 동기화: user_name이 제공된 경우 dash_users.name 업데이트
     if (user_name && resolvedUserId) {
-      await pool.query('UPDATE dash_users SET name = ? WHERE id = ?', [user_name, resolvedUserId]);
+      await queryWithTimeout('UPDATE dash_users SET name = ? WHERE id = ?', [user_name, resolvedUserId]);
     }
 
     // Broadcast update via SSE
@@ -462,7 +497,7 @@ app.delete('/api/records/token/:token', verifyFirebaseAuth, async (req, res) => 
   const { user_email } = req.body || {};
   console.log(`\n🗑️ [DELETE RECORD] Token: ${token} (User: ${user_email||'unknown'})`);
   try {
-    const [result] = await pool.query('DELETE FROM service_drafts WHERE share_token = ?', [token]);
+    const [result] = await queryWithTimeout('DELETE FROM service_drafts WHERE share_token = ?', [token]);
     if (result.affectedRows > 0) {
       console.log(`✅ Deleted record (Token: ${token})`);
       res.json({ message: 'Record deleted' });
@@ -480,7 +515,7 @@ app.delete('/api/records/id/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   console.log(`\n🗑️ [DELETE RECORD] ID: ${id}`);
   try {
-    const [result] = await pool.query('DELETE FROM service_drafts WHERE id = ?', [id]);
+    const [result] = await queryWithTimeout('DELETE FROM service_drafts WHERE id = ?', [id]);
     if (result.affectedRows > 0) {
       console.log(`✅ Deleted record (ID: ${id})`);
       res.json({ message: 'Record deleted' });
@@ -499,9 +534,13 @@ app.delete('/api/records/id/:id', verifyFirebaseAuth, async (req, res) => {
 app.delete('/api/records/user/all', verifyFirebaseAuth, async (req, res) => {
   const email = req.firebaseUser?.email;
   if (!email) return res.status(400).json({ error: 'email required' });
+  const { confirmation } = req.body;
+  if (confirmation !== 'CONFIRM_RESET') {
+    return res.status(400).json({ error: 'PIN 초기화 확인이 필요합니다.' });
+  }
   console.log(`\n🔑 [PIN RESET] Deleting all records for: ${email}`);
   try {
-    const [result] = await pool.query(
+    const [result] = await queryWithTimeout(
       `DELETE r FROM service_drafts r
        JOIN cases c ON r.case_id = c.id
        JOIN dash_users u ON c.user_id = u.id
@@ -537,7 +576,7 @@ app.post('/api/records/sync_active', verifyFirebaseAuth, async (req, res) => {
     `;
     const deleteParams = [user_email, active_tokens];
     
-    const [result] = await pool.query(deleteQuery, deleteParams);
+    const [result] = await queryWithTimeout(deleteQuery, deleteParams);
     if (result.affectedRows > 0) {
       console.log(`🧹 Cleaned up ${result.affectedRows} orphan records for user: ${user_email}`);
       // Notify extension to refresh instantly
@@ -555,7 +594,7 @@ app.post('/api/records/sync_active', verifyFirebaseAuth, async (req, res) => {
 app.get('/api/notifications/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   try {
-    const [rows] = await pool.query(
+    const [rows] = await queryWithTimeout(
       'SELECT id, case_name, record_token, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
       [userId]
     );
@@ -569,7 +608,7 @@ app.get('/api/notifications/:userId', verifyFirebaseAuth, async (req, res) => {
 app.put('/api/notifications/:id/read', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   try {
-    await pool.query('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
+    await queryWithTimeout('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -580,7 +619,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
   const { token } = req.params;
   const { service_description, agent_opinion } = req.body;
   try {
-    const [infoResult] = await pool.query(
+    const [infoResult] = await queryWithTimeout(
       `SELECT s.case_id, c.case_name, c.user_id, u.email 
        FROM service_drafts s 
        JOIN cases c ON s.case_id = c.id 
@@ -607,18 +646,18 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
     updateQuery += ` WHERE share_token = ?`;
     queryParams.push(token);
 
-    const [result] = await pool.query(updateQuery, queryParams);
+    const [result] = await queryWithTimeout(updateQuery, queryParams);
 
     if (result.affectedRows > 0) {
       // 📝 Create Notification for the counselor
       const message = `동행자가 ${case_name} 아동 DB 내용을 수정했어요. 확인해보세요`;
       // 📝 Mark previous unread notifications for the same record as read (Requirement: Replace with latest for same DB)
-      await pool.query(
+      await queryWithTimeout(
         'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND record_token = ? AND is_read = 0',
         [user_id, token]
       );
 
-      await pool.query(
+      await queryWithTimeout(
         'INSERT INTO notifications (user_id, case_name, record_token, message, is_read) VALUES (?, ?, ?, ?, 0)',
         [user_id, case_name, token, message]
       );
@@ -633,7 +672,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
       if (fcmInitialized) {
         try {
           // Get user's FCM token
-          const [userRows] = await pool.query('SELECT fcm_token FROM dash_users WHERE id = ?', [user_id]);
+          const [userRows] = await queryWithTimeout('SELECT fcm_token FROM dash_users WHERE id = ?', [user_id]);
           console.log(`📱 FCM lookup for user_id=${user_id}, found=${userRows.length}, has_token=${!!(userRows[0]?.fcm_token)}`);
           if (userRows.length > 0 && userRows[0].fcm_token) {
             const fcmToken = userRows[0].fcm_token;
@@ -666,8 +705,41 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
   }
 });
 
-// [Web] 2-5. 공유 링크 접근 전 상담원 이름 인증 (5회 실패 시 10분 잠금)
-const authAttempts = new Map(); // token -> { count, lockedUntil }
+// [Web] 공유 링크 세션 저장소
+const authAttempts = new Map(); // token -> { verified, verifiedAt, uid?, count?, lockedUntil? }
+
+// [Web] 2-4. 리뷰어 구글 로그인 (Firebase ID 토큰 검증 후 세션 승인)
+app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, res) => {
+  const { token } = req.params;
+  const { uid, email, name, display_name } = req.firebaseUser;
+  const reviewerName = display_name || name || email;
+
+  try {
+    const [rows] = await queryWithTimeout(
+      'SELECT id FROM service_drafts WHERE share_token = ?', [token]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
+
+    // 리뷰어 계정 생성 또는 조회
+    await ensureUserExists(uid, email, reviewerName);
+
+    // 최초 접근 시 reviewer_user_id 연결 (이미 연결된 경우 덮어쓰지 않음)
+    await queryWithTimeout(
+      'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ? AND reviewer_user_id IS NULL',
+      [uid, token]
+    );
+
+    // 세션 인증 완료 처리 (기존 share 엔드포인트가 authAttempts로 검증하므로 동일하게 기록)
+    authAttempts.set(token, { verified: true, verifiedAt: Date.now(), uid });
+    console.log(`✅ [REVIEWER LOGIN] uid=${uid} → token=${token}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Reviewer login error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// [Web] 2-5. 공유 링크 접근 전 상담원 이름 인증 (5회 실패 시 10분 잠금) — 레거시 유지 // token -> { count, lockedUntil }
 
 app.post('/api/records/auth/:token', async (req, res) => {
   const { token } = req.params;
@@ -684,7 +756,7 @@ app.post('/api/records/auth/:token', async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query(
+    const [rows] = await queryWithTimeout(
       `SELECT u.name as user_name FROM service_drafts s
        JOIN cases c ON s.case_id = c.id
        LEFT JOIN dash_users u ON c.user_id = u.id
@@ -729,7 +801,7 @@ app.get('/api/records/share/:token', async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query(
+    const [rows] = await queryWithTimeout(
       `SELECT r.*, c.case_name, c.dong, c.target_system_code, u.name as user_name
        FROM service_drafts r
        JOIN cases c ON r.case_id = c.id
@@ -755,7 +827,7 @@ app.put('/api/records/share/:token', async (req, res) => {
   const { service_description, agent_opinion } = req.body;
   console.log(`\n💾 [WEB AUTO-SAVE] Token: ${token}`);
   try {
-    const [result] = await pool.query(
+    const [result] = await queryWithTimeout(
       'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, updated_at = NOW() WHERE share_token = ?',
       [service_description || '', agent_opinion || '', token]
     );
@@ -775,17 +847,27 @@ app.put('/api/records/:id/review', async (req, res) => {
   const updateData = req.body;
   console.log(`\n✨ [REVIEW COMPLETED] Record ID: ${id}`);
   
+  const ALLOWED_UPDATE_FIELDS = [
+    'service_description', 'agent_opinion', 'provision_type', 'method',
+    'service_type', 'service_category', 'service_name', 'location',
+    'start_time', 'end_time', 'service_count', 'travel_time', 'target',
+    'encrypted_blob',
+  ];
   try {
-    const fields = Object.keys(updateData).map(key => `${key} = ?`).join(', ');
-    const values = Object.values(updateData);
-    
-    await pool.query(
-      `UPDATE service_drafts SET ${fields}, status = 'Reviewed', reviewed_at = NOW() WHERE id = ?`,
+    const safeKeys = Object.keys(updateData).filter(k => ALLOWED_UPDATE_FIELDS.includes(k));
+    const extraClause = safeKeys.map(k => `${k} = ?`).join(', ');
+    const values = safeKeys.map(k => updateData[k]);
+    const setClause = extraClause
+      ? `${extraClause}, status = 'Reviewed', reviewed_at = NOW()`
+      : `status = 'Reviewed', reviewed_at = NOW()`;
+
+    await queryWithTimeout(
+      `UPDATE service_drafts SET ${setClause} WHERE id = ?`,
       [...values, id]
     );
 
     // Get user email to notify
-    const [info] = await pool.query(
+    const [info] = await queryWithTimeout(
       `SELECT u.email FROM service_drafts s JOIN cases c ON s.case_id = c.id JOIN dash_users u ON c.user_id = u.id WHERE s.id = ?`,
       [id]
     );
@@ -826,7 +908,7 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
 
     query += ` ORDER BY r.created_at DESC`;
 
-    const [rows] = await pool.query(query, params);
+    const [rows] = await queryWithTimeout(query, params);
     console.log(`✅ Sent ${rows.length} records to extension`);
     res.json(rows);
   } catch (err) {
@@ -843,7 +925,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
   try {
     // 1) userId로 이메일 조회 
     let email = null;
-    const [userRows] = await pool.query('SELECT email FROM dash_users WHERE id = ?', [userId]);
+    const [userRows] = await queryWithTimeout('SELECT email FROM dash_users WHERE id = ?', [userId]);
     if (userRows.length > 0) {
       email = userRows[0].email;
     } else {
@@ -855,7 +937,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
     let rows;
     if (email) {
       // 같은 이메일의 모든 user_id로 레코드 조회 (Chrome OAuth id, Firebase UID 모두 포함)
-      [rows] = await pool.query(
+      [rows] = await queryWithTimeout(
         `SELECT r.*, c.case_name, c.dong 
          FROM service_drafts r 
          JOIN cases c ON r.case_id = c.id 
@@ -865,7 +947,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
       );
       console.log(`✅ Found ${rows.length} records for email: ${email}`);
     } else {
-      [rows] = await pool.query(
+      [rows] = await queryWithTimeout(
         `SELECT r.*, c.case_name, c.dong 
          FROM service_drafts r 
          JOIN cases c ON r.case_id = c.id 
@@ -885,19 +967,8 @@ app.get('/api/users/vault/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   try {
     // userId가 DB에 없으면 Firebase 토큰 이메일로 실제 user_id 해석
-    let resolvedId = userId;
-    const [userCheck] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [userId]);
-    if (userCheck.length === 0) {
-      const email = req.firebaseUser?.email;
-      if (email) {
-        const [byEmail] = await pool.query('SELECT id FROM dash_users WHERE email = ?', [email]);
-        if (byEmail.length > 0) {
-          resolvedId = byEmail[0].id;
-          console.log(`🔄 Vault GET: resolved user id via email: ${resolvedId}`);
-        }
-      }
-    }
-    const [rows] = await pool.query(
+    const resolvedId = await resolveUserId(userId, req.firebaseUser?.email);
+    const [rows] = await queryWithTimeout(
       'SELECT encrypted_vault, salt FROM user_key_vault WHERE user_id = ?',
       [resolvedId]
     );
@@ -917,20 +988,8 @@ app.post('/api/users/vault', verifyFirebaseAuth, async (req, res) => {
   }
   try {
     // Firebase UID가 dash_users에 없으면 이메일로 실제 user_id를 찾아 사용
-    let resolvedId = user_id;
-    const [userRows] = await pool.query('SELECT id FROM dash_users WHERE id = ?', [user_id]);
-    if (userRows.length === 0) {
-      const firebaseUser = req.firebaseUser;
-      const email = firebaseUser?.email;
-      if (email) {
-        const [byEmail] = await pool.query('SELECT id FROM dash_users WHERE email = ?', [email]);
-        if (byEmail.length > 0) {
-          resolvedId = byEmail[0].id;
-          console.log(`🔄 Vault: resolved user id via email: ${resolvedId}`);
-        }
-      }
-    }
-    await pool.query(
+    const resolvedId = await resolveUserId(user_id, req.firebaseUser?.email);
+    await queryWithTimeout(
       `INSERT INTO user_key_vault (user_id, encrypted_vault, salt) 
        VALUES (?, ?, ?) 
        ON DUPLICATE KEY UPDATE encrypted_vault = ?, salt = ?`,
@@ -950,7 +1009,7 @@ app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   console.log(`\n🗑️ [USER DELETION] User ID: ${id}, Email: ${email}`);
   try {
     // 삭제 대상 user_id 목록 수집 (Firebase UID & Chrome OAuth ID 모두 포함)
-    const [targetRows] = await pool.query(
+    const [targetRows] = await queryWithTimeout(
       'SELECT id FROM dash_users WHERE id = ?' + (email ? ' OR email = ?' : ''),
       email ? [id, email] : [id]
     );
@@ -963,15 +1022,15 @@ app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
 
     // cases FK가 ON DELETE SET NULL이라 service_drafts·cases를 명시적으로 삭제
     for (const uid of targetIds) {
-      await pool.query(
+      await queryWithTimeout(
         'DELETE sd FROM service_drafts sd JOIN cases c ON sd.case_id = c.id WHERE c.user_id = ?',
         [uid]
       );
-      await pool.query('DELETE FROM cases WHERE user_id = ?', [uid]);
+      await queryWithTimeout('DELETE FROM cases WHERE user_id = ?', [uid]);
     }
 
     // dash_users 삭제 (notifications, vault은 ON DELETE CASCADE로 자동 삭제)
-    const [result] = await pool.query(
+    const [result] = await queryWithTimeout(
       'DELETE FROM dash_users WHERE id = ?' + (email ? ' OR email = ?' : ''),
       email ? [id, email] : [id]
     );
@@ -1007,14 +1066,14 @@ process.on('SIGTERM', () => {
 // ============================================================
 async function ensureSchemaUpdates() {
   try {
-    const [columns] = await pool.query(`
+    const [columns] = await queryWithTimeout(`
       SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
         AND TABLE_NAME = 'service_drafts'
         AND COLUMN_NAME = 'service_category'
     `);
     if (columns.length === 0) {
-      await pool.query(`
+      await queryWithTimeout(`
         ALTER TABLE service_drafts
         ADD COLUMN service_category VARCHAR(100) DEFAULT '' COMMENT '서비스세부목표(대분류)'
       `);
@@ -1029,7 +1088,7 @@ async function ensureSchemaUpdates() {
 
 async function ensureRetentionLogTable() {
   try {
-    await pool.query(`
+    await queryWithTimeout(`
       CREATE TABLE IF NOT EXISTS retention_policy_log (
         id          INT AUTO_INCREMENT PRIMARY KEY,
         target_table VARCHAR(64)  NOT NULL COMMENT '파기 대상 테이블',
@@ -1058,11 +1117,12 @@ async function runRetentionPurge() {
     fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
     const fiveYearsAgoStr = fiveYearsAgo.toISOString().split('T')[0];
 
-    const [draftsResult] = await pool.query(
+    const [draftsResult] = await queryWithTimeout(
       `DELETE FROM service_drafts WHERE created_at < ?`,
-      [fiveYearsAgoStr]
+      [fiveYearsAgoStr],
+      30000
     );
-    await pool.query(
+    await queryWithTimeout(
       `INSERT INTO retention_policy_log (target_table, deleted_count, cutoff_date, law_basis)
        VALUES (?, ?, ?, ?)`,
       ['service_drafts', draftsResult.affectedRows, fiveYearsAgoStr, '아동복지법 제28조 (5년 보존)']
@@ -1074,11 +1134,12 @@ async function runRetentionPurge() {
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
 
-    const [notifResult] = await pool.query(
+    const [notifResult] = await queryWithTimeout(
       `DELETE FROM notifications WHERE created_at < ?`,
-      [oneYearAgoStr]
+      [oneYearAgoStr],
+      30000
     );
-    await pool.query(
+    await queryWithTimeout(
       `INSERT INTO retention_policy_log (target_table, deleted_count, cutoff_date, law_basis)
        VALUES (?, ?, ?, ?)`,
       ['notifications', notifResult.affectedRows, oneYearAgoStr, '내부 정책 (1년 보존)']

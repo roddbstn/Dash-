@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 </head>
 
 <body>
@@ -119,7 +121,7 @@
             </div>
         </div>
 
-        <!-- 이름 인증 모달 (최초 진입 시 강제 표시) -->
+        <!-- Google 로그인 모달 -->
         <div id="auth-modal" style="
             position: fixed; inset: 0; z-index: 9999;
             background: rgba(0,0,0,0.55);
@@ -128,41 +130,42 @@
         ">
             <div style="
                 background: #fff; border-radius: 20px;
-                padding: 32px 28px; width: 100%; max-width: 400px;
+                padding: 36px 28px; width: 100%; max-width: 380px;
                 box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+                text-align: center;
             ">
-                <div style="text-align: center; margin-bottom: 24px;">
-                    <span style="font-size: 32px;">🔒</span>
-                    <h2 style="margin: 12px 0 8px; font-size: 18px; font-weight: 800; color: #1a1a2e;">본인 확인</h2>
+                <div style="margin-bottom: 28px;">
+                    <span style="font-size: 36px;">✦</span>
+                    <h2 style="margin: 12px 0 8px; font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.3px;">
+                        Dash 리뷰어
+                    </h2>
                     <p style="font-size: 14px; color: #8b95a1; line-height: 1.6; margin: 0;">
-                        이 DB를 공유한 상담원의<br>성함을 입력해주세요.
+                        공유받은 DB를 확인하고 수정하려면<br>구글 계정으로 로그인해주세요.
                     </p>
                 </div>
-                <input id="auth-name-input" type="text" placeholder="예) 홍길동"
-                    style="
-                        width: 100%; box-sizing: border-box;
-                        border: 1.5px solid #e5e8eb; border-radius: 12px;
-                        padding: 14px 16px; font-size: 15px; font-weight: 600;
-                        outline: none; font-family: inherit;
-                        transition: border-color 0.2s;
-                    "
-                    onfocus="this.style.borderColor='#4e73df'"
-                    onblur="this.style.borderColor='#e5e8eb'"
-                    onkeydown="if(event.key==='Enter') submitAuthName()"
-                />
                 <p id="auth-error" style="
-                    color: #e74c3c; font-size: 13px; margin: 10px 0 0;
-                    min-height: 18px; text-align: center;
+                    color: #e74c3c; font-size: 13px; margin: 0 0 12px;
+                    min-height: 18px;
                 "></p>
-                <button onclick="submitAuthName()" style="
-                    width: 100%; margin-top: 16px;
-                    background: #4e73df; color: #fff;
-                    border: none; border-radius: 12px;
-                    padding: 14px; font-size: 15px; font-weight: 700;
+                <button id="btn-google-login" onclick="signInWithGoogle()" style="
+                    width: 100%;
+                    display: flex; align-items: center; justify-content: center; gap: 12px;
+                    background: #fff; color: #3c4043;
+                    border: 1.5px solid #dadce0; border-radius: 12px;
+                    padding: 14px 20px; font-size: 15px; font-weight: 600;
                     cursor: pointer; font-family: inherit;
-                    transition: background 0.2s;
-                " onmouseover="this.style.background='#3a5bc7'" onmouseout="this.style.background='#4e73df'">
-                    확인
+                    transition: background 0.15s, box-shadow 0.15s;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+                "
+                onmouseover="this.style.background='#f8f9fa'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)'"
+                onmouseout="this.style.background='#fff'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
+                    <svg width="20" height="20" viewBox="0 0 48 48">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.32-8.16 2.32-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                    </svg>
+                    Google 계정으로 로그인
                 </button>
             </div>
         </div>
