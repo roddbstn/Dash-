@@ -47,6 +47,13 @@ function pushHistory(main, opinion) {
     updateCTAState();
 }
 
+function persistDraft(main, opinion) {
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (token) {
+        sessionStorage.setItem('dash_draft_' + token, JSON.stringify({ main, opinion }));
+    }
+}
+
 function undo() {
     if (historyIndex <= 0) return;
     historyIndex--;
@@ -57,6 +64,7 @@ function undo() {
         window.currentRecord.serviceDescription = state.main;
         window.currentRecord.agentOpinion = state.opinion;
     }
+    persistDraft(state.main, state.opinion);
     updateUndoRedoButtons();
     updateCTAState();
 }
@@ -71,6 +79,7 @@ function redo() {
         window.currentRecord.serviceDescription = state.main;
         window.currentRecord.agentOpinion = state.opinion;
     }
+    persistDraft(state.main, state.opinion);
     updateUndoRedoButtons();
     updateCTAState();
 }
@@ -136,11 +145,7 @@ function handleTyping() {
         }
 
         // 새로고침 후에도 최근 저장 내용 유지
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
-        if (token) {
-            sessionStorage.setItem('dash_draft_' + token, JSON.stringify({ main, opinion }));
-        }
+        persistDraft(main, opinion);
 
         status.textContent = `✓ ${timeStr} 저장됨`;
         setTimeout(() => {
