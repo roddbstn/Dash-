@@ -11,25 +11,20 @@ const _fbConfig = {
 };
 firebase.initializeApp(_fbConfig);
 
-// ── Google 로그인 ────────────────────────────────────────────
-async function signInWithGoogle() {
+// ── Google 로그인 (redirect 방식 — 도메인 무관하게 동작)
+function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
     const errorEl = document.getElementById('auth-error');
     btn.disabled = true;
-    btn.textContent = '로그인 중...';
+    btn.textContent = '이동 중...';
     errorEl.textContent = '';
 
-    try {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        const result = await firebase.auth().signInWithPopup(provider);
-        await handleReviewerLogin(result.user);
-    } catch (e) {
-        errorEl.textContent = e.code === 'auth/popup-closed-by-user'
-            ? '로그인 창이 닫혔습니다. 다시 시도해주세요.'
-            : '로그인 중 오류가 발생했습니다.';
+    const provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithRedirect(provider).catch(e => {
+        errorEl.textContent = '오류: ' + (e.message || e.code);
         btn.disabled = false;
-        btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.32-8.16 2.32-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Google 계정으로 로그인`;
-    }
+        btn.textContent = 'Google 계정으로 로그인';
+    });
 }
 
 async function handleReviewerLogin(user) {
@@ -57,41 +52,12 @@ async function handleReviewerLogin(user) {
 
 let isInfoExpanded = false;
 let saveTimeout = null;
-let isEditMode = false;
+let isEditMode = true; // 항상 편집 모드
 let editHistory = []; // [{main, opinion}, ...]
 let historyIndex = -1;
 
-// ── 편집 모드 토글 ──────────────────────────────────────────
-function toggleEditMode() {
-    isEditMode = !isEditMode;
-    const mainEditor = document.getElementById('main-editor');
-    const opinionEditor = document.getElementById('opinion-editor');
-    const toggleBtn = document.getElementById('btn-edit-toggle');
-
-    if (isEditMode) {
-        mainEditor.readOnly = false;
-        opinionEditor.readOnly = false;
-        mainEditor.style.background = '#fff';
-        mainEditor.style.cursor = 'text';
-        opinionEditor.style.background = '#fff';
-        opinionEditor.style.cursor = 'text';
-        toggleBtn.textContent = '👁 보기';
-        toggleBtn.style.background = '#EFF6FF';
-        toggleBtn.style.color = '#2563EB';
-        mainEditor.focus();
-    } else {
-        mainEditor.readOnly = true;
-        opinionEditor.readOnly = true;
-        mainEditor.style.background = '#f9fafb';
-        mainEditor.style.cursor = 'default';
-        opinionEditor.style.background = '#f9fafb';
-        opinionEditor.style.cursor = 'default';
-        toggleBtn.textContent = '✏️ 편집';
-        toggleBtn.style.background = '#F1F3F5';
-        toggleBtn.style.color = '#495057';
-    }
-    updateCTAState();
-}
+// ── 편집 모드 (항상 활성) ──────────────────────────────────────
+// toggleEditMode 제거: 편집 버튼 없이 바로 편집 가능
 
 // ── Undo / Redo ─────────────────────────────────────────────
 function pushHistory(main, opinion) {
@@ -160,20 +126,18 @@ function updateUndoRedoButtons() {
 
 function updateCTAState() {
     const hasChanges = historyIndex > 0;
-    const enabled = isEditMode && hasChanges;
     document.querySelectorAll('.notify-btn').forEach(btn => {
-        btn.disabled = !enabled;
-        btn.style.opacity = enabled ? '1' : '0.45';
-        btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+        btn.disabled = !hasChanges;
+        btn.style.opacity = hasChanges ? '1' : '0.45';
+        btn.style.cursor = hasChanges ? 'pointer' : 'not-allowed';
         if (btn.id === 'btn-notify-mobile') {
-            btn.style.background = enabled ? '' : '#ADB5BD';
+            btn.style.background = hasChanges ? '' : '#ADB5BD';
         }
     });
 }
 
-// ── 자동 저장 (편집 모드일 때만) ────────────────────────────
+// ── 자동 저장 ────────────────────────────────────────────────
 function handleTyping() {
-    if (!isEditMode) return;
     const status = document.getElementById('save-status');
     status.textContent = '저장 중...';
     status.style.opacity = '1';
@@ -433,13 +397,13 @@ window.onload = () => {
     const mainTextarea = document.getElementById('main-editor');
     const opinionTextarea = document.getElementById('opinion-editor');
 
-    // 초기 읽기 모드 설정
-    mainTextarea.readOnly = true;
-    opinionTextarea.readOnly = true;
-    mainTextarea.style.background = '#f9fafb';
-    mainTextarea.style.cursor = 'default';
-    opinionTextarea.style.background = '#f9fafb';
-    opinionTextarea.style.cursor = 'default';
+    // 바로 편집 가능한 상태로 시작
+    mainTextarea.readOnly = false;
+    opinionTextarea.readOnly = false;
+    mainTextarea.style.background = '#fff';
+    mainTextarea.style.cursor = 'text';
+    opinionTextarea.style.background = '#fff';
+    opinionTextarea.style.cursor = 'text';
 
     function autoResize() {
         this.style.height = 'auto';
@@ -460,14 +424,31 @@ window.onload = () => {
         return;
     }
 
-    // Firebase auth 상태 확인 — 이미 로그인돼 있으면 바로 처리
+    let _loginHandled = false;
+
+    // signInWithRedirect 결과 처리 (리다이렉트 후 복귀 시)
+    firebase.auth().getRedirectResult()
+        .then(result => {
+            if (result && result.user) {
+                _loginHandled = true;
+                document.getElementById('auth-modal').style.display = 'none';
+                handleReviewerLogin(result.user);
+            }
+        })
+        .catch(err => {
+            console.error('Redirect login error:', err.code, err.message);
+            const errorEl = document.getElementById('auth-error');
+            if (errorEl) errorEl.textContent = '로그인 처리 중 오류: ' + (err.message || err.code);
+        });
+
+    // Firebase auth 상태 확인 — 이미 로그인돼 있으면 바로 처리 (중복 방지)
     firebase.auth().onAuthStateChanged(async (user) => {
+        if (_loginHandled) return;
         if (user) {
-            // 로그인 상태 → 서버에 세션 등록 후 로드
+            _loginHandled = true;
             document.getElementById('auth-modal').style.display = 'none';
             await handleReviewerLogin(user);
         } else {
-            // 미로그인 → 로그인 모달 표시
             document.getElementById('auth-modal').style.display = 'flex';
         }
     });

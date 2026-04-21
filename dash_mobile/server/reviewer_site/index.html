@@ -74,12 +74,6 @@
                                 cursor: not-allowed; color: #ADB5BD; font-size: 16px;
                                 transition: all 0.15s;
                             ">↪</button>
-                            <button id="btn-edit-toggle" onclick="toggleEditMode()" style="
-                                background: #F1F3F5; border: none; border-radius: 8px;
-                                cursor: pointer; color: #495057; font-size: 13px; font-weight: 600;
-                                padding: 0 14px; height: 34px; transition: all 0.15s; margin-left: 2px;
-                                font-family: inherit; display: inline-flex; align-items: center;
-                            ">✏️ 편집</button>
                             <div id="save-status" class="save-status" style="margin-left: 6px;">방금 저장됨</div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
@@ -92,13 +86,13 @@
 
                     <div class="writing-workspace">
                         <h4 style="margin-bottom: 12px; color: #4e5968; font-weight: 700; font-size: 14px;">서비스 내용</h4>
-                        <textarea id="main-editor" placeholder="서비스 내용을 입력하세요..." oninput="handleTyping()" readonly style="background:#f9fafb; cursor:default; resize:none;"></textarea>
+                        <textarea id="main-editor" placeholder="서비스 내용을 입력하세요..." oninput="handleTyping()" style="background:#fff; cursor:text; resize:none;"></textarea>
 
                         <h4
                             style="margin-top: 32px; margin-bottom: 12px; color: #4e5968; font-weight: 700; font-size: 14px;">
                             상담원 소견</h4>
                         <textarea id="opinion-editor" placeholder="상담원 소견을 입력하세요..."
-                            oninput="handleTyping()" readonly style="background:#f9fafb; cursor:default; resize:none;"></textarea>
+                            oninput="handleTyping()" style="background:#fff; cursor:text; resize:none;"></textarea>
                     </div>
                 </div>
             </main>
