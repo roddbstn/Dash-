@@ -43,6 +43,7 @@ async function handleReviewerLogin(user) {
         document.getElementById('auth-modal').style.display = 'none';
         loadRecord(token);
     } else {
+        document.getElementById('auth-modal').style.display = 'flex';
         document.getElementById('auth-error').textContent = data.error || '접근 권한이 없습니다.';
         const btn = document.getElementById('btn-google-login');
         btn.disabled = false;
@@ -426,32 +427,34 @@ window.onload = () => {
 
     let _loginHandled = false;
 
-    // signInWithRedirect 결과 처리 (리다이렉트 후 복귀 시)
+    // getRedirectResult 먼저 완전히 처리한 뒤 onAuthStateChanged 구독
+    // (onAuthStateChanged가 null로 먼저 발화하여 모달을 보이는 race condition 방지)
     firebase.auth().getRedirectResult()
         .then(result => {
             if (result && result.user) {
+                // 방금 redirect 로그인 완료
                 _loginHandled = true;
-                document.getElementById('auth-modal').style.display = 'none';
                 handleReviewerLogin(result.user);
             }
         })
         .catch(err => {
-            console.error('Redirect login error:', err.code, err.message);
-            const errorEl = document.getElementById('auth-error');
-            if (errorEl) errorEl.textContent = '로그인 처리 중 오류: ' + (err.message || err.code);
-        });
-
-    // Firebase auth 상태 확인 — 이미 로그인돼 있으면 바로 처리 (중복 방지)
-    firebase.auth().onAuthStateChanged(async (user) => {
-        if (_loginHandled) return;
-        if (user) {
-            _loginHandled = true;
-            document.getElementById('auth-modal').style.display = 'none';
-            await handleReviewerLogin(user);
-        } else {
+            console.error('Redirect result error:', err.code, err.message);
+            document.getElementById('auth-error').textContent =
+                '로그인 처리 중 오류: ' + (err.message || err.code);
             document.getElementById('auth-modal').style.display = 'flex';
-        }
-    });
+        })
+        .finally(() => {
+            // redirect 처리가 끝난 뒤 구독 — 이미 로그인된 세션(재방문) 처리
+            firebase.auth().onAuthStateChanged(async (user) => {
+                if (_loginHandled) return;
+                if (user) {
+                    _loginHandled = true;
+                    await handleReviewerLogin(user);
+                } else {
+                    document.getElementById('auth-modal').style.display = 'flex';
+                }
+            });
+        });
 };
 
 function updateUI(data) {
