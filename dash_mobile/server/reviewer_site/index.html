@@ -115,6 +115,39 @@
             </div>
         </div>
 
+        <!-- 미가입 안내 모달 -->
+        <div id="not-registered-modal" style="
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.55);
+            display: none; align-items: center; justify-content: center;
+            padding: 24px;
+        ">
+            <div style="
+                background: #fff; border-radius: 20px;
+                padding: 36px 28px; width: 100%; max-width: 380px;
+                box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+                text-align: center;
+            ">
+                <div style="margin-bottom: 24px;">
+                    <span style="font-size: 36px;">📱</span>
+                    <h2 style="margin: 12px 0 8px; font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.3px;">
+                        아직 회원이 아니에요
+                    </h2>
+                    <p style="font-size: 14px; color: #8b95a1; line-height: 1.7; margin: 0;">
+                        모바일에서 <strong style="color: #4e73df;">Dash</strong> 앱으로<br>
+                        회원가입한 후 로그인해주세요.
+                    </p>
+                </div>
+                <button onclick="firebase.auth().signOut().then(() => { document.getElementById('not-registered-modal').style.display = 'none'; document.getElementById('auth-modal').style.display = 'flex'; })" style="
+                    width: 100%; padding: 14px 20px;
+                    background: #4e73df; color: #fff;
+                    border: none; border-radius: 12px;
+                    font-size: 15px; font-weight: 600;
+                    cursor: pointer; font-family: inherit;
+                ">확인</button>
+            </div>
+        </div>
+
         <!-- Google 로그인 모달 -->
         <div id="auth-modal" style="
             position: fixed; inset: 0; z-index: 9999;

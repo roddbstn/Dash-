@@ -45,6 +45,10 @@ async function handleReviewerLogin(user) {
         sessionStorage.setItem('dash_auth_' + token, '1');
         document.getElementById('auth-modal').style.display = 'none';
         loadRecord(token);
+    } else if (data.error === 'not_registered') {
+        // 모바일 앱 미가입 사용자
+        document.getElementById('auth-modal').style.display = 'none';
+        document.getElementById('not-registered-modal').style.display = 'flex';
     } else {
         document.getElementById('auth-modal').style.display = 'flex';
         document.getElementById('auth-error').textContent = data.error || '접근 권한이 없습니다.';

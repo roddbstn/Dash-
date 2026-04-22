@@ -718,8 +718,7 @@ const authAttempts = new Map(); // token -> { verified, verifiedAt, uid?, count?
 // [Web] 2-4. 리뷰어 구글 로그인 (Firebase ID 토큰 검증 후 세션 승인)
 app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, res) => {
   const { token } = req.params;
-  const { uid, email, name, display_name } = req.firebaseUser;
-  const reviewerName = display_name || name || email;
+  const { uid, email } = req.firebaseUser;
 
   try {
     const [rows] = await queryWithTimeout(
@@ -727,8 +726,14 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
     );
     if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
 
-    // 리뷰어 계정 생성 또는 조회
-    await ensureUserExists(uid, email, reviewerName);
+    // 모바일 앱에서 실명 등록한 회원인지 확인
+    const [userRows] = await queryWithTimeout(
+      `SELECT id FROM dash_users WHERE id = ? AND name IS NOT NULL AND name != '' AND name != email`,
+      [uid]
+    );
+    if (userRows.length === 0) {
+      return res.status(403).json({ error: 'not_registered' });
+    }
 
     // 최초 접근 시 reviewer_user_id 연결 (이미 연결된 경우 덮어쓰지 않음)
     await queryWithTimeout(
