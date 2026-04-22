@@ -227,8 +227,13 @@ async function ensureUserExists(uid, email, name) {
 }
 
 // reviewer_user_id 컬럼이 없으면 자동 추가 (마이그레이션)
-pool.query("ALTER TABLE service_drafts ADD COLUMN IF NOT EXISTS reviewer_user_id VARCHAR(36) DEFAULT NULL")
-  .catch(() => {}); // 이미 있으면 무시
+// MySQL 8.0은 IF NOT EXISTS 미지원 → ER_DUP_FIELDNAME(중복)만 무시
+pool.query("ALTER TABLE service_drafts ADD COLUMN reviewer_user_id VARCHAR(36) DEFAULT NULL")
+  .catch(err => {
+    if (err.code !== 'ER_DUP_FIELDNAME') {
+      console.error('[migration] reviewer_user_id 컬럼 추가 실패:', err.message);
+    }
+  });
 
 // --- API Endpoints ---
 
