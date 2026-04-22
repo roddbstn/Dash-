@@ -625,18 +625,20 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
   const { service_description, agent_opinion } = req.body;
   try {
     const [infoResult] = await queryWithTimeout(
-      `SELECT s.case_id, c.case_name, c.user_id, u.email 
-       FROM service_drafts s 
-       JOIN cases c ON s.case_id = c.id 
-       JOIN dash_users u ON c.user_id = u.id 
+      `SELECT s.case_id, c.case_name, c.user_id, u.email,
+              COALESCE(r.name, r.email, '리뷰어') AS reviewer_name
+       FROM service_drafts s
+       JOIN cases c ON s.case_id = c.id
+       JOIN dash_users u ON c.user_id = u.id
+       LEFT JOIN dash_users r ON s.reviewer_user_id = r.id
        WHERE s.share_token = ?`, [token]
     );
-    
+
     if (infoResult.length === 0) {
       return res.status(404).json({ error: 'Record not found' });
     }
 
-    const { case_name, user_id, email: user_email } = infoResult[0];
+    const { case_name, user_id, email: user_email, reviewer_name } = infoResult[0];
 
     const { encrypted_blob } = req.body;
     
@@ -655,7 +657,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
 
     if (result.affectedRows > 0) {
       // 📝 Create Notification for the counselor
-      const message = `동행자가 ${case_name} 아동 DB 내용을 수정했어요. 확인해보세요`;
+      const message = `${reviewer_name} 상담원이 DB를 수정했어요.`;
       // 📝 Mark previous unread notifications for the same record as read (Requirement: Replace with latest for same DB)
       await queryWithTimeout(
         'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND record_token = ? AND is_read = 0',
@@ -683,8 +685,8 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
             const fcmToken = userRows[0].fcm_token;
             const message = {
               notification: {
-                title: '검토 완료 📝',
-                body: `${case_name} 아동 사례 상담 기록이 검토 완료되었어요.`
+                title: `${case_name} 아동 DB 수정 완료`,
+                body: `${reviewer_name} 상담원이 DB를 수정했어요.`
               },
               data: {
                 type: 'review_completed',
