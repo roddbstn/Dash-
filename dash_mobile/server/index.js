@@ -657,7 +657,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
 
     if (result.affectedRows > 0) {
       // 📝 Create Notification for the counselor
-      const message = `${reviewer_name} 상담원이 DB를 수정했어요.`;
+      const message = `${reviewer_name} 상담원이 DB를 수정 완료했어요.`;
       // 📝 Mark previous unread notifications for the same record as read (Requirement: Replace with latest for same DB)
       await queryWithTimeout(
         'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND record_token = ? AND is_read = 0',

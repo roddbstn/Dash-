@@ -30,6 +30,26 @@ async function signInWithGoogle() {
     }
 }
 
+function showAuthModal() {
+    document.getElementById('not-registered-modal').style.display = 'none';
+    document.getElementById('auth-modal').style.display = 'flex';
+    // Google 로그인 버튼 초기화
+    const btn = document.getElementById('btn-google-login');
+    if (btn) { btn.disabled = false; btn.textContent = 'Google 계정으로 로그인'; }
+    document.getElementById('auth-error').textContent = '';
+}
+
+function confirmLogout() {
+    const token = new URLSearchParams(window.location.search).get('token');
+    firebase.auth().signOut().then(() => {
+        if (token) sessionStorage.removeItem('dash_auth_' + token);
+        document.getElementById('logout-confirm-modal').style.display = 'none';
+        const logoutBtn = document.getElementById('btn-logout');
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        showAuthModal();
+    });
+}
+
 async function handleReviewerLogin(user) {
     const token = new URLSearchParams(window.location.search).get('token');
     if (!token) return;
@@ -44,9 +64,13 @@ async function handleReviewerLogin(user) {
     if (res.ok && data.ok) {
         sessionStorage.setItem('dash_auth_' + token, '1');
         document.getElementById('auth-modal').style.display = 'none';
+        // 로그아웃 버튼 표시 (로그인 성공 시)
+        const logoutBtn = document.getElementById('btn-logout');
+        if (logoutBtn) logoutBtn.style.display = 'block';
         loadRecord(token);
     } else if (data.error === 'not_registered') {
-        // 모바일 앱 미가입 사용자
+        // 모바일 앱 미가입 → Firebase 세션 즉시 소거 후 안내 화면 표시
+        await firebase.auth().signOut();
         document.getElementById('auth-modal').style.display = 'none';
         document.getElementById('not-registered-modal').style.display = 'flex';
     } else {

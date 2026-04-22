@@ -28,8 +28,14 @@
                     </div>
                 </section>
             </div>
-            <div class="sidebar-footer">
+            <div class="sidebar-footer" style="display:flex; align-items:center; justify-content:space-between;">
                 <span class="logo">DASH</span>
+                <button id="btn-logout" onclick="document.getElementById('logout-confirm-modal').style.display='flex'" style="
+                    display:none;
+                    background:none; border:none; padding:4px 0;
+                    font-size:12px; color:#ADB5BD; cursor:pointer;
+                    font-family:inherit; font-weight:500;
+                ">로그아웃</button>
             </div>
         </aside>
 
@@ -115,13 +121,15 @@
             </div>
         </div>
 
-        <!-- 미가입 안내 모달 -->
+        <!-- 미가입 안내 화면 (auth 화면과 동일한 구조, 완전 불투명) -->
         <div id="not-registered-modal" style="
             position: fixed; inset: 0; z-index: 9999;
             background: rgba(0,0,0,0.55);
             display: none; align-items: center; justify-content: center;
             padding: 24px;
         ">
+            <!-- 뒷배경 완전 가리개 -->
+            <div style="position:absolute;inset:0;background:#f0f2f5;z-index:-1;"></div>
             <div style="
                 background: #fff; border-radius: 20px;
                 padding: 36px 28px; width: 100%; max-width: 380px;
@@ -138,13 +146,43 @@
                         회원가입한 후 로그인해주세요.
                     </p>
                 </div>
-                <button onclick="firebase.auth().signOut().then(() => { document.getElementById('not-registered-modal').style.display = 'none'; document.getElementById('auth-modal').style.display = 'flex'; })" style="
+                <button onclick="showAuthModal()" style="
                     width: 100%; padding: 14px 20px;
                     background: #4e73df; color: #fff;
                     border: none; border-radius: 12px;
                     font-size: 15px; font-weight: 600;
                     cursor: pointer; font-family: inherit;
                 ">확인</button>
+            </div>
+        </div>
+
+        <!-- 로그아웃 확인 모달 -->
+        <div id="logout-confirm-modal" style="
+            position: fixed; inset: 0; z-index: 10000;
+            background: rgba(0,0,0,0.45);
+            display: none; align-items: center; justify-content: center;
+            padding: 24px;
+        ">
+            <div style="
+                background: #fff; border-radius: 20px;
+                padding: 32px 28px; width: 100%; max-width: 340px;
+                box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+                text-align: center;
+            ">
+                <h2 style="margin: 0 0 10px; font-size: 18px; font-weight: 800; color: #1a1a2e;">로그아웃 하시겠어요?</h2>
+                <p style="font-size: 14px; color: #8b95a1; margin: 0 0 24px; line-height: 1.6;">로그아웃하면 다시 구글 계정으로<br>로그인해야 해요.</p>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="document.getElementById('logout-confirm-modal').style.display='none'" style="
+                        flex:1; padding:13px; background:#f0f2f5; color:#4e5968;
+                        border:none; border-radius:12px; font-size:15px; font-weight:600;
+                        cursor:pointer; font-family:inherit;
+                    ">취소</button>
+                    <button onclick="confirmLogout()" style="
+                        flex:1; padding:13px; background:#e74c3c; color:#fff;
+                        border:none; border-radius:12px; font-size:15px; font-weight:600;
+                        cursor:pointer; font-family:inherit;
+                    ">로그아웃</button>
+                </div>
             </div>
         </div>
 
