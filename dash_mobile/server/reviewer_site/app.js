@@ -11,20 +11,23 @@ const _fbConfig = {
 };
 firebase.initializeApp(_fbConfig);
 
-// ── Google 로그인 (redirect 방식 — 도메인 무관하게 동작)
-function signInWithGoogle() {
+// ── Google 로그인 (popup 방식 — Firebase Hosting 불필요)
+async function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
     const errorEl = document.getElementById('auth-error');
     btn.disabled = true;
-    btn.textContent = '이동 중...';
+    btn.textContent = '로그인 중...';
     errorEl.textContent = '';
 
-    const provider = new firebase.auth.GoogleAuthProvider();
-    firebase.auth().signInWithRedirect(provider).catch(e => {
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        const result = await firebase.auth().signInWithPopup(provider);
+        await handleReviewerLogin(result.user);
+    } catch (e) {
         errorEl.textContent = '오류: ' + (e.message || e.code);
         btn.disabled = false;
         btn.textContent = 'Google 계정으로 로그인';
-    });
+    }
 }
 
 async function handleReviewerLogin(user) {
@@ -425,36 +428,18 @@ window.onload = () => {
         return;
     }
 
+    // popup 방식: onAuthStateChanged만으로 세션 복원 처리
+    // (팝업 로그인은 signInWithGoogle()에서 직접 처리, 여기서는 재방문 세션만)
     let _loginHandled = false;
-
-    // getRedirectResult 먼저 완전히 처리한 뒤 onAuthStateChanged 구독
-    // (onAuthStateChanged가 null로 먼저 발화하여 모달을 보이는 race condition 방지)
-    firebase.auth().getRedirectResult()
-        .then(result => {
-            if (result && result.user) {
-                // 방금 redirect 로그인 완료
-                _loginHandled = true;
-                handleReviewerLogin(result.user);
-            }
-        })
-        .catch(err => {
-            console.error('Redirect result error:', err.code, err.message);
-            document.getElementById('auth-error').textContent =
-                '로그인 처리 중 오류: ' + (err.message || err.code);
+    firebase.auth().onAuthStateChanged(async (user) => {
+        if (_loginHandled) return;
+        if (user) {
+            _loginHandled = true;
+            await handleReviewerLogin(user);
+        } else {
             document.getElementById('auth-modal').style.display = 'flex';
-        })
-        .finally(() => {
-            // redirect 처리가 끝난 뒤 구독 — 이미 로그인된 세션(재방문) 처리
-            firebase.auth().onAuthStateChanged(async (user) => {
-                if (_loginHandled) return;
-                if (user) {
-                    _loginHandled = true;
-                    await handleReviewerLogin(user);
-                } else {
-                    document.getElementById('auth-modal').style.display = 'flex';
-                }
-            });
-        });
+        }
+    });
 };
 
 function updateUI(data) {
