@@ -49,6 +49,20 @@ async function getGoogleTokenViaAuthToken() {
     });
 }
 
+// 팝업 없이 조용히 토큰 갱신 (SSE 재연결, 세션 복원 시 사용)
+// chrome.identity가 만료된 토큰을 자동 갱신해줌
+async function getFreshTokenSilent() {
+    return new Promise((resolve, reject) => {
+        chrome.identity.getAuthToken({ interactive: false }, (token) => {
+            if (chrome.runtime.lastError || !token) {
+                reject(new Error(chrome.runtime.lastError?.message || 'Silent refresh 실패'));
+            } else {
+                resolve(token);
+            }
+        });
+    });
+}
+
 // 공통 로그인 처리 (토큰 → 사용자정보 → 저장 → PIN 확인)
 async function handleGoogleLogin(token) {
     const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
@@ -988,8 +1002,19 @@ let selectedForDelete = new Map(); // Use Map to maintain order for numbering
 // ==============================================
 
 let eventSource = null;
-function setupRealtimeSync() {
+async function setupRealtimeSync() {
     if (eventSource) eventSource.close();
+
+    // SSE 연결 전 항상 신선한 토큰으로 갱신 (만료된 캐시 토큰으로 인한 401 방지)
+    try {
+        const freshToken = await getFreshTokenSilent();
+        currentOAuthToken = freshToken;
+        chrome.storage.session.set({ cachedOAuthToken: freshToken });
+    } catch (e) {
+        // 갱신 실패 시 기존 토큰 사용 (로그아웃 상태 등)
+        console.warn('SSE 토큰 갱신 실패, 캐시 토큰 사용:', e.message);
+    }
+
     const sseToken = currentOAuthToken ? `?token=${encodeURIComponent(currentOAuthToken)}` : '';
     eventSource = new EventSource(`${API_BASE}/events${sseToken}`);
     eventSource.addEventListener('new_record', async (e) => {
@@ -1054,6 +1079,14 @@ function showToastNotification(msg) {
             const sess = await new Promise(r => chrome.storage.session.get(['cachedOAuthToken'], r));
             if (sess.cachedOAuthToken) {
                 currentOAuthToken = sess.cachedOAuthToken;
+                // 세션 복원 시 토큰 조용히 갱신 (만료 방지)
+                try {
+                    const freshToken = await getFreshTokenSilent();
+                    currentOAuthToken = freshToken;
+                    chrome.storage.session.set({ cachedOAuthToken: freshToken });
+                } catch (e) {
+                    // 갱신 실패 시 캐시 토큰 그대로 사용
+                }
             } else {
                 // 세션 토큰 없음 = 브라우저 재시작 → 재로그인
                 chrome.storage.local.remove(['dashUser']);
