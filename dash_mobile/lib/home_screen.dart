@@ -1012,40 +1012,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
         child: SafeArea(
-          child: Center(
-            widthFactor: 1,
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: BottomNavigationBar(
-                elevation: 0,
-                currentIndex: _currentIndex,
-                onTap: (index) => setState(() => _currentIndex = index),
-                selectedItemColor: AppColors.primary,
-                unselectedItemColor: const Color(0xFF8B95A1),
-                backgroundColor: Colors.transparent, // Uses container's white
-                items: [
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.home_filled),
-                    label: '홈',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Badge(
-                      label: null,
-                      isLabelVisible: _notifications.any(
-                        (n) => n['is_read'] == 0 || n['is_read'] == false,
-                      ),
-                      backgroundColor: const Color(0xFFFF4D00),
-                      child: const Icon(Icons.notifications),
+          child: SizedBox(
+            height: 70,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Row(
+                  children: [
+                    _NavBarItem(
+                      icon: const Icon(Icons.home_filled),
+                      label: '홈',
+                      selected: _currentIndex == 0,
+                      onTap: () => setState(() => _currentIndex = 0),
                     ),
-                    label: '알림',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.history_rounded),
-                    label: 'DB 내역',
-                  ),
-                  const BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
-                ],
+                    _NavBarItem(
+                      icon: Badge(
+                        isLabelVisible: _notifications.any(
+                          (n) => n['is_read'] == 0 || n['is_read'] == false,
+                        ),
+                        backgroundColor: const Color(0xFFFF4D00),
+                        child: const Icon(Icons.notifications),
+                      ),
+                      label: '알림',
+                      selected: _currentIndex == 1,
+                      onTap: () => setState(() => _currentIndex = 1),
+                    ),
+                    _NavBarItem(
+                      icon: const Icon(Icons.history_rounded),
+                      label: 'DB 내역',
+                      selected: _currentIndex == 2,
+                      onTap: () => setState(() => _currentIndex = 2),
+                    ),
+                    _NavBarItem(
+                      icon: const Icon(Icons.person),
+                      label: '프로필',
+                      selected: _currentIndex == 3,
+                      onTap: () => setState(() => _currentIndex = 3),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1640,6 +1645,66 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavBarItem extends StatefulWidget {
+  final Widget icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavBarItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  State<_NavBarItem> createState() => _NavBarItemState();
+}
+
+class _NavBarItemState extends State<_NavBarItem> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.selected ? AppColors.primary : const Color(0xFF8B95A1);
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.90 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOutCubic,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconTheme(
+                data: IconThemeData(color: color, size: 24),
+                child: widget.icon,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
