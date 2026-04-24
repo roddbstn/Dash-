@@ -575,7 +575,8 @@ async function fetchRecords() {
         }));
 
         const selectBar = document.getElementById('selection-bar');
-        if (records.length === 0) {
+        const pendingCount = records.filter(r => r.status !== 'Injected').length;
+        if (pendingCount === 0) {
             recordsContainer.innerHTML = '';
             emptyState.classList.remove('hidden');
             actionBar.classList.add('hidden');
@@ -944,9 +945,10 @@ function renderRecords() {
     recordsContainer.innerHTML = '';
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    records.forEach(record => {
+    const pendingRecords = records.filter(record => record.status !== 'Injected');
+    pendingRecords.forEach(record => {
         const card = document.createElement('div');
-        card.className = `record-card ${record.id === selectedRecordId ? 'selected' : ''} ${record.status === 'Injected' ? 'injected' : ''}`;
+        card.className = `record-card ${record.id === selectedRecordId ? 'selected' : ''}`;
         card.dataset.id = record.id;
 
         // 날짜/시간 포맷 (요일 포함, 다른 날짜 대응)
@@ -977,18 +979,11 @@ function renderRecords() {
         // 서비스 내용 / 상담원 소견 드롭다운 ID
         const dropdownId = `dropdown-${record.id}`;
 
-        // 상태 뱃지
-        const statusLabel = record.status === 'Reviewed' ? '검토 완료' : '검토 대기';
-        const statusClass = record.status === 'Reviewed' ? 'badge-reviewed' : 'badge-synced';
-
         card.innerHTML = `
             <div class="record-card-header">
                 <div class="record-card-header-left">
                     <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
                     <span class="record-dong">${record.dong || ''}</span>
-                </div>
-                <div style="display:flex; align-items:center;">
-                    <span class="record-status-badge ${statusClass}">${statusLabel}</span>
                 </div>
             </div>
             <div class="record-info-list">
@@ -1201,7 +1196,9 @@ btnBackToList.addEventListener('click', () => {
     selectedRecordId = null;
     updateInjectButton();
     showMainView();
+    switchMainTab('history');
     fetchRecords();
+    fetchHistory();
 });
 
 // ==============================================
