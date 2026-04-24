@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/widgets/home_widgets.dart';
 import 'package:dash_mobile/screens/notification_tab.dart';
 import 'package:dash_mobile/screens/profile_tab.dart';
+import 'package:dash_mobile/screens/db_history_tab.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // 로컬 알림 플러그인 초기화
@@ -1030,14 +1031,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   BottomNavigationBarItem(
                     icon: Badge(
-                      label: null, // 숫자 대신 점만 표시
+                      label: null,
                       isLabelVisible: _notifications.any(
                         (n) => n['is_read'] == 0 || n['is_read'] == false,
                       ),
-                      backgroundColor: const Color(0xFFFF4D00), // 주황빛 도는 빨간색
+                      backgroundColor: const Color(0xFFFF4D00),
                       child: const Icon(Icons.notifications),
                     ),
                     label: '알림',
+                  ),
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.history_rounded),
+                    label: 'DB 내역',
                   ),
                   const BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
                 ],
@@ -1128,6 +1133,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           }
         });
       },
+    );
+    if (_currentIndex == 2) return DbHistoryTab(
+      injectedDrafts: _drafts.where((d) => d['status'] == 'Injected').toList(),
     );
     return ProfileTab(
       userName: _userName,
@@ -1444,6 +1452,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildDbList({bool isPad = false, double padWidth = 0, int crossAxisCount = 3}) {
+    // 기입 완료(Injected) DB는 홈 목록에서 제외 → DB 내역 탭에서 표시
+    final pendingDrafts = _drafts.where((d) => d['status'] != 'Injected').toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1463,7 +1473,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ..._sharedDrafts.map((d) => _buildSharedDraftCard(d)),
           const SizedBox(height: 30),
         ],
-        if (_drafts.isNotEmpty) ...[
+        if (_drafts.where((d) => d['status'] != 'Injected').isNotEmpty) ...[
           const Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -1488,7 +1498,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 return Wrap(
                   spacing: spacing,
                   runSpacing: spacing,
-                  children: _drafts.map((d) {
+                  children: pendingDrafts.map((d) {
                     final foundCase = _cases
                         .cast<Map<String, dynamic>?>()
                         .firstWhere(
@@ -1507,7 +1517,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               },
             )
           else ...[
-            ..._drafts.map((d) {
+            ...pendingDrafts.map((d) {
               final foundCase = _cases
                   .cast<Map<String, dynamic>?>()
                   .firstWhere(

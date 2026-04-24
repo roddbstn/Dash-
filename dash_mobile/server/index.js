@@ -929,6 +929,29 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
+// [Extension+Mobile] 5-1. 기입 완료(Injected) 기록 조회 (이전 기록 탭)
+app.get('/api/records/history', verifyFirebaseAuth, async (req, res) => {
+  const { email } = req.query;
+  try {
+    let query = `
+      SELECT r.*, c.case_name, c.dong
+      FROM service_drafts r
+      JOIN cases c ON r.case_id = c.id
+      WHERE r.status = 'Injected'
+    `;
+    const params = [];
+    if (email) {
+      query += ` AND c.user_id IN (SELECT id FROM dash_users WHERE email = ?)`;
+      params.push(email);
+    }
+    query += ` ORDER BY r.updated_at DESC`;
+    const [rows] = await queryWithTimeout(query, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // [Mobile] 6. 특정 사용자의 모든 상담 기록 가져오기 (앱 동기화용)
 // Firebase UID가 DB에 없는 경우 토큰 이메일로 폴백 (OAuth id vs Firebase UID 불일치 대응)
 app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {

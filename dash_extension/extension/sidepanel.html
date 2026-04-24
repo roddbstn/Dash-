@@ -17,7 +17,7 @@
                 <img src="icon128.png" class="logo-img" alt="Dash Logo" />
             </div>
             <h1 class="login-title">Dash</h1>
-            <p class="login-subtitle">현장 활동 기록의 혁신</p>
+            <p class="login-subtitle">모바일로 DB 작성하고 자동기입하기</p>
             <button id="btn-google-login" class="gsi-material-button">
               <div class="gsi-material-button-state"></div>
               <div class="gsi-material-button-content-wrapper">
@@ -33,6 +33,7 @@
                 <span style="display: none;">Google 계정으로 로그인</span>
               </div>
             </button>
+            <button id="btn-other-account" style="display:block;background:none;border:none;color:#8B95A1;font-size:12px;cursor:pointer;padding:0;margin:10px auto 0;text-decoration:underline;font-family:inherit;">다른 계정으로 로그인</button>
             <p class="login-hint">모바일 앱과 동일한 계정으로 로그인하세요</p>
         </div>
     </div>
@@ -104,44 +105,64 @@
             </div>
         </div>
 
-        <div id="selection-bar" class="selection-bar hidden">
-            <button id="cancel-select-btn" class="text-btn hidden">취소</button>
-            <div style="flex: 1;"></div>
-            <button id="toggle-select-mode-btn" class="text-btn">
-                <span class="circle-icon">○</span>
-                <span id="select-mode-text">선택</span>
-            </button>
+        <!-- 탭 바 -->
+        <div class="main-tab-bar">
+            <button class="main-tab active" id="tab-pending" onclick="switchMainTab('pending')">대기 중</button>
+            <button class="main-tab" id="tab-history" onclick="switchMainTab('history')">이전 기록</button>
         </div>
 
-        <!-- 기록 목록 -->
-        <div id="records-container" class="records-container">
-            <!-- 동적으로 카드가 추가됨 -->
+        <!-- 대기 중 탭 콘텐츠 -->
+        <div id="tab-content-pending">
+            <div id="selection-bar" class="selection-bar hidden">
+                <button id="cancel-select-btn" class="text-btn hidden">취소</button>
+                <div style="flex: 1;"></div>
+                <button id="toggle-select-mode-btn" class="text-btn">
+                    <span class="circle-icon">○</span>
+                    <span id="select-mode-text">선택</span>
+                </button>
+            </div>
+
+            <!-- 기록 목록 -->
+            <div id="records-container" class="records-container"></div>
+
+            <!-- 빈 상태 -->
+            <div id="empty-state" class="empty-state hidden">
+                <div class="empty-icon">📋</div>
+                <p class="empty-title">대기 중인 기록이 없어요</p>
+                <p class="empty-desc">모바일 앱에서 DB를 생성하세요</p>
+            </div>
+
+            <!-- 하단 액션 -->
+            <div id="action-bar" class="action-bar hidden">
+                <button id="btn-inject" class="btn btn-primary" disabled>
+                    <span class="btn-icon-left">⚡</span>
+                    삽입할 DB를 선택해주세요
+                </button>
+            </div>
         </div>
 
-        <!-- 빈 상태 -->
-        <div id="empty-state" class="empty-state hidden">
-            <div class="empty-icon">📋</div>
-            <p class="empty-title">대기 중인 기록이 없어요</p>
-            <p class="empty-desc">모바일 앱에서 DB를 생성하세요</p>
+        <!-- 이전 기록 탭 콘텐츠 -->
+        <div id="tab-content-history" class="hidden">
+            <div id="history-container" class="records-container"></div>
+            <div id="history-empty-state" class="empty-state hidden">
+                <div class="empty-icon">🗂️</div>
+                <p class="empty-title">기입한 기록이 없어요</p>
+                <p class="empty-desc">DB를 기입하면 여기에 기록돼요</p>
+            </div>
         </div>
-
-        <!-- 하단 액션 -->
-        <div id="action-bar" class="action-bar hidden">
-            <button id="btn-inject" class="btn btn-primary" disabled>
-                <span class="btn-icon-left">⚡</span>
-                삽입할 DB를 선택해주세요
-            </button>
-        </div>
-
     </div>
 
     <!-- ===== 3. 주입 결과 화면 ===== -->
     <div id="result-view" class="view hidden">
         <div class="result-container">
+            <div class="result-hint">
+                <span class="result-hint-icon">📋</span>
+                대상자와 서비스 제공자는 직접 선택해 주세요
+            </div>
             <div class="result-icon">✅</div>
             <h2 class="result-title">주입 완료!</h2>
             <p class="result-desc">데이터가 시스템에 성공적으로 입력되었어요.<br>빨간색 필드가 없는지 확인해 주세요.</p>
-            <button id="btn-back-to-list" class="btn btn-outline">목록으로 돌아가기</button>
+            <button id="btn-back-to-list" class="btn btn-primary">목록으로 돌아가기</button>
         </div>
     </div>
 

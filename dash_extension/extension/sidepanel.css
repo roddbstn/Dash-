@@ -404,6 +404,11 @@ body {
     color: var(--success);
 }
 
+.badge-injected {
+    background: #F0F0F5;
+    color: #8B95A1;
+}
+
 /* ===== Dropdown Toggle ===== */
 .record-dropdown-toggle {
     display: flex;
@@ -492,6 +497,8 @@ body {
 /* ===== Records Container ===== */
 .records-container {
     flex: 1;
+    display: flex;
+    flex-direction: column;
     padding: 12px 12px 100px;
     overflow-y: auto;
 }
@@ -782,6 +789,28 @@ body {
     color: var(--text-sub);
     line-height: 1.6;
     margin-bottom: 32px;
+}
+
+.result-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+    margin-bottom: 28px;
+    padding: 12px 16px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #1D4ED8;
+    font-weight: 500;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.result-hint-icon {
+    font-size: 15px;
+    flex-shrink: 0;
 }
 
 /* ===== Footer ===== */
@@ -1174,3 +1203,53 @@ body {
     color: var(--text-hint);
     font-weight: 500;
 }
+
+/* ── 메인 탭 바 (대기 중 / 이전 기록) ───────────────────────── */
+.main-tab-bar {
+    display: flex;
+    background: #fff;
+    border-bottom: 1.5px solid var(--border);
+    padding: 0 16px;
+    gap: 0;
+    flex-shrink: 0;
+}
+
+.main-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-bottom: 2.5px solid transparent;
+    padding: 12px 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-hint);
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1.5px;
+}
+
+.main-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+/* ── 이전 기록 카드 재기입 버튼 ──────────────────────────────── */
+.btn-reinject {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 7px 14px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-xs);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.btn-reinject:hover { background: var(--primary-hover); }

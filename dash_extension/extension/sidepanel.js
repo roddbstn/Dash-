@@ -103,7 +103,9 @@ async function handleGoogleLogin(token) {
 let currentUser = null;   // { uid, email }
 let currentOAuthToken = null; // Google OAuth 토큰 (API 인증용)
 let records = [];          // 서버에서 가져온 기록 목록
+let historyRecords = [];   // 기입 완료(Injected) 기록
 let selectedRecordId = null; // 현재 선택된 기록 ID
+let currentMainTab = 'pending'; // 'pending' | 'history'
 
 function authHeaders() {
     if (currentOAuthToken) return { 'Authorization': `Bearer ${currentOAuthToken}` };
@@ -291,6 +293,18 @@ function showResultView() {
     pinView.classList.add('hidden');
     mainView.classList.add('hidden');
     resultView.classList.remove('hidden');
+}
+
+function switchMainTab(tab) {
+    currentMainTab = tab;
+    document.getElementById('tab-pending').classList.toggle('active', tab === 'pending');
+    document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+    document.getElementById('tab-content-pending').classList.toggle('hidden', tab !== 'pending');
+    document.getElementById('tab-content-history').classList.toggle('hidden', tab !== 'history');
+
+    if (tab === 'history') {
+        fetchHistory();
+    }
 }
 
 // ==============================================
@@ -591,6 +605,224 @@ async function fetchRecords() {
         emptyState.classList.remove('hidden');
         setStatus('error', '서버 연결에 실패했어요. 새로고침해 보세요.');
     }
+}
+
+// ==============================================
+// 3-1. 이전 기록 (Injected) 조회 및 렌더링
+// ==============================================
+
+async function fetchHistory() {
+    const historyContainer = document.getElementById('history-container');
+    const historyEmpty = document.getElementById('history-empty-state');
+    historyContainer.innerHTML = '<div style="padding:20px 16px;color:#ADB5BD;font-size:13px;text-align:center;">불러오는 중...</div>';
+    historyEmpty.classList.add('hidden');
+
+    try {
+        const email = currentUser?.email;
+        if (!email) return;
+        const res = await fetch(`${API_BASE}/records/history?email=${encodeURIComponent(email)}`, { headers: authHeaders() });
+        if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
+        historyRecords = await res.json();
+
+        // 복호화 (vaultKeys 있으면)
+        historyRecords = await Promise.all(historyRecords.map(async (record) => {
+            if (record.encrypted_blob && record.share_token && vaultKeys[record.share_token]) {
+                const decrypted = await decryptBlob(record.encrypted_blob, vaultKeys[record.share_token]);
+                if (decrypted) {
+                    return {
+                        ...record,
+                        service_description: decrypted.serviceDescription || decrypted.service_description || '',
+                        agent_opinion: decrypted.agentOpinion || decrypted.agent_opinion || '',
+                    };
+                }
+            }
+            return record;
+        }));
+
+        renderHistory();
+    } catch (e) {
+        historyContainer.innerHTML = '<div style="padding:20px 16px;color:#ADB5BD;font-size:13px;text-align:center;">불러오기 실패. 새로고침해 보세요.</div>';
+    }
+}
+
+function renderHistory() {
+    const container = document.getElementById('history-container');
+    const emptyEl = document.getElementById('history-empty-state');
+    container.innerHTML = '';
+
+    if (historyRecords.length === 0) {
+        emptyEl.classList.remove('hidden');
+        return;
+    }
+    emptyEl.classList.add('hidden');
+
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+    // 날짜별 그룹핑 (updated_at 기준)
+    const groups = {};
+    historyRecords.forEach(record => {
+        const rawDate = record.updated_at || record.created_at || '';
+        const dt = rawDate ? new Date(rawDate.endsWith('Z') ? rawDate : rawDate + 'Z') : new Date();
+        const dayName = dayNames[dt.getDay()];
+        const dateKey = `${dt.getFullYear()}.${dt.getMonth() + 1}.${dt.getDate()} (${dayName})`;
+        if (!groups[dateKey]) groups[dateKey] = [];
+        groups[dateKey].push(record);
+    });
+
+    Object.entries(groups).forEach(([dateLabel, groupRecords]) => {
+        // 날짜 헤더
+        const header = document.createElement('div');
+        header.style.cssText = 'padding:12px 16px 6px;font-size:11px;font-weight:700;color:#8B95A1;letter-spacing:0.3px;';
+        header.textContent = dateLabel;
+        container.appendChild(header);
+
+        groupRecords.forEach(record => {
+            // 제공일시 포맷
+            let dateTimeStr = '';
+            if (record.start_time && record.end_time) {
+                const start = new Date(record.start_time.replace(' ', 'T'));
+                const end = new Date(record.end_time.replace(' ', 'T'));
+                const startDay = dayNames[start.getDay()];
+                const startPart = `${start.getMonth() + 1}.${start.getDate()} (${startDay})`;
+                const startT = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+                const endT = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
+                dateTimeStr = `${startPart} ${startT} ~ ${endT}`;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'record-card';
+            card.style.cssText = 'opacity:0.85;';
+            const dropdownId = `hist-dropdown-${record.id}`;
+            card.innerHTML = `
+                <div class="record-card-header">
+                    <div class="record-card-header-left">
+                        <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
+                        <span class="record-dong">${record.dong || ''}</span>
+                    </div>
+                    <span class="record-status-badge badge-injected">기입 완료</span>
+                </div>
+                <div class="record-info-list">
+                    <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${record.service_name || '-'}</span></div>
+                </div>
+                <div class="record-dropdown-toggle" data-target="${dropdownId}">
+                    <div style="flex:1;"></div>
+                    <span class="dropdown-label">상세 보기</span>
+                    <span class="dropdown-arrow">▼</span>
+                </div>
+                <div class="record-dropdown-content hidden" id="${dropdownId}">
+                    <div class="record-info-list" style="margin-bottom:12px;">
+                        <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
+                        <div class="record-info-row"><span class="info-label">제공구분</span><span class="info-value">${record.provision_type || '-'}</span></div>
+                        <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
+                        <div class="record-info-row"><span class="info-label">서비스유형</span><span class="info-value">${record.service_type || '-'}</span></div>
+                        <div class="record-info-row"><span class="info-label">제공장소</span><span class="info-value">${record.location || '-'}</span></div>
+                    </div>
+                    <div style="font-weight:700;color:#4e5968;font-size:13px;margin-bottom:6px;">서비스 내용</div>
+                    <div class="dropdown-text" style="background:transparent;padding:0;margin-bottom:12px;">${record.service_description || '(내용 없음)'}</div>
+                    <div style="font-weight:700;color:#4e5968;font-size:13px;margin-bottom:6px;">상담원 소견</div>
+                    <div class="dropdown-text" style="background:transparent;padding:0;">${record.agent_opinion || '(소견 없음)'}</div>
+                </div>
+                <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #F2F4F6;">
+                    <button class="btn-reinject" data-id="${record.id}">⚡ 재기입</button>
+                    <button class="btn-share-history" data-token="${record.share_token || ''}" data-key="${record.encryption_key || ''}" style="
+                        display:inline-flex;align-items:center;gap:4px;padding:7px 14px;
+                        background:#F2F4F6;color:#4E5968;border:none;border-radius:8px;
+                        font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
+                    ">🔗 공유</button>
+                </div>
+            `;
+
+            // 드롭다운 토글
+            card.querySelector('.record-dropdown-toggle').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const content = card.querySelector(`#${dropdownId}`);
+                const arrow = card.querySelector('.dropdown-arrow');
+                content.classList.toggle('hidden');
+                arrow.textContent = content.classList.contains('hidden') ? '▼' : '▲';
+            });
+
+            // 재기입 버튼
+            card.querySelector('.btn-reinject').addEventListener('click', (e) => {
+                e.stopPropagation();
+                reinjectRecord(record);
+            });
+
+            // 공유 버튼
+            card.querySelector('.btn-share-history').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const token = e.currentTarget.dataset.token;
+                const key = e.currentTarget.dataset.key;
+                if (!token) { alert('저장된 공유 링크가 없어요.'); return; }
+                const url = `https://dash.qpon/?token=${token}${key ? '&key=' + key : ''}`;
+                navigator.clipboard.writeText(url).then(() => {
+                    showToastNotification('공유 링크가 복사됐어요');
+                }).catch(() => alert(url));
+            });
+
+            container.appendChild(card);
+        });
+    });
+}
+
+async function reinjectRecord(record) {
+    const tabs = await chrome.tabs.query({ url: ["*://localhost:*/*", "*://ncads.go.kr/*", "*://*.ncads.go.kr/*"] });
+    const potentialTabs = tabs.filter(t => !t.url.includes('AnySignPlus'));
+    let targetTab = null;
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (activeTab && potentialTabs.some(t => t.id === activeTab.id)) {
+        targetTab = activeTab;
+    } else {
+        for (const tab of potentialTabs) {
+            try {
+                const pong = await new Promise((resolve, reject) => {
+                    chrome.tabs.sendMessage(tab.id, { action: 'PING' }, (res) => {
+                        if (chrome.runtime.lastError || !res) reject(); else resolve(res);
+                    });
+                });
+                if (pong) { targetTab = tab; break; }
+            } catch (e) { continue; }
+        }
+    }
+
+    if (!targetTab) { alert('아동학대정보시스템 창을 찾지 못했어요.'); return; }
+
+    const CFG = window.DBAuto?.Config || {};
+    const meansMap = { '전화': 'A', '내방': 'B', '방문': 'C' };
+    const locMap = { '기관내': 'A', '아동가정': 'B', '유관기관': 'C', '기타': 'X' };
+    const svcMap = CFG.SERVICE_MAP || {};
+
+    let dateTime_val = '';
+    if (record.start_time && record.end_time) {
+        const start = new Date(record.start_time.replace(' ', 'T'));
+        const end = new Date(record.end_time.replace(' ', 'T'));
+        const datePart = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+        dateTime_val = `${datePart} ${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}~${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
+    }
+
+    const fillData = {
+        id: `dash-${record.id}`,
+        provCd_val: record.provision_type || '',
+        provTyCd_val: record.service_type || '',
+        svcClassDetailCd_val: svcMap[record.service_name] || record.service_name || '',
+        provMeansCd_val: meansMap[record.method] || record.method || '',
+        loc_val: locMap[record.location] || record.location || '',
+        dateTime_val,
+        mvmnReqreHr_val: record.travel_time || '0',
+        desc_val: record.service_description || '',
+        opn_val: record.agent_opinion || '',
+        cnt_val: record.service_count || 1,
+        recipient_fullVal: [],
+        pic_fullVal: [],
+    };
+
+    chrome.tabs.sendMessage(targetTab.id, { action: 'START_AUTO_FILL', data: fillData }, (res) => {
+        if (chrome.runtime.lastError) {
+            alert('재기입에 실패했습니다. 시스템 창을 새로고침한 후 다시 시도해 주세요.');
+        } else {
+            showToastNotification('재기입 완료!');
+        }
+    });
 }
 
 // PIN 설정 안내 배너 (Vault 없는데 기록이 있을 때)
