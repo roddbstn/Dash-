@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:dash_mobile/user_guide_screen.dart';
 import 'package:dash_mobile/privacy_policy_screen.dart';
+import 'package:dash_mobile/consent_screen.dart';
+import 'package:dash_mobile/home_screen.dart';
+import 'package:dash_mobile/nickname_screen.dart';
+import 'package:dash_mobile/storage_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -70,11 +75,54 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
       }
+
+      // StreamBuilder 재빌드에만 의존하지 않고 명시적 화면 전환
+      if (mounted) {
+        final p = await SharedPreferences.getInstance();
+        final consentDone = p.getBool('consent_v1_completed') ?? false;
+        if (consentDone) {
+          final nickname = await StorageService.getUserNickname();
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => (nickname == null || nickname.isEmpty)
+                    ? const NicknameScreen()
+                    : const HomeScreen(),
+              ),
+              (route) => false,
+            );
+          }
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ConsentScreen()),
+            (route) => false,
+          );
+        }
+      }
     } catch (e) {
       AnalyticsService.loginFailure(e.toString());
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('로그인 실패: $e')),
+        final errStr = e.toString();
+        final bool isSha1Error = errStr.contains('ApiException: 10') ||
+            errStr.contains('DEVELOPER_ERROR') ||
+            errStr.contains('sign_in_failed');
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('로그인 실패'),
+            content: Text(
+              isSha1Error
+                  ? '개발자 오류(code 10): SHA-1 인증서 지문이 Firebase 콘솔에 등록되지 않았거나 앱 설정이 잘못됐습니다.\n\n$errStr'
+                  : errStr,
+              style: const TextStyle(fontSize: 13),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
         );
       }
     } finally {
