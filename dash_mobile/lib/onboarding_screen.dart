@@ -33,24 +33,41 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     AnalyticsService.onboardingLoginTapped(_currentPage);
     try {
       final googleSignIn = GoogleSignIn(serverClientId: _serverClientId);
-      // 계정 선택 모달 강제 표시 (캐시 상태 초기화)
+      // Firebase에서 계정 삭제 후 재가입 등에서 캐시 토큰이 남아있는 경우를 대비해
+      // signOut + disconnect로 완전 초기화하여 계정 선택 모달을 강제 표시
       await googleSignIn.signOut().catchError((_) {});
+      await googleSignIn.disconnect().catchError((_) {});
+
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) return;
+
       // 계정 선택 완료 후 로딩 표시 (picker가 즉시 열리도록)
       setState(() => _isLoading = true);
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
+
+      // idToken이 null이면 Firebase 인증 불가 → 명시적 에러 처리
+      final idToken = googleAuth.idToken;
+      if (idToken == null) {
+        throw Exception(
+          'Google 인증 토큰(idToken)을 가져오지 못했습니다.\n'
+          '잠시 후 다시 시도하거나, 기기의 Google 계정 연결을 확인해 주세요.',
+        );
+      }
+
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+        idToken: idToken,
       );
-      await FirebaseAuth.instance.signInWithCredential(credential);
-      AnalyticsService.loginSuccess();
 
+      // onboarding 완료 플래그를 먼저 저장 → authStateChanges 스트림 발동 후
+      // _PreLoginRouter가 LoginScreen 대신 올바른 화면으로 라우팅되도록 보장
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('onboarding_v1_completed', true);
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+      AnalyticsService.loginSuccess();
       AnalyticsService.onboardingComplete();
     } catch (e) {
       AnalyticsService.loginFailure(e.toString());
@@ -680,7 +697,7 @@ class _OnboardingPage2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return _PageLayout(
       title: '작성한 DB를\n곧바로 시스템에',
-      subtitle: '크롬 확장프로그램으로\n클릭 한 번에 자동 기입돼요',
+      subtitle: '크롬 확장프로그램에 저장해놓고,\n시스템에 원클릭 기입하세요',
       illustration: _Page2Illustration(),
     );
   }
@@ -692,7 +709,7 @@ class _Page2Illustration extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final stackH =
-            (constraints.maxHeight * 0.82).clamp(190.0, 268.0);
+            (constraints.maxHeight * 0.88).clamp(220.0, 340.0);
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -847,12 +864,12 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
                             padding:
-                                const EdgeInsets.fromLTRB(9, 7, 9, 7),
+                                const EdgeInsets.fromLTRB(9, 5, 9, 5),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(7),
@@ -880,12 +897,12 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 3),
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
                             padding:
-                                const EdgeInsets.fromLTRB(9, 7, 9, 7),
+                                const EdgeInsets.fromLTRB(9, 5, 9, 5),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(7),
@@ -903,13 +920,13 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 RichText(
                                   text: TextSpan(
                                     style: const TextStyle(
                                       fontSize: 7,
                                       color: Color(0xFF374151),
-                                      height: 1.55,
+                                      height: 1.45,
                                       letterSpacing: -0.1,
                                     ),
                                     children: [
@@ -930,12 +947,12 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 3),
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
                             padding:
-                                const EdgeInsets.fromLTRB(9, 7, 9, 7),
+                                const EdgeInsets.fromLTRB(9, 5, 9, 5),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(7),
@@ -953,7 +970,7 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                SizedBox(height: 3),
+                                SizedBox(height: 2),
                                 Text(
                                   '상담원님의 소견을 입력해주세요',
                                   style: TextStyle(
@@ -964,12 +981,12 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 3),
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
                             padding:
-                                const EdgeInsets.fromLTRB(9, 6, 9, 7),
+                                const EdgeInsets.fromLTRB(9, 4, 9, 5),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(7),
@@ -987,7 +1004,7 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 Wrap(
                                   spacing: 3,
                                   runSpacing: 3,
@@ -1001,12 +1018,12 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 3),
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
                             padding:
-                                const EdgeInsets.fromLTRB(9, 6, 9, 7),
+                                const EdgeInsets.fromLTRB(9, 4, 9, 5),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(7),
@@ -1024,7 +1041,7 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 Wrap(
                                   spacing: 3,
                                   runSpacing: 3,
@@ -1038,13 +1055,13 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 5),
                           Container(
                             margin:
                                 const EdgeInsets.symmetric(horizontal: 7),
                             width: double.infinity,
                             padding:
-                                const EdgeInsets.symmetric(vertical: 8),
+                                const EdgeInsets.symmetric(vertical: 6),
                             decoration: BoxDecoration(
                               color: AppColors.primary,
                               borderRadius: BorderRadius.circular(8),
@@ -1061,7 +1078,7 @@ class _DBEntryPhoneMockup extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 5),
                         ],
                       ),
                     ),
@@ -1201,7 +1218,7 @@ class _NCADSBrowserMock extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     _NCADSFormRow(label: '제공구분', value: '제공', filled: true),
                     _NCADSFormRow(
                         label: '서비스유형', value: '아보전', filled: true),
@@ -1230,7 +1247,7 @@ class _NCADSBrowserMock extends StatelessWidget {
                       text: '',
                       hint: '상담원 소견을 입력해주세요.',
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         _NCADSButton(
