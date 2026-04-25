@@ -322,8 +322,15 @@ class _ProfileTabState extends State<ProfileTab> {
     final uid = user.uid;
     final email = user.email;
     try {
-      // [1] 서버 데이터(상례, 볼트 등) 삭제 요청 (404 무시)
-      await ApiService.deleteUser(uid, email: email);
+      // [1] 서버 데이터(사례, 볼트 등) 삭제 요청 — 실패 시 1회 재시도
+      bool serverDeleted = await ApiService.deleteUser(uid, email: email);
+      if (!serverDeleted) {
+        await Future.delayed(const Duration(seconds: 2));
+        serverDeleted = await ApiService.deleteUser(uid, email: email);
+        if (!serverDeleted) {
+          debugPrint('⚠️ [DELETE] 서버 데이터 삭제 실패 — 로컬 데이터만 정리 후 탈퇴 진행');
+        }
+      }
 
       // [2] Firebase Auth 계정 삭제 시도
       try {
