@@ -4,6 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
+import 'package:dash_mobile/consent_screen.dart';
+import 'package:dash_mobile/home_screen.dart';
+import 'package:dash_mobile/nickname_screen.dart';
+import 'package:dash_mobile/storage_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -69,6 +73,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await FirebaseAuth.instance.signInWithCredential(credential);
       AnalyticsService.loginSuccess();
       AnalyticsService.onboardingComplete();
+
+      // StreamBuilder 재빌드에만 의존하지 않고 명시적으로 화면 전환
+      // (일부 phone 기기에서 authStateChanges가 즉시 트리거되지 않는 경우 대응)
+      if (mounted) {
+        final p = await SharedPreferences.getInstance();
+        final consentDone = p.getBool('consent_v1_completed') ?? false;
+        if (consentDone) {
+          final nickname = await StorageService.getUserNickname();
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => (nickname == null || nickname.isEmpty)
+                    ? const NicknameScreen()
+                    : const HomeScreen(),
+              ),
+              (route) => false,
+            );
+          }
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ConsentScreen()),
+            (route) => false,
+          );
+        }
+      }
     } catch (e) {
       AnalyticsService.loginFailure(e.toString());
       if (mounted) {
