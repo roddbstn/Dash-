@@ -878,13 +878,15 @@ app.put('/api/records/:id/review', async (req, res) => {
     'start_time', 'end_time', 'service_count', 'travel_time', 'target',
     'encrypted_blob',
   ];
+  const isInjected = updateData.status === 'Injected';
   try {
     const safeKeys = Object.keys(updateData).filter(k => ALLOWED_UPDATE_FIELDS.includes(k));
     const extraClause = safeKeys.map(k => `${k} = ?`).join(', ');
     const values = safeKeys.map(k => updateData[k]);
+    const newStatus = isInjected ? 'Injected' : 'Reviewed';
     const setClause = extraClause
-      ? `${extraClause}, status = 'Reviewed', reviewed_at = NOW()`
-      : `status = 'Reviewed', reviewed_at = NOW()`;
+      ? `${extraClause}, status = '${newStatus}', reviewed_at = NOW(), updated_at = NOW()`
+      : `status = '${newStatus}', reviewed_at = NOW(), updated_at = NOW()`;
 
     await queryWithTimeout(
       `UPDATE service_drafts SET ${setClause} WHERE id = ?`,
@@ -898,10 +900,10 @@ app.put('/api/records/:id/review', async (req, res) => {
     );
 
     if (info.length > 0) {
-      broadcastEvent('reviewed', { user_email: info[0].email, record_id: id });
+      broadcastEvent(isInjected ? 'injected' : 'reviewed', { user_email: info[0].email, record_id: id });
     }
 
-    console.log(`✅ Record status updated to 'Reviewed' & Notification sent`);
+    console.log(`✅ Record status updated to '${newStatus}' & Notification sent`);
     res.json({ message: 'Review completed and data updated' });
   } catch (err) {
     console.error('❌ Review update error:', err.message);
