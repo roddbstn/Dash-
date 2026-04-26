@@ -11,6 +11,44 @@ const _fbConfig = {
 };
 firebase.initializeApp(_fbConfig);
 
+// ── 인앱 브라우저 감지 (카카오톡, 라인, 인스타그램 등)
+function isInAppBrowser() {
+    const ua = navigator.userAgent || '';
+    // 명시적 인앱 브라우저 식별자
+    if (/KAKAOTALK|NAVER|Line\/|FB_IAB|FBAN|Instagram|DaumApps/i.test(ua)) return true;
+    // iOS/Android 기기인데 Safari나 Chrome이 아닌 경우 (WebView)
+    const isMobile = /iPhone|iPad|Android/i.test(ua);
+    const isSafari = /Safari\//i.test(ua) && !/Chrome\//i.test(ua);
+    const isChrome = /Chrome\//i.test(ua) && !/Chromium/i.test(ua);
+    if (isMobile && !isSafari && !isChrome) return true;
+    return false;
+}
+
+function copyAndClose() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+        const btn = document.querySelector('#inapp-modal button');
+        if (btn) { btn.textContent = '복사됨 ✓'; setTimeout(() => { btn.textContent = '주소 복사하기'; }, 2000); }
+    }).catch(() => {
+        prompt('아래 주소를 복사해서 Chrome/Safari에 붙여넣기 해주세요:', window.location.href);
+    });
+}
+
+// ── 프로필 아바타 표시/숨김
+function showUserProfile(user) {
+    const wrapper = document.getElementById('user-avatar-wrapper');
+    const avatar = document.getElementById('user-avatar');
+    const tooltip = document.getElementById('user-email-tooltip');
+    if (!wrapper || !avatar) return;
+    avatar.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.email)}&background=4e73df&color=fff&size=64`;
+    if (tooltip) tooltip.textContent = user.email || '';
+    wrapper.style.display = 'block';
+}
+
+function hideUserProfile() {
+    const wrapper = document.getElementById('user-avatar-wrapper');
+    if (wrapper) wrapper.style.display = 'none';
+}
+
 // ── Google 로그인 (popup 방식 — Firebase Hosting 불필요)
 async function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
@@ -44,8 +82,7 @@ function confirmLogout() {
     firebase.auth().signOut().then(() => {
         if (token) sessionStorage.removeItem('dash_auth_' + token);
         document.getElementById('logout-confirm-modal').style.display = 'none';
-        const logoutBtn = document.getElementById('btn-logout');
-        if (logoutBtn) logoutBtn.style.display = 'none';
+        hideUserProfile();
         showAuthModal();
     });
 }
@@ -64,9 +101,12 @@ async function handleReviewerLogin(user) {
     if (res.ok && data.ok) {
         sessionStorage.setItem('dash_auth_' + token, '1');
         document.getElementById('auth-modal').style.display = 'none';
-        // 로그아웃 버튼 표시 (로그인 성공 시)
-        const logoutBtn = document.getElementById('btn-logout');
-        if (logoutBtn) logoutBtn.style.display = 'block';
+        // 프로필 아바타 표시
+        showUserProfile(user);
+        // 본인 DB 접근 시 편집 UI 숨김
+        if (data.isOwner) {
+            setOwnerReadOnlyMode();
+        }
         loadRecord(token);
     } else if (data.error === 'not_registered') {
         // 모바일 앱 미가입 → Firebase 세션 즉시 소거 후 안내 화면 표시
@@ -424,6 +464,25 @@ function loadRecord(token) {
             });
 }
 
+// ── 본인 DB 접근 시 편집 UI 비활성화
+function setOwnerReadOnlyMode() {
+    // 수정 완료 알림 버튼 숨김
+    document.querySelectorAll('.notify-btn').forEach(btn => btn.style.display = 'none');
+    // undo/redo 숨김
+    const undoBtn = document.getElementById('btn-undo');
+    const redoBtn = document.getElementById('btn-redo');
+    if (undoBtn) undoBtn.style.display = 'none';
+    if (redoBtn) redoBtn.style.display = 'none';
+    // textarea 읽기전용
+    const mainTA = document.getElementById('main-editor');
+    const opinionTA = document.getElementById('opinion-editor');
+    if (mainTA) { mainTA.readOnly = true; mainTA.style.cursor = 'default'; mainTA.style.background = '#f8f9fa'; }
+    if (opinionTA) { opinionTA.readOnly = true; opinionTA.style.cursor = 'default'; opinionTA.style.background = '#f8f9fa'; }
+    // 안내 메시지 (save-status 영역 활용)
+    const status = document.getElementById('save-status');
+    if (status) { status.textContent = '내 DB는 앱에서 수정할 수 있어요'; status.style.opacity = '1'; }
+}
+
 // Initialize — 데이터 fetch 없이 인증 모달만 표시
 window.onload = () => {
     const mainTextarea = document.getElementById('main-editor');
@@ -453,6 +512,13 @@ window.onload = () => {
 
     if (!token) {
         document.getElementById('auth-modal').style.display = 'none';
+        return;
+    }
+
+    // 인앱 브라우저 감지 — 구글 로그인 불가 안내
+    if (isInAppBrowser()) {
+        document.getElementById('auth-modal').style.display = 'none';
+        document.getElementById('inapp-modal').style.display = 'flex';
         return;
     }
 

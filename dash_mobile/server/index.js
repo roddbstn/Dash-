@@ -735,16 +735,29 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
       return res.status(403).json({ error: 'not_registered' });
     }
 
-    // 최초 접근 시 reviewer_user_id 연결 (이미 연결된 경우 덮어쓰지 않음)
-    await queryWithTimeout(
-      'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ? AND reviewer_user_id IS NULL',
-      [uid, token]
+    // 레코드 작성자 이메일 조회 (본인 여부 확인용)
+    const [ownerRows] = await queryWithTimeout(
+      `SELECT u.email AS owner_email
+       FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       LEFT JOIN dash_users u ON c.user_id = u.id
+       WHERE sd.share_token = ?`,
+      [token]
     );
+    const isOwner = ownerRows.length > 0 && ownerRows[0].owner_email === email;
+
+    // 최초 접근 시 reviewer_user_id 연결 (이미 연결된 경우 덮어쓰지 않음, 본인이면 연결 불필요)
+    if (!isOwner) {
+      await queryWithTimeout(
+        'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ? AND reviewer_user_id IS NULL',
+        [uid, token]
+      );
+    }
 
     // 세션 인증 완료 처리 (기존 share 엔드포인트가 authAttempts로 검증하므로 동일하게 기록)
     authAttempts.set(token, { verified: true, verifiedAt: Date.now(), uid });
-    console.log(`✅ [REVIEWER LOGIN] uid=${uid} → token=${token}`);
-    res.json({ ok: true });
+    console.log(`✅ [REVIEWER LOGIN] uid=${uid} → token=${token} isOwner=${isOwner}`);
+    res.json({ ok: true, isOwner });
   } catch (err) {
     console.error('Reviewer login error:', err);
     res.status(500).json({ error: err.message });

@@ -43,8 +43,23 @@
         <div class="main-container">
             <header class="main-header">
                 <div class="header-left"></div>
-                <div class="header-right">
+                <div class="header-right" style="display:flex; align-items:center; gap:10px;">
                     <button class="btn btn-action notify-btn" id="btn-notify-header" onclick="openNotifyModal()" disabled style="opacity:0.45; cursor:not-allowed;">수정 완료 알림</button>
+                    <div id="user-avatar-wrapper" style="display:none; position:relative;">
+                        <img id="user-avatar" src="" alt="프로필"
+                            onclick="document.getElementById('logout-confirm-modal').style.display='flex'"
+                            onmouseover="document.getElementById('user-email-tooltip').style.display='block'"
+                            onmouseout="document.getElementById('user-email-tooltip').style.display='none'"
+                            style="width:32px; height:32px; border-radius:50%; cursor:pointer; border:2px solid #E9ECEF; object-fit:cover; display:block;"
+                        >
+                        <div id="user-email-tooltip" style="
+                            display:none; position:absolute; right:0; top:40px;
+                            background:#1a1a2e; color:#fff; font-size:12px;
+                            padding:6px 10px; border-radius:8px; white-space:nowrap;
+                            font-family:inherit; font-weight:500; z-index:100;
+                            box-shadow:0 4px 12px rgba(0,0,0,0.2);
+                        "></div>
+                    </div>
                 </div>
             </header>
 
@@ -183,6 +198,39 @@
                         cursor:pointer; font-family:inherit;
                     ">로그아웃</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- 인앱 브라우저 차단 안내 (카카오톡, 라인 등) -->
+        <div id="inapp-modal" style="
+            position: fixed; inset: 0; z-index: 10001;
+            background: #f0f2f5;
+            display: none; align-items: center; justify-content: center;
+            padding: 24px;
+        ">
+            <div style="
+                background: #fff; border-radius: 20px;
+                padding: 36px 28px; width: 100%; max-width: 380px;
+                box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+                text-align: center;
+            ">
+                <span style="font-size: 36px;">🌐</span>
+                <h2 style="margin: 12px 0 8px; font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.3px;">
+                    브라우저에서 열어주세요
+                </h2>
+                <p style="font-size: 14px; color: #8b95a1; line-height: 1.7; margin: 0 0 20px;">
+                    카카오톡·문자 등 앱 내 브라우저에서는<br>
+                    구글 로그인이 지원되지 않아요.<br><br>
+                    주소를 복사해서 <strong style="color:#4e73df;">Chrome</strong> 또는
+                    <strong style="color:#4e73df;">Safari</strong>로 열어주세요.
+                </p>
+                <button onclick="copyAndClose()" style="
+                    width: 100%; padding: 14px 20px;
+                    background: #4e73df; color: #fff;
+                    border: none; border-radius: 12px;
+                    font-size: 15px; font-weight: 600;
+                    cursor: pointer; font-family: inherit;
+                ">주소 복사하기</button>
             </div>
         </div>
 
