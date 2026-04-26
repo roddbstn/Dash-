@@ -43,23 +43,8 @@
         <div class="main-container">
             <header class="main-header">
                 <div class="header-left"></div>
-                <div class="header-right" style="display:flex; align-items:center; gap:10px;">
+                <div class="header-right">
                     <button class="btn btn-action notify-btn" id="btn-notify-header" onclick="openNotifyModal()" disabled style="opacity:0.45; cursor:not-allowed;">수정 완료 알림</button>
-                    <div id="user-avatar-wrapper" style="display:none; position:relative;">
-                        <img id="user-avatar" src="" alt="프로필"
-                            onclick="document.getElementById('logout-confirm-modal').style.display='flex'"
-                            onmouseover="document.getElementById('user-email-tooltip').style.display='block'"
-                            onmouseout="document.getElementById('user-email-tooltip').style.display='none'"
-                            style="width:32px; height:32px; border-radius:50%; cursor:pointer; border:2px solid #E9ECEF; object-fit:cover; display:block;"
-                        >
-                        <div id="user-email-tooltip" style="
-                            display:none; position:absolute; right:0; top:40px;
-                            background:#1a1a2e; color:#fff; font-size:12px;
-                            padding:6px 10px; border-radius:8px; white-space:nowrap;
-                            font-family:inherit; font-weight:500; z-index:100;
-                            box-shadow:0 4px 12px rgba(0,0,0,0.2);
-                        "></div>
-                    </div>
                 </div>
             </header>
 
@@ -122,6 +107,23 @@
             <div class="mobile-cta-container">
                 <button class="btn btn-primary-full notify-btn" id="btn-notify-mobile" onclick="openNotifyModal()" disabled style="opacity:0.45; cursor:not-allowed; background:#ADB5BD;">수정 완료 알림 보내기</button>
             </div>
+        </div>
+
+        <!-- 프로필 아바타 (우하단 fixed) -->
+        <div id="user-avatar-wrapper" style="display:none; position:fixed; right:20px; bottom:24px; z-index:500;">
+            <div id="user-email-tooltip" style="
+                display:none; position:absolute; right:0; bottom:48px;
+                background:#1a1a2e; color:#fff; font-size:12px;
+                padding:6px 10px; border-radius:8px; white-space:nowrap;
+                font-family:inherit; font-weight:500;
+                box-shadow:0 4px 12px rgba(0,0,0,0.2);
+            "></div>
+            <img id="user-avatar" src="" alt="프로필"
+                onclick="document.getElementById('logout-confirm-modal').style.display='flex'"
+                onmouseover="document.getElementById('user-email-tooltip').style.display='block'"
+                onmouseout="document.getElementById('user-email-tooltip').style.display='none'"
+                style="width:40px; height:40px; border-radius:50%; cursor:pointer; border:2.5px solid #fff; object-fit:cover; display:block; box-shadow:0 2px 10px rgba(0,0,0,0.18);"
+            >
         </div>
 
         <!-- Modals -->
