@@ -4,8 +4,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
-import 'package:dash_mobile/user_guide_screen.dart';
-import 'package:dash_mobile/privacy_policy_screen.dart';
 import 'package:dash_mobile/consent_screen.dart';
 import 'package:dash_mobile/home_screen.dart';
 import 'package:dash_mobile/nickname_screen.dart';
@@ -176,8 +174,6 @@ class _PortraitLayout extends StatelessWidget {
           ),
           const Spacer(),
           _GoogleSignInButton(isLoading: isLoading, onSignIn: onSignIn),
-          const SizedBox(height: 20),
-          _FooterLinks(),
           const SizedBox(height: 24),
         ],
       ),
@@ -234,10 +230,7 @@ class _TabletLandscapeLayout extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 상단: 이용안내 | 개인정보처리방침
-                  _FooterLinks(color: Colors.white.withValues(alpha: 0.75)),
-                  const SizedBox(height: 28),
-                  // 하단: 로그인 CTA
+                  // 로그인 CTA
                   _GoogleSignInButton(isLoading: isLoading, onSignIn: onSignIn),
                 ],
               ),
@@ -294,31 +287,3 @@ class _GoogleSignInButton extends StatelessWidget {
   }
 }
 
-// ── 이용안내 | 개인정보처리방침 링크 ──────────────────────────────
-class _FooterLinks extends StatelessWidget {
-  const _FooterLinks({this.color});
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = color ?? Colors.white.withValues(alpha: 0.7);
-    final dividerColor = color ?? Colors.white.withValues(alpha: 0.4);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UserGuideScreen())),
-          child: Text('이용 안내', style: TextStyle(fontSize: 12, color: textColor, fontWeight: FontWeight.w500)),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Text('|', style: TextStyle(fontSize: 12, color: dividerColor)),
-        ),
-        GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
-          child: Text('개인정보처리방침', style: TextStyle(fontSize: 12, color: textColor, fontWeight: FontWeight.w500)),
-        ),
-      ],
-    );
-  }
-}

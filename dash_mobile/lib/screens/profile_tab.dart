@@ -6,6 +6,7 @@ import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/api_service.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/privacy_policy_screen.dart';
+import 'package:dash_mobile/user_guide_screen.dart';
 import 'package:dash_mobile/security_detail_screen.dart';
 import 'package:dash_mobile/terms_screen.dart';
 import 'package:dash_mobile/widgets/home_widgets.dart';
@@ -859,6 +860,24 @@ class _ProfileTabState extends State<ProfileTab> {
               child: Column(
                 children: [
                   _buildNotificationToggleItem(),
+                  const Divider(
+                    height: 1,
+                    indent: 20,
+                    endIndent: 20,
+                    color: AppColors.border,
+                  ),
+                  PressableProfileMenuItem(
+                    icon: Icons.menu_book_outlined,
+                    title: '이용 안내',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const UserGuideScreen(),
+                        ),
+                      );
+                    },
+                  ),
                   const Divider(
                     height: 1,
                     indent: 20,
