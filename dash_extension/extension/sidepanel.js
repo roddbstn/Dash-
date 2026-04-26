@@ -700,11 +700,11 @@ function renderHistory() {
                         <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
                         <span class="record-dong">${record.dong || ''}</span>
                     </div>
-                    <span class="record-status-badge badge-injected">기입 완료</span>
+                    <span class="record-status-badge badge-injected">${(() => { const d = record.updated_at ? new Date(record.updated_at.replace(' ', 'T')) : null; const t = d && !isNaN(d) ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} ` : ''; return t + '기입 완료'; })()}</span>
                 </div>
                 <div class="record-info-list">
                     <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
-                    <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${record.service_name || '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' : ' + record.service_name : (record.service_name || '-')}</span></div>
                 </div>
                 <div class="record-dropdown-toggle" data-target="${dropdownId}">
                     <div style="flex:1;"></div>
@@ -991,7 +991,7 @@ function renderRecords() {
                 <div class="record-info-row"><span class="info-label">제공구분</span><span class="info-value">${record.provision_type || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">서비스유형</span><span class="info-value">${record.service_type || '-'}</span></div>
-                <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${record.service_name || '-'}</span></div>
+                <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' : ' + record.service_name : (record.service_name || '-')}</span></div>
                 <div class="record-info-row"><span class="info-label">제공장소</span><span class="info-value">${record.location || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
             </div>
@@ -1010,6 +1010,14 @@ function renderRecords() {
                     <div class="dropdown-text" style="background: transparent; padding: 0;">${record.agent_opinion || '(소견 없음)'}</div>
                 </div>
             </div>
+            ${record.share_token ? `
+            <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #F2F4F6;">
+                <button class="btn-share-pending" data-token="${record.share_token}" data-key="${record.encryption_key || ''}" style="
+                    display:inline-flex;align-items:center;gap:4px;padding:7px 14px;
+                    background:#F2F4F6;color:#4E5968;border:none;border-radius:8px;
+                    font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
+                ">🔗 공유</button>
+            </div>` : ''}
             <div class="card-select-number"></div>
         `;
 
@@ -1022,6 +1030,20 @@ function renderRecords() {
             content.classList.toggle('hidden');
             arrow.textContent = content.classList.contains('hidden') ? '▼' : '▲';
         });
+
+        // 공유 버튼 (share_token 있을 때만 렌더됨)
+        const shareBtn = card.querySelector('.btn-share-pending');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const token = e.currentTarget.dataset.token;
+                const key = e.currentTarget.dataset.key;
+                const url = `https://dash.qpon/?token=${token}${key ? '&key=' + key : ''}`;
+                navigator.clipboard.writeText(url).then(() => {
+                    showToastNotification('공유 링크가 복사됐어요');
+                }).catch(() => alert(url));
+            });
+        }
 
         // 카드 클릭 → 선택/해제 (단일 선택)
         card.addEventListener('click', () => {

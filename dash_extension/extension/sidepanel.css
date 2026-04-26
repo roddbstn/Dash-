@@ -388,6 +388,7 @@ body {
 .badge-injected {
     background: #F0F0F5;
     color: #8B95A1;
+    font-size: 11px;
 }
 
 /* ===== Dropdown Toggle ===== */
