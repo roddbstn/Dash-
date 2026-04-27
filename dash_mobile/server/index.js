@@ -241,6 +241,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'reviewer_site', 'index.html'));
 });
 
+// 앱에서 /share?token=... 로 오는 요청을 /?token=... 으로 리다이렉트
+app.get('/share', (req, res) => {
+  const token = req.query.token;
+  if (token) {
+    return res.redirect(301, `/?token=${token}`);
+  }
+  res.redirect(301, '/');
+});
+
 // [공통] 서버 상태 확인
 app.get('/health', (req, res) => {
   console.log('--- Health Check ---');
