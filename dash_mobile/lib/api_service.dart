@@ -5,33 +5,60 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dash_mobile/storage_service.dart';
 
 class ApiService {
+  ApiService._();
+  static final ApiService instance = ApiService._();
+
   // --- Deployment Settings ---
   static const bool isProduction = true; // 🚀 Set to true for Final Launch!
-
-  // Production: Enter your Cloud Domain here (e.g. railway/supabase url)
   static const String prodUrl = 'https://dash.qpon';
-  
-  // Local (Android Emulator 10.0.2.2 points to localhost:3000)
   static const String localUrl = 'http://10.0.2.2:3000';
-
   static String get baseUrl => isProduction ? '$prodUrl/api' : '$localUrl/api';
   static String get serverUrl => isProduction ? prodUrl : localUrl;
 
   /// Firebase ID Token을 포함한 인증 헤더 반환 (JSON 요청용)
-  static Future<Map<String, String>> _authHeaders() async {
-    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
+  /// [forceRefresh] true이면 캐시 토큰 무시하고 새 토큰 발급
+  static Future<Map<String, String>> _authHeaders({bool forceRefresh = false}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('⚠️ _authHeaders: currentUser is null (not logged in)');
+      return {'Content-Type': 'application/json'};
+    }
+    try {
+      final token = await user.getIdToken(forceRefresh);
+      return {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+    } catch (e) {
+      debugPrint('⚠️ _authHeaders: getIdToken failed ($e), retrying with forceRefresh...');
+      try {
+        final token = await user.getIdToken(true);
+        return {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        };
+      } catch (e2) {
+        debugPrint('❌ _authHeaders: token refresh failed: $e2');
+        return {'Content-Type': 'application/json'};
+      }
+    }
   }
 
   /// Firebase ID Token을 포함한 인증 헤더 반환 (GET/DELETE 요청용 — Content-Type 없음)
-  static Future<Map<String, String>> _authGetHeaders() async {
-    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
-    return {
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
+  static Future<Map<String, String>> _authGetHeaders({bool forceRefresh = false}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return {};
+    try {
+      final token = await user.getIdToken(forceRefresh);
+      return {if (token != null) 'Authorization': 'Bearer $token'};
+    } catch (e) {
+      try {
+        final token = await user.getIdToken(true);
+        return {if (token != null) 'Authorization': 'Bearer $token'};
+      } catch (_) {
+        return {};
+      }
+    }
   }
 
   static Future<void> checkHealth() async {
@@ -48,6 +75,11 @@ class ApiService {
     final userId = user?.uid;
     if (userId == null) return;
 
+    // DASH 서버 프로필 이름 우선 사용 (Firebase displayName은 구글 계정 원래 이름이므로
+    // 앱에서 닉네임을 바꿔도 반영 안 됨)
+    final serverUser = await fetchUser(userId);
+    final userName = serverUser?['name'] ?? user?.displayName;
+
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/cases'),
@@ -56,7 +88,7 @@ class ApiService {
           'id': caseData['id'],
           'user_id': userId,
           'user_email': user?.email,
-          'user_name': user?.displayName,
+          'user_name': userName,
           'case_name': caseData['maskedName'] ?? caseData['realName'],
           'dong': caseData['dong'],
           'target_system_code': 'NCADS_v2',
@@ -78,18 +110,56 @@ class ApiService {
         Uri.parse('$baseUrl/records'),
         headers: await _authHeaders(),
         body: jsonEncode(recordData),
-      ).timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
+      ).timeout(const Duration(seconds: 8));
+
+      debugPrint('📡 syncRecord status: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         debugPrint('✅ Record synchronized with server');
         return data['share_token'];
+      }
+
+      // 401/403: 토큰이 만료됐을 수 있음 — 강제 갱신 후 1회 재시도
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        debugPrint('🔄 Auth error (${response.statusCode}), retrying with fresh token...');
+        final retryResponse = await http.post(
+          Uri.parse('$baseUrl/records'),
+          headers: await _authHeaders(forceRefresh: true),
+          body: jsonEncode(recordData),
+        ).timeout(const Duration(seconds: 8));
+        debugPrint('📡 syncRecord retry status: ${retryResponse.statusCode}');
+        if (retryResponse.statusCode == 200 || retryResponse.statusCode == 201) {
+          final data = jsonDecode(retryResponse.body);
+          debugPrint('✅ Record synchronized with server (after token refresh)');
+          return data['share_token'];
+        }
+        debugPrint('❌ Auth retry failed: ${retryResponse.body}');
       } else {
-        debugPrint('❌ Failed to sync record: ${response.body}');
+        debugPrint('❌ Failed to sync record (${response.statusCode}): ${response.body}');
       }
     } catch (e) {
       debugPrint('❌ Error syncing record: $e');
     }
     return null;
+  }
+
+  /// PIN 리셋 전용 — 서버의 해당 사용자 레코드 전체 삭제
+  static Future<void> deleteAllRecords() async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/records/user/all'),
+        headers: await _authHeaders(),
+        body: jsonEncode({'confirmation': 'CONFIRM_RESET'}),
+      ).timeout(const Duration(seconds: 20));
+      if (response.statusCode == 200) {
+        debugPrint('🗑️ All records deleted from server (PIN reset)');
+      } else {
+        debugPrint('❌ Failed to delete all records: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error deleting all records: $e');
+    }
   }
 
   static Future<void> deleteRecord(String token) async {
@@ -107,6 +177,19 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('❌ Error deleting record: $e');
+    }
+  }
+
+  static Future<bool> removeSharedRecord(String recordId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/records/shared/$recordId'),
+        headers: await _authHeaders(),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('❌ Error removing shared record: $e');
+      return false;
     }
   }
 
@@ -270,7 +353,12 @@ class ApiService {
         request.headers['Accept'] = 'text/event-stream';
         request.headers['Cache-Control'] = 'no-cache';
         request.headers['Connection'] = 'keep-alive';
-        final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+        // 로그인 직후 토큰이 아직 준비 안 됐으면 최대 3초 대기
+        String? token;
+        for (int i = 0; i < 3 && token == null; i++) {
+          token = await FirebaseAuth.instance.currentUser?.getIdToken();
+          if (token == null) await Future.delayed(const Duration(seconds: 1));
+        }
         if (token != null) request.headers['Authorization'] = 'Bearer $token';
 
         final response = await client.send(request).timeout(const Duration(seconds: 15));

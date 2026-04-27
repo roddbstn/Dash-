@@ -1586,6 +1586,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
     final String authorName = d['author_name'] ?? '담당자';
     final String? shareToken = d['share_token'];
+    final String recordId = d['id'].toString();
     final String shareUrl = shareToken != null
         ? '${ApiService.serverUrl}/share?token=$shareToken'
         : '';
@@ -1626,7 +1627,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
-            if (shareUrl.isNotEmpty)
+            if (shareUrl.isNotEmpty) ...[
               GestureDetector(
                 onTap: () async {
                   final uri = Uri.parse(shareUrl);
@@ -1644,6 +1645,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+            ],
+            GestureDetector(
+              onTap: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: const Text('목록에서 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    content: const Text('공유받은 DB를 목록에서 삭제할까요?', style: TextStyle(fontSize: 14)),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('삭제', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  final ok = await ApiService.removeSharedRecord(recordId);
+                  if (ok && mounted) {
+                    setState(() {
+                      _sharedDrafts.removeWhere((s) => s['id'].toString() == recordId);
+                    });
+                  }
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2F4F6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF8B95A1)),
+              ),
+            ),
           ],
         ),
       ),
