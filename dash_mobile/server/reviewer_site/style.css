@@ -584,4 +584,16 @@ body {
     .btn-action {
         display: none;
     }
+
+    /* 모바일: 프로필 아바타 우하단 → 우상단(헤더) */
+    #user-avatar-wrapper {
+        bottom: auto !important;
+        top: 20px !important;
+        right: 20px !important;
+    }
+
+    #user-email-tooltip {
+        bottom: auto !important;
+        top: 48px !important;
+    }
 }
