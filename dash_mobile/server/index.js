@@ -881,14 +881,41 @@ app.get('/api/records/share/:token', async (req, res) => {
 // [Web] 3.1. 공유 토큰으로 중간 저장 (Auto-save)
 app.put('/api/records/share/:token', async (req, res) => {
   const { token } = req.params;
-  const { service_description, agent_opinion } = req.body;
+  const { service_description, agent_opinion, encrypted_blob } = req.body;
   console.log(`\n💾 [WEB AUTO-SAVE] Token: ${token}`);
+
+  // 세션 인증 확인 (reviewer-login 또는 name-auth 완료 필요)
+  const session = authAttempts.get(token);
+  const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
+  if (!isVerified) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   try {
-    const [result] = await queryWithTimeout(
-      'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, updated_at = NOW() WHERE share_token = ?',
-      [service_description || '', agent_opinion || '', token]
-    );
+    let query, params;
+    if (encrypted_blob) {
+      query = 'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, encrypted_blob = ?, updated_at = NOW() WHERE share_token = ?';
+      params = [service_description || '', agent_opinion || '', encrypted_blob, token];
+    } else {
+      query = 'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, updated_at = NOW() WHERE share_token = ?';
+      params = [service_description || '', agent_opinion || '', token];
+    }
+
+    const [result] = await queryWithTimeout(query, params);
     if (result.affectedRows > 0) {
+      // 모바일 오너에게 SSE로 변경 알림 (실시간 반영)
+      try {
+        const [ownerRows] = await queryWithTimeout(
+          `SELECT u.email FROM service_drafts sd
+           JOIN cases c ON sd.case_id = c.id
+           LEFT JOIN dash_users u ON c.user_id = u.id
+           WHERE sd.share_token = ?`,
+          [token]
+        );
+        if (ownerRows.length > 0) {
+          broadcastEvent('record_updated', { user_email: ownerRows[0].email, record_token: token });
+        }
+      } catch (_) {}
       res.json({ message: 'Saved' });
     } else {
       res.status(404).json({ error: 'Not found' });

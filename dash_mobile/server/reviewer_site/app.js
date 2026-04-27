@@ -219,14 +219,14 @@ function handleTyping() {
 
     if (saveTimeout) clearTimeout(saveTimeout);
 
-    saveTimeout = setTimeout(() => {
+    saveTimeout = setTimeout(async () => {
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
         const main = document.getElementById('main-editor').value;
         const opinion = document.getElementById('opinion-editor').value || '';
 
-        // E2EE 보안 정책: 수정 내용은 메모리에 임시 보관, '수정 완료 알림' 버튼 클릭 시 재암호화하여 전송
+        // 메모리 내 currentRecord 갱신 (re-encryption 시 최신 값 사용)
         if (window.currentRecord) {
             window.currentRecord.serviceDescription = main;
             window.currentRecord.agentOpinion = opinion;
@@ -238,10 +238,45 @@ function handleTyping() {
             pushHistory(main, opinion);
         }
 
-        // 새로고침 후에도 최근 저장 내용 유지
+        // 세션 임시 저장 (새로고침 복원용)
         persistDraft(main, opinion);
 
-        status.textContent = `✓ ${timeStr} 저장됨`;
+        // ── 서버 자동 저장 ──────────────────────────────────────
+        const token = new URLSearchParams(window.location.search).get('token');
+        if (token) {
+            try {
+                const body = { service_description: main, agent_opinion: opinion };
+
+                // 암호화 키가 있으면 re-encrypt하여 encrypted_blob도 함께 저장
+                const _qp = new URLSearchParams(window.location.search);
+                let encKey = _qp.get('key') || window.location.hash.substring(1) || sessionStorage.getItem('dash_key_' + token) || '';
+                if (encKey && window.currentRecord) {
+                    try {
+                        const updatedData = { ...window.currentRecord, serviceDescription: main, agentOpinion: opinion };
+                        const key = CryptoJS.enc.Utf8.parse(encKey.padEnd(32).substring(0, 32));
+                        const iv = CryptoJS.lib.WordArray.random(16);
+                        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedData), key, { iv });
+                        body.encrypted_blob = iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
+                    } catch (e) {
+                        console.warn('[AutoSave] 암호화 실패, 평문만 저장:', e);
+                    }
+                }
+
+                const res = await fetch(`/api/records/share/${token}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                status.textContent = `✓ ${timeStr} 저장됨`;
+            } catch (e) {
+                console.error('[AutoSave] 서버 저장 실패:', e);
+                status.textContent = `⚠ 저장 실패 (${timeStr})`;
+            }
+        } else {
+            status.textContent = `✓ ${timeStr} 저장됨`;
+        }
+
         setTimeout(() => {
             status.style.opacity = '0.6';
         }, 2000);
@@ -472,23 +507,13 @@ function loadRecord(token) {
             });
 }
 
-// ── 본인 DB 접근 시 편집 UI 비활성화
+// ── 본인 DB: 수정 완료 알림 버튼만 숨김 (편집 및 자동저장은 허용)
 function setOwnerReadOnlyMode() {
-    // 수정 완료 알림 버튼 숨김
+    // 수정 완료 알림 버튼만 숨김 (오너는 FCM 알림 불필요)
     document.querySelectorAll('.notify-btn').forEach(btn => btn.style.display = 'none');
-    // undo/redo 숨김
-    const undoBtn = document.getElementById('btn-undo');
-    const redoBtn = document.getElementById('btn-redo');
-    if (undoBtn) undoBtn.style.display = 'none';
-    if (redoBtn) redoBtn.style.display = 'none';
-    // textarea 읽기전용
-    const mainTA = document.getElementById('main-editor');
-    const opinionTA = document.getElementById('opinion-editor');
-    if (mainTA) { mainTA.readOnly = true; mainTA.style.cursor = 'default'; mainTA.style.background = '#f8f9fa'; }
-    if (opinionTA) { opinionTA.readOnly = true; opinionTA.style.cursor = 'default'; opinionTA.style.background = '#f8f9fa'; }
-    // 안내 메시지 (save-status 영역 활용)
+    // 오너임을 표시 (status 영역)
     const status = document.getElementById('save-status');
-    if (status) { status.textContent = '내 DB는 앱에서 수정할 수 있어요'; status.style.opacity = '1'; }
+    if (status) { status.textContent = '내 DB · 수정 내용은 자동 저장됩니다'; status.style.opacity = '0.7'; }
 }
 
 // Initialize — 데이터 fetch 없이 인증 모달만 표시
