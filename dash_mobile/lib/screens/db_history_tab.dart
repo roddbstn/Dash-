@@ -100,6 +100,19 @@ class _HistoryCard extends StatefulWidget {
 class _HistoryCardState extends State<_HistoryCard> {
   bool _expanded = false;
 
+  String get _injectedTimeStr {
+    final raw = widget.draft['reviewed_at'] ?? widget.draft['updated_at'];
+    if (raw == null || (raw as String).isEmpty) return '기입 완료';
+    try {
+      final dt = DateTime.parse(raw.endsWith('Z') ? raw : '${raw}Z').toLocal();
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '$h:$m 기입 완료';
+    } catch (_) {
+      return '기입 완료';
+    }
+  }
+
   String get _dateTimeStr {
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
     final startRaw = widget.draft['startTime'] ?? widget.draft['start_time'];
@@ -189,9 +202,9 @@ class _HistoryCardState extends State<_HistoryCard> {
                           color: const Color(0xFFF0F0F5),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
-                          '기입 완료',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF8B95A1)),
+                        child: Text(
+                          _injectedTimeStr,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF8B95A1)),
                         ),
                       ),
                     ],
