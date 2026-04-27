@@ -1462,44 +1462,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_sharedDrafts.isNotEmpty) ...[
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '공유받은 DB 목록',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.4,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ..._sharedDrafts.map((d) => _buildSharedDraftCard(d)),
-          const SizedBox(height: 30),
-        ],
-        if (_drafts.where((d) => d['status'] != 'Injected').isNotEmpty) ...[
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '대기 중인 DB 목록',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.4,
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
+        // ── 공유받은 DB ──────────────────────────────────────
+        const Text(
+          '공유받은 DB',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4),
+        ),
+        const SizedBox(height: 16),
+        if (_sharedDrafts.isNotEmpty)
+          ..._sharedDrafts.map((d) => _buildSharedDraftCard(d))
+        else
+          _buildEmptyHint('동행자에게 DB 공유를 요청하세요'),
+        const SizedBox(height: 30),
+
+        // ── 나의 DB ──────────────────────────────────────────
+        const Text(
+          '나의 DB',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4),
+        ),
+        const SizedBox(height: 16),
+        if (pendingDrafts.isNotEmpty) ...[
           if (isPad && padWidth > 0)
             Builder(
               builder: (context) {
                 double spacing = 16.0;
-                // Calculate item width exactly using the given area
                 double itemWidth = (padWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
-                // We add a tiny floor to avoid layout constraints overflow
                 itemWidth = itemWidth.floorToDouble();
-                
                 return Wrap(
                   spacing: spacing,
                   runSpacing: spacing,
@@ -1513,15 +1500,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           orElse: () => null,
                         );
                     final dong = foundCase != null ? foundCase['dong'] : '미지정';
-                    return SizedBox(
-                      width: itemWidth,
-                      child: _buildDraftCard(d, dong),
-                    );
+                    return SizedBox(width: itemWidth, child: _buildDraftCard(d, dong));
                   }).toList(),
                 );
               },
             )
-          else ...[
+          else
             ...pendingDrafts.map((d) {
               final foundCase = _cases
                   .cast<Map<String, dynamic>?>()
@@ -1534,23 +1518,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               final dong = foundCase != null ? foundCase['dong'] : '미지정';
               return _buildDraftCard(d, dong);
             }),
-          ],
           const SizedBox(height: 30),
-        ] else ...[
-          const SizedBox(height: 60),
-          const Center(
-            child: Text(
-              '사례를 선택해 DB를 만들어주세요',
-              style: TextStyle(
-                fontSize: 16,
-                color: Color(0xFFADB5BD),
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ),
-          const SizedBox(height: 60),
-        ],
+        ] else
+          _buildEmptyHint('사례를 선택해 DB를 만들어주세요'),
       ],
+    );
+  }
+
+  Widget _buildEmptyHint(String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: Text(
+          message,
+          style: const TextStyle(
+            fontSize: 14,
+            color: Color(0xFFADB5BD),
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ),
     );
   }
 
