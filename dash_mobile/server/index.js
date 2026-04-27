@@ -1029,7 +1029,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
          LEFT JOIN dash_users u ON c.user_id = u.id
          WHERE r.reviewer_user_id = ?
            AND c.user_id != ?
-           AND r.status NOT IN ('Reviewed', 'Injected')
+           AND r.status != 'Injected'
          ORDER BY created_at DESC`,
         [userId, userId, userId]
       );
@@ -1052,7 +1052,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
            LEFT JOIN dash_users u ON c.user_id = u.id
            WHERE r.reviewer_user_id = (SELECT id FROM dash_users WHERE email = ? LIMIT 1)
              AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
-             AND r.status NOT IN ('Reviewed', 'Injected')
+             AND r.status != 'Injected'
            ORDER BY created_at DESC`,
           [email, email, email]
         );
