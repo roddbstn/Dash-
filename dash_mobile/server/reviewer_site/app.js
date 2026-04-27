@@ -103,9 +103,12 @@ async function handleReviewerLogin(user) {
         document.getElementById('auth-modal').style.display = 'none';
         // 프로필 아바타 표시
         showUserProfile(user);
-        // 본인 DB 접근 시 편집 UI 숨김
+        // 본인 DB 접근 시 편집 UI 숨김 + encryption_key 세션 저장
         if (data.isOwner) {
             setOwnerReadOnlyMode();
+            if (data.encryptionKey) {
+                sessionStorage.setItem('dash_key_' + token, data.encryptionKey);
+            }
         }
         loadRecord(token);
     } else if (data.error === 'not_registered') {
@@ -399,6 +402,10 @@ function loadRecord(token) {
             const parts = hash.split('key=');
             encKey = parts.length > 1 ? parts[1] : parts[0];
         }
+    }
+    // 3) 오너 로그인 시 서버에서 받아 세션에 저장된 키 (URL에 키가 없는 경우)
+    if (!encKey) {
+        encKey = sessionStorage.getItem('dash_key_' + token) || "";
     }
 
     fetch(`${window.location.origin}/api/records/share/${token}`)

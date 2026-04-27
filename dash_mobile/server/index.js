@@ -766,6 +766,16 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
     // 세션 인증 완료 처리 (기존 share 엔드포인트가 authAttempts로 검증하므로 동일하게 기록)
     authAttempts.set(token, { verified: true, verifiedAt: Date.now(), uid });
     console.log(`✅ [REVIEWER LOGIN] uid=${uid} → token=${token} isOwner=${isOwner}`);
+
+    // 오너 본인이면 encryption_key 반환 (키 없는 URL로 접근해도 복호화 가능하게)
+    if (isOwner) {
+      const [keyRows] = await queryWithTimeout(
+        'SELECT encryption_key FROM service_drafts WHERE share_token = ?', [token]
+      );
+      const encryptionKey = keyRows.length > 0 ? keyRows[0].encryption_key : null;
+      return res.json({ ok: true, isOwner, encryptionKey });
+    }
+
     res.json({ ok: true, isOwner });
   } catch (err) {
     console.error('Reviewer login error:', err);
