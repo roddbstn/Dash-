@@ -709,7 +709,7 @@ function renderHistory() {
                         <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
                         <span class="record-dong">${record.dong || ''}</span>
                     </div>
-                    <span class="record-status-badge badge-injected">${(() => { const d = record.updated_at ? new Date(record.updated_at.replace(' ', 'T')) : null; const t = d && !isNaN(d) ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} ` : ''; return t + '기입 완료'; })()}</span>
+                    <span class="record-status-badge badge-injected">${(() => { const d = record.updated_at ? new Date(record.updated_at.replace(' ', 'T') + 'Z') : null; const t = d && !isNaN(d) ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} ` : ''; return t + '기입 완료'; })()}</span>
                 </div>
                 <div class="record-info-list">
                     <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
