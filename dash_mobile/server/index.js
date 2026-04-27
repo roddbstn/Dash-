@@ -776,10 +776,16 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
 
     // 오너 본인이면 encryption_key 반환 (키 없는 URL로 접근해도 복호화 가능하게)
     if (isOwner) {
-      const [keyRows] = await queryWithTimeout(
-        'SELECT encryption_key FROM service_drafts WHERE share_token = ?', [token]
-      );
-      const encryptionKey = keyRows.length > 0 ? keyRows[0].encryption_key : null;
+      let encryptionKey = null;
+      try {
+        const [keyRows] = await queryWithTimeout(
+          'SELECT encryption_key FROM service_drafts WHERE share_token = ?', [token]
+        );
+        encryptionKey = keyRows.length > 0 ? keyRows[0].encryption_key : null;
+      } catch (keyErr) {
+        // encryption_key 컬럼 미존재 시 무시 (마이그레이션 전 구버전 DB 대응)
+        console.warn('[REVIEWER LOGIN] encryption_key 조회 실패 (컬럼 없음):', keyErr.code);
+      }
       return res.json({ ok: true, isOwner, encryptionKey });
     }
 
