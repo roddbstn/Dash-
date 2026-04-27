@@ -5,6 +5,7 @@ import 'package:dash_mobile/api_service.dart';
 import 'package:dash_mobile/privacy_policy_screen.dart';
 import 'package:dash_mobile/user_guide_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PressableCaseCard extends StatefulWidget {
   final Map<String, dynamic> caseData;
@@ -737,6 +738,183 @@ class _PressableProfileMenuItemState extends State<PressableProfileMenuItem> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── 공유받은 DB 카드 (스와이프 삭제) ─────────────────────────────────────
+class SwipeableSharedDraftCard extends StatefulWidget {
+  final String caseName;
+  final String authorName;
+  final String shareUrl;
+  final Future<bool> Function() onDelete;
+
+  const SwipeableSharedDraftCard({
+    super.key,
+    required this.caseName,
+    required this.authorName,
+    required this.shareUrl,
+    required this.onDelete,
+  });
+
+  @override
+  State<SwipeableSharedDraftCard> createState() => _SwipeableSharedDraftCardState();
+}
+
+class _SwipeableSharedDraftCardState extends State<SwipeableSharedDraftCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  double _dragOffset = 0;
+  static const double _maxSwipe = 90.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _animation = Tween<double>(begin: 0, end: -_maxSwipe)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _dragOffset += details.primaryDelta!;
+      if (_dragOffset > 0) _dragOffset = 0;
+      if (_dragOffset < -_maxSwipe * 1.2) _dragOffset = -_maxSwipe * 1.2;
+    });
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) async {
+    if (_dragOffset < -_maxSwipe * 0.7) {
+      _controller.forward(from: _dragOffset / -_maxSwipe);
+      _dragOffset = -_maxSwipe;
+      final confirmed = await widget.onDelete();
+      if (!confirmed && mounted) {
+        _controller.reverse();
+        setState(() => _dragOffset = 0);
+      }
+    } else if (_dragOffset < -_maxSwipe / 3) {
+      _controller.forward(from: _dragOffset / -_maxSwipe);
+      _dragOffset = -_maxSwipe;
+    } else {
+      _controller.reverse(from: _dragOffset / -_maxSwipe);
+      _dragOffset = 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final offset = _controller.isAnimating ? _animation.value : _dragOffset;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () async {
+                        final confirmed = await widget.onDelete();
+                        if (!confirmed && mounted) {
+                          _controller.reverse();
+                          setState(() => _dragOffset = 0);
+                        }
+                      },
+                      child: Container(
+                        width: _maxSwipe,
+                        height: double.infinity,
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Transform.translate(
+                offset: Offset(offset, 0),
+                child: GestureDetector(
+                  onHorizontalDragUpdate: _onHorizontalDragUpdate,
+                  onHorizontalDragEnd: _onHorizontalDragEnd,
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE0E7FF)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.folder_shared_rounded, color: AppColors.primary, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${widget.caseName} 아동',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${widget.authorName} 상담원이 공유함',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (widget.shareUrl.isNotEmpty)
+                          GestureDetector(
+                            onTap: () async {
+                              final uri = Uri.parse(widget.shareUrl);
+                              if (await canLaunchUrl(uri)) {
+                                launchUrl(uri, mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                '웹에서 보기',
+                                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

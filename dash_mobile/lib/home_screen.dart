@@ -1591,100 +1591,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ? '${ApiService.serverUrl}/share?token=$shareToken'
         : '';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE0E7FF)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEEF2FF),
-                borderRadius: BorderRadius.circular(10),
+    return SwipeableSharedDraftCard(
+      key: ValueKey('shared_$recordId'),
+      caseName: caseName,
+      authorName: authorName,
+      shareUrl: shareUrl,
+      onDelete: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('목록에서 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            content: const Text('공유받은 DB를 목록에서 삭제할까요?', style: TextStyle(fontSize: 14)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('삭제', style: TextStyle(color: Colors.red)),
               ),
-              child: const Icon(Icons.folder_shared_rounded, color: AppColors.primary, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$caseName 아동',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$authorName 상담원이 공유함',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1)),
-                  ),
-                ],
-              ),
-            ),
-            if (shareUrl.isNotEmpty) ...[
-              GestureDetector(
-                onTap: () async {
-                  final uri = Uri.parse(shareUrl);
-                  if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    '웹에서 보기',
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
             ],
-            GestureDetector(
-              onTap: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    title: const Text('목록에서 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                    content: const Text('공유받은 DB를 목록에서 삭제할까요?', style: TextStyle(fontSize: 14)),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('삭제', style: TextStyle(color: Colors.red)),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed == true) {
-                  final ok = await ApiService.removeSharedRecord(recordId);
-                  if (ok && mounted) {
-                    setState(() {
-                      _sharedDrafts.removeWhere((s) => s['id'].toString() == recordId);
-                    });
-                  }
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F4F6),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF8B95A1)),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+        if (confirmed == true) {
+          final ok = await ApiService.removeSharedRecord(recordId);
+          if (ok && mounted) {
+            setState(() {
+              _sharedDrafts.removeWhere((s) => s['id'].toString() == recordId);
+            });
+            return true;
+          }
+        }
+        return false;
+      },
     );
   }
 }
