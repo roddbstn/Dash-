@@ -243,6 +243,7 @@ class _FormScreenState extends State<FormScreen> {
       'service_description': '',
       'agent_opinion': '',
       'encrypted_blob': encryptedBlob,
+      'encryption_key': encryptionKey,
       'share_token': _currentDraft?['share_token'],
     };
 

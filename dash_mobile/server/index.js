@@ -235,6 +235,13 @@ pool.query("ALTER TABLE service_drafts ADD COLUMN reviewer_user_id VARCHAR(36) D
     }
   });
 
+pool.query("ALTER TABLE service_drafts ADD COLUMN encryption_key VARCHAR(255) DEFAULT NULL")
+  .catch(err => {
+    if (err.code !== 'ER_DUP_FIELDNAME') {
+      console.error('[migration] encryption_key 컬럼 추가 실패:', err.message);
+    }
+  });
+
 // --- API Endpoints ---
 
 app.get('/', (req, res) => {
@@ -396,7 +403,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
   const {
     case_id, case_name, dong, user_id, user_email, user_name, target, provision_type, method, service_type, service_category, service_name,
     location, start_time, end_time, service_count, travel_time,
-    service_description, agent_opinion, encrypted_blob, share_token: client_share_token
+    service_description, agent_opinion, encrypted_blob, encryption_key, share_token: client_share_token
   } = req.body;
   
   console.log(`\n========================================`);
@@ -482,9 +489,9 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
       share_token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
       const [result] = await queryWithTimeout(
         `INSERT INTO service_drafts
-        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
-        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token]
+        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, encryption_key, target, share_token, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
+        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, encryption_key || null, target || '', share_token]
       );
       recordId = result.insertId;
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);
