@@ -621,6 +621,15 @@ async function fetchHistory() {
     try {
         const email = currentUser?.email;
         if (!email) return;
+
+        // 토큰 만료 방지: API 호출 전 조용히 갱신 시도
+        try {
+            const freshToken = await getFreshTokenSilent();
+            currentOAuthToken = freshToken;
+        } catch (e) {
+            console.warn('[History] 토큰 갱신 실패, 기존 토큰 사용:', e.message);
+        }
+
         const res = await fetch(`${API_BASE}/records/history?email=${encodeURIComponent(email)}`, { headers: authHeaders() });
         if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
         historyRecords = await res.json();

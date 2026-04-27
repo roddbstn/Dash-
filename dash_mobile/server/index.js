@@ -944,22 +944,55 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
+// [Mobile] 5-0. 공유받은 DB 수동 삭제 (reviewer_user_id 해제)
+app.delete('/api/records/shared/:id', verifyFirebaseAuth, async (req, res) => {
+  const { id } = req.params;
+  const uid = req.firebaseUser?.uid;
+  try {
+    const [result] = await queryWithTimeout(
+      `UPDATE service_drafts SET reviewer_user_id = NULL WHERE id = ? AND reviewer_user_id = (SELECT id FROM dash_users WHERE id = ? LIMIT 1)`,
+      [id, uid]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Not found or not authorized' });
+    }
+    res.json({ message: 'Removed from shared list' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // [Extension+Mobile] 5-1. 기입 완료(Injected) 기록 조회 (이전 기록 탭)
+// 본인 소유 기록 + 리뷰어로서 기입한 공유 기록 모두 포함
 app.get('/api/records/history', verifyFirebaseAuth, async (req, res) => {
   const { email } = req.query;
   try {
-    let query = `
-      SELECT r.*, c.case_name, c.dong
-      FROM service_drafts r
-      JOIN cases c ON r.case_id = c.id
-      WHERE r.status = 'Injected'
-    `;
-    const params = [];
+    let query, params;
     if (email) {
-      query += ` AND c.user_id IN (SELECT id FROM dash_users WHERE email = ?)`;
-      params.push(email);
+      // 소유 기록: c.user_id가 해당 이메일의 사용자
+      // 공유 기록: reviewer_user_id가 해당 이메일의 사용자 (리뷰어로서 기입 완료한 기록)
+      query = `
+        SELECT r.*, c.case_name, c.dong
+        FROM service_drafts r
+        JOIN cases c ON r.case_id = c.id
+        WHERE r.status = 'Injected'
+          AND (
+            c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+            OR r.reviewer_user_id IN (SELECT id FROM dash_users WHERE email = ?)
+          )
+        ORDER BY r.updated_at DESC
+      `;
+      params = [email, email];
+    } else {
+      query = `
+        SELECT r.*, c.case_name, c.dong
+        FROM service_drafts r
+        JOIN cases c ON r.case_id = c.id
+        WHERE r.status = 'Injected'
+        ORDER BY r.updated_at DESC
+      `;
+      params = [];
     }
-    query += ` ORDER BY r.updated_at DESC`;
     const [rows] = await queryWithTimeout(query, params);
     res.json(rows);
   } catch (err) {
@@ -996,6 +1029,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
          LEFT JOIN dash_users u ON c.user_id = u.id
          WHERE r.reviewer_user_id = ?
            AND c.user_id != ?
+           AND r.status NOT IN ('Reviewed', 'Injected')
          ORDER BY created_at DESC`,
         [userId, userId, userId]
       );
@@ -1018,6 +1052,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
            LEFT JOIN dash_users u ON c.user_id = u.id
            WHERE r.reviewer_user_id = (SELECT id FROM dash_users WHERE email = ? LIMIT 1)
              AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
+             AND r.status NOT IN ('Reviewed', 'Injected')
            ORDER BY created_at DESC`,
           [email, email, email]
         );
