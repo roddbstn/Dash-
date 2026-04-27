@@ -1267,8 +1267,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       _buildUserGreeting(),
                       if (_userName != null && _userName!.trim().isNotEmpty)
                         const SizedBox(height: 8),
-                      InfoBanner(),
-                      const SizedBox(height: 12),
                       _buildCtaCard(),
                     ],
                   ),
@@ -1449,8 +1447,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _buildUserGreeting(),
         if (_userName != null && _userName!.trim().isNotEmpty)
           const SizedBox(height: 20),
-        InfoBanner(),
-        const SizedBox(height: 15),
         _buildCtaCard(),
       ],
     );
@@ -1575,7 +1571,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final String? shareToken = d['share_token'];
     final String recordId = d['id'].toString();
     final String shareUrl = shareToken != null
-        ? '${ApiService.serverUrl}/share?token=$shareToken'
+        ? '${ApiService.serverUrl}/?token=$shareToken'
         : '';
 
     return SwipeableSharedDraftCard(
