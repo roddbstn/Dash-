@@ -69,12 +69,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _fetchUserProfile();
 
     // 다른 기기에서 계정 삭제 시 이 기기도 즉시 로그아웃 처리
+    // (이 기기에서 직접 로그아웃하는 경우엔 cases/PIN을 삭제하지 않음)
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user == null && mounted) {
         _eventSub?.cancel();
-        StorageService.clearAllData().then((_) {
-          GoogleSignIn().signOut().catchError((_) {});
-        });
+        if (!StorageService.intentionalLogout) {
+          // 원격 계정 삭제 — 모든 로컬 데이터 초기화
+          StorageService.clearSessionData().then((_) {
+            GoogleSignIn().signOut().catchError((_) {});
+          });
+        }
+        StorageService.intentionalLogout = false;
       }
     });
   }
@@ -154,7 +159,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _pendingLoadData = false;
 
     var localDrafts = await StorageService.getDrafts();
-    final cases = await StorageService.getCases();
+    var cases = await StorageService.getCases();
+
+    // 사례 목록이 비어있으면 (재로그인 후 등) 서버에서 복구
+    if (cases.isEmpty) {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null) {
+        final serverCases = await ApiService.fetchCases(userId);
+        if (serverCases != null && serverCases.isNotEmpty) {
+          cases = serverCases.map<Map<String, dynamic>>((c) => {
+            'id': c['id'],
+            'maskedName': c['case_name'],
+            'realName': c['case_name'],
+            'dong': c['dong'] ?? '',
+            'targetSystem': c['target_system_code'] ?? 'NCADS_v2',
+          }).toList();
+          await StorageService.saveCases(cases);
+        }
+      }
+    }
 
     if (mounted) {
       setState(() {
@@ -1313,7 +1336,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(20, 64, 20, 12),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 350),
                     switchInCurve: Curves.easeOutCubic,
@@ -1363,45 +1386,63 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
-            onTapDown: (_) => setState(() => _isPlusPressed = true),
-            onTapUp: (_) => setState(() => _isPlusPressed = false),
-            onTapCancel: () => setState(() => _isPlusPressed = false),
-            onTap: _showCaseSelectionModal,
-            child: AnimatedScale(
-              scale: _isPlusPressed ? 0.94 : 1.0,
-              duration: const Duration(milliseconds: 100),
-              curve: Curves.easeOutCubic,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 100),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _isPlusPressed
-                      ? const Color(0xFFF2F4F6)
-                      : Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: _isPlusPressed
-                      ? []
-                      : [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.15),
-                            blurRadius: 15,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                ),
-                child: const Icon(
-                  Icons.add_circle_outline,
-                  color: AppColors.primary,
-                  size: 36,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  '사무실 밖에서도\n간편하게 DB 작성',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF222222),
+                    letterSpacing: -0.6,
+                    height: 1.25,
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 16),
+              GestureDetector(
+                onTapDown: (_) => setState(() => _isPlusPressed = true),
+                onTapUp: (_) => setState(() => _isPlusPressed = false),
+                onTapCancel: () => setState(() => _isPlusPressed = false),
+                onTap: _showCaseSelectionModal,
+                child: AnimatedScale(
+                  scale: _isPlusPressed ? 0.94 : 1.0,
+                  duration: const Duration(milliseconds: 100),
+                  curve: Curves.easeOutCubic,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: _isPlusPressed
+                          ? const Color(0xFFF2F4F6)
+                          : Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: _isPlusPressed
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.15),
+                                blurRadius: 15,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                    ),
+                    child: const Icon(
+                      Icons.add_circle_outline,
+                      color: AppColors.primary,
+                      size: 36,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 24),
           DashButton(
             onTap: _showCaseSelectionModal,
-            text: '사무실 밖에서 DB 쓰기',
+            text: 'DB 작성하기',
             backgroundColor: AppColors.primary,
             width: double.infinity,
             height: 60,
@@ -1458,22 +1499,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── 공유받은 DB ──────────────────────────────────────
-        const Text(
-          '공유받은 DB',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4),
-        ),
-        const SizedBox(height: 16),
-        if (_sharedDrafts.isNotEmpty)
-          ..._sharedDrafts.map((d) => _buildSharedDraftCard(d))
-        else
-          _buildEmptyHint('동행자에게 DB 공유를 요청하세요'),
-        const SizedBox(height: 30),
-
         // ── 나의 DB ──────────────────────────────────────────
         const Text(
           '나의 DB',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400, letterSpacing: -0.4),
         ),
         const SizedBox(height: 16),
         if (pendingDrafts.isNotEmpty) ...[
@@ -1517,6 +1546,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(height: 30),
         ] else
           _buildEmptyHint('사례를 선택해 DB를 만들어주세요'),
+
+        // ── 공유받은 DB ──────────────────────────────────────
+        const Text(
+          '공유받은 DB',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400, letterSpacing: -0.4),
+        ),
+        const SizedBox(height: 16),
+        if (_sharedDrafts.isNotEmpty)
+          ..._sharedDrafts.map((d) => _buildSharedDraftCard(d))
+        else
+          _buildEmptyHint('동행자에게 DB 공유를 요청하세요'),
+        const SizedBox(height: 30),
       ],
     );
   }

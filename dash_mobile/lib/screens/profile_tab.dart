@@ -939,7 +939,10 @@ class _ProfileTabState extends State<ProfileTab> {
                     onTap: () async {
                       final confirmed = await _showLogoutConfirmationDialog();
                       if (confirmed == true) {
-                        await StorageService.clearAllData();
+                        // 정상 로그아웃 플래그 설정 → authStateChanges 리스너가 cases/PIN 삭제하지 않음
+                        StorageService.intentionalLogout = true;
+                        // 로그아웃 시 사례·드래프트·PIN은 유지 (재로그인 후 서버 동기화로 복원)
+                        await StorageService.clearSessionDataForLogout();
                         // disconnect()는 네트워크 요청이라 hang할 수 있으므로 타임아웃 처리
                         await GoogleSignIn()
                             .disconnect()
