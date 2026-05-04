@@ -555,6 +555,7 @@ class SwipeableSharedDraftCard extends StatefulWidget {
   final String shareUrl;
   final Future<bool> Function() onDelete;
   final bool isLast;
+  final VoidCallback? onTap;
 
   const SwipeableSharedDraftCard({
     super.key,
@@ -563,6 +564,7 @@ class SwipeableSharedDraftCard extends StatefulWidget {
     required this.shareUrl,
     required this.onDelete,
     this.isLast = true,
+    this.onTap,
   });
 
   @override
@@ -661,6 +663,7 @@ class _SwipeableSharedDraftCardState extends State<SwipeableSharedDraftCard>
                   child: GestureDetector(
                     onHorizontalDragUpdate: _onHorizontalDragUpdate,
                     onHorizontalDragEnd: _onHorizontalDragEnd,
+                    onTap: widget.onTap,
                     child: Container(
                       padding: const EdgeInsets.all(18),
                       decoration: const BoxDecoration(

@@ -1701,9 +1701,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
     final String authorName = d['author_name'] ?? '담당자';
     final String? shareToken = d['share_token'];
+    final String? encKey = d['encryption_key']?.toString();
     final String recordId = d['id'].toString();
     final String shareUrl = shareToken != null
-        ? '${ApiService.serverUrl}/?token=$shareToken'
+        ? '${ApiService.serverUrl}/?token=$shareToken${(encKey != null && encKey.isNotEmpty) ? '&key=$encKey' : ''}'
         : '';
 
     return SwipeableSharedDraftCard(
@@ -1712,6 +1713,56 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       authorName: authorName,
       shareUrl: shareUrl,
       isLast: isLast,
+      onTap: () async {
+        final dong = d['dong']?.toString() ?? '미지정';
+        final localDrafts = await StorageService.getDrafts();
+
+        // 이미 로컬에 같은 share_token 드래프트가 있으면 재사용
+        Map<String, dynamic>? localDraft;
+        if (shareToken != null) {
+          localDraft = localDrafts.cast<Map<String, dynamic>?>().firstWhere(
+            (l) => l?['share_token']?.toString() == shareToken,
+            orElse: () => null,
+          );
+        }
+
+        // 없으면 서버 레코드 데이터로 로컬 드래프트 생성
+        if (localDraft == null) {
+          final newId = DateTime.now().millisecondsSinceEpoch;
+          localDraft = {
+            'id': newId,
+            'caseName': caseName,
+            'dong': dong,
+            'status': 'Draft',
+            'share_token': shareToken,
+            'encryption_key': encKey,
+            'target': d['target'] ?? '피해아동',
+            'method': d['method'] ?? '방문',
+            'provision_type': d['provision_type'] ?? '제공',
+            'service_type': d['service_type'] ?? '아보전',
+            'service_name': d['service_name'] ?? '',
+            'service_category': d['service_category'] ?? '',
+            'location': d['location'] ?? '기관내',
+            'travelTime': (d['travel_time'] ?? d['travelTime'] ?? '30').toString(),
+            'serviceCount': (d['service_count'] ?? d['serviceCount'] ?? '1').toString(),
+            'serviceDescription': d['service_description'] ?? d['serviceDescription'] ?? '',
+            'agentOpinion': d['agent_opinion'] ?? d['agentOpinion'] ?? '',
+            'startTime': d['start_time'] ?? d['startTime'],
+            'endTime': d['end_time'] ?? d['endTime'],
+          };
+          await StorageService.saveDrafts([...localDrafts, localDraft]);
+        }
+
+        if (mounted) {
+          _goToForm(
+            caseName,
+            caseName,
+            dong,
+            caseId: d['case_id'] ?? d['id'],
+            draftId: int.tryParse(localDraft['id'].toString()),
+          );
+        }
+      },
       onDelete: () async {
         final confirmed = await showDialog<bool>(
           context: context,
