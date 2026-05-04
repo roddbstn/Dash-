@@ -46,17 +46,27 @@ try {
   console.warn('Set FIREBASE_SERVICE_ACCOUNT environment variable with the JSON content to enable FCM in production.');
 }
 // Middleware
-// CORS: 모바일 앱(Origin 없음), Chrome 확장프로그램, 리뷰어 사이트(동일 서버) 허용
+// CORS: 모바일 앱(Origin 없음), Chrome 확장프로그램(ID 화이트리스트), 리뷰어 사이트(동일 서버) 허용
 const ALLOWED_ORIGINS = [
   'https://dash.qpon',
   'http://localhost:3000',
   process.env.ALLOWED_ORIGIN,
 ].filter(Boolean);
 
+// 허용할 Chrome 확장 ID 목록 (환경변수로 추가 가능)
+const ALLOWED_EXTENSION_IDS = [
+  'iamgpaookjndjpcigifbfdmmbfijcane', // Dash 확장프로그램 (프로덕션)
+  ...(process.env.ALLOWED_EXTENSION_IDS || '').split(',').map(id => id.trim()).filter(Boolean),
+];
+
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);                         // 모바일 앱 / Origin 없음
-    if (origin.startsWith('chrome-extension://')) return callback(null, true); // Chrome 확장
+    if (origin.startsWith('chrome-extension://')) {
+      const extId = origin.replace('chrome-extension://', '');
+      if (ALLOWED_EXTENSION_IDS.includes(extId)) return callback(null, true);
+      return callback(new Error('CORS: 허용되지 않은 확장프로그램입니다.'));
+    }
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true); // 리뷰어 사이트 (same-server)
     return callback(new Error('CORS: 허용되지 않은 출처입니다.'));
   },
@@ -228,6 +238,27 @@ async function ensureUserExists(uid, email, name) {
 
 // reviewer_user_id 컬럼이 없으면 자동 추가 (마이그레이션)
 // MySQL 8.0은 IF NOT EXISTS 미지원 → ER_DUP_FIELDNAME(중복)만 무시
+// counselors 테이블 생성 (없으면)
+pool.query(`
+  CREATE TABLE IF NOT EXISTS counselors (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(128) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    is_self TINYINT(1) DEFAULT 0,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_counselor_user (user_id)
+  )
+`).catch(err => console.error('[migration] counselors 테이블 생성 실패:', err.message));
+
+// cases 테이블에 counselor_id 컬럼 추가
+pool.query("ALTER TABLE cases ADD COLUMN counselor_id VARCHAR(64) DEFAULT NULL")
+  .catch(err => {
+    if (err.code !== 'ER_DUP_FIELDNAME') {
+      console.error('[migration] counselor_id 컬럼 추가 실패:', err.message);
+    }
+  });
+
 pool.query("ALTER TABLE service_drafts ADD COLUMN reviewer_user_id VARCHAR(36) DEFAULT NULL")
   .catch(err => {
     if (err.code !== 'ER_DUP_FIELDNAME') {
@@ -371,29 +402,104 @@ app.get('/api/users/:id/public_key', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
+// ── 상담원(Counselors) API ──────────────────────────────────────────────────
+
+// GET /api/counselors/:userId — 상담원 목록 조회
+app.get('/api/counselors/:userId', verifyFirebaseAuth, async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const resolvedId = await resolveUserId(userId, req.firebaseUser?.email);
+    const [rows] = await queryWithTimeout(
+      'SELECT id, name, is_self, sort_order FROM counselors WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC',
+      [resolvedId]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/counselors — 상담원 생성/업데이트
+app.post('/api/counselors', verifyFirebaseAuth, async (req, res) => {
+  const { id, user_id, name, is_self, sort_order } = req.body;
+  try {
+    const resolvedId = await ensureUserExists(user_id, req.firebaseUser?.email);
+    await queryWithTimeout(
+      `INSERT INTO counselors (id, user_id, name, is_self, sort_order)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE name = VALUES(name), sort_order = VALUES(sort_order)`,
+      [id, resolvedId, name, is_self ? 1 : 0, sort_order || 0]
+    );
+    res.json({ id, message: 'Counselor saved' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/counselors/:counselorId — 상담원 삭제 (소속 사례도 함께 삭제)
+app.delete('/api/counselors/:counselorId', verifyFirebaseAuth, async (req, res) => {
+  const { counselorId } = req.params;
+  try {
+    await queryWithTimeout('DELETE FROM cases WHERE counselor_id = ?', [counselorId]);
+    await queryWithTimeout('DELETE FROM counselors WHERE id = ?', [counselorId]);
+    res.json({ message: 'Counselor deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/counselors/reorder — 상담원 순서 변경
+app.put('/api/counselors/reorder', verifyFirebaseAuth, async (req, res) => {
+  const { counselors } = req.body; // [{id, sort_order}]
+  try {
+    for (const c of counselors) {
+      await queryWithTimeout('UPDATE counselors SET sort_order = ? WHERE id = ?', [c.sort_order, c.id]);
+    }
+    res.json({ message: 'Reordered' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // [Mobile] 1. 새로운 사례(Case) 생성
 app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
-  const { id, user_id, case_name, dong, target_system_code, user_name } = req.body;
+  const { id, user_id, case_name, dong, target_system_code, user_name, counselor_id } = req.body;
   console.log(`\n📦 [NEW CASE] 아동명: ${case_name}, 동: ${dong} (ID: ${id})`);
-  
+
   try {
     // 1. 해당 사용자 아이디가 dash_users에 없으면 자동으로 생성 (이메일 기반 폴백 포함)
     const resolvedCaseUserId = await ensureUserExists(user_id, req.body.user_email, user_name);
 
     // 2. 사례 저장
     await queryWithTimeout(
-      `INSERT INTO cases (id, user_id, case_name, dong, target_system_code) 
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE 
-       case_name = VALUES(case_name), 
+      `INSERT INTO cases (id, user_id, case_name, dong, target_system_code, counselor_id)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+       case_name = VALUES(case_name),
        dong = VALUES(dong),
-       user_id = VALUES(user_id)`,
-      [id, resolvedCaseUserId, case_name, dong, target_system_code || 'NCADS_v2']
+       user_id = VALUES(user_id),
+       counselor_id = VALUES(counselor_id)`,
+      [id, resolvedCaseUserId, case_name, dong, target_system_code || 'NCADS_v2', counselor_id || null]
     );
     console.log(`✅ Case saved/updated in DB (ID: ${id})`);
     res.json({ id: id, message: 'Case created or updated' });
   } catch (err) {
     console.error('❌ Case creation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// [Mobile] 1-1. 사용자의 사례 목록 조회 (재로그인 후 복구용)
+app.get('/api/cases/user/:userId', verifyFirebaseAuth, async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const resolvedId = await resolveUserId(userId, req.firebaseUser?.email);
+    const [rows] = await queryWithTimeout(
+      'SELECT id, case_name, dong, target_system_code FROM cases WHERE user_id = ? ORDER BY created_at DESC',
+      [resolvedId]
+    );
+    res.json(rows);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

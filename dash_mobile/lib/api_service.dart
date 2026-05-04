@@ -92,6 +92,8 @@ class ApiService {
           'case_name': caseData['maskedName'] ?? caseData['realName'],
           'dong': caseData['dong'],
           'target_system_code': 'NCADS_v2',
+          if (caseData['counselor_id'] != null)
+            'counselor_id': caseData['counselor_id'],
         }),
       ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
@@ -228,6 +230,21 @@ class ApiService {
     return null; // null = 서버 통신 실패, [] = 서버 응답은 성공이나 레코드 없음
   }
 
+  static Future<List<dynamic>?> fetchCases(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/cases/user/$userId'),
+        headers: await _authGetHeaders(),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching cases: $e');
+    }
+    return null;
+  }
+
   static Future<Map<String, dynamic>?> fetchUser(String userId) async {
     try {
       final response = await http.get(
@@ -338,6 +355,59 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Error deleting user: $e');
       return false;
+    }
+  }
+
+  // [Counselors] 상담원 목록 조회
+  static Future<List<dynamic>?> fetchCounselors(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/counselors/$userId'),
+        headers: await _authGetHeaders(),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      debugPrint('❌ Error fetching counselors: $e');
+    }
+    return null;
+  }
+
+  static Future<bool> syncCounselor(Map<String, dynamic> data) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/counselors'),
+        headers: await _authHeaders(),
+        body: jsonEncode(data),
+      ).timeout(const Duration(seconds: 8));
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      debugPrint('❌ Error syncing counselor: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> deleteCounselor(String counselorId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/counselors/$counselorId'),
+        headers: await _authGetHeaders(),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('❌ Error deleting counselor: $e');
+      return false;
+    }
+  }
+
+  static Future<void> reorderCounselors(List<dynamic> counselors) async {
+    try {
+      await http.put(
+        Uri.parse('$baseUrl/counselors/reorder'),
+        headers: await _authHeaders(),
+        body: jsonEncode({'counselors': counselors.asMap().entries.map((e) => {'id': e.value['id'], 'sort_order': e.key}).toList()}),
+      ).timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('❌ Error reordering counselors: $e');
     }
   }
 

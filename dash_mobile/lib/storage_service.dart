@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 class StorageService {
   static const String _casesKey = 'dash_cases';
   static const String _draftsKey = 'dash_drafts';
+  static const String _counselorsKey = 'dash_counselors';
 
   static Future<void> initInitialData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -37,6 +38,18 @@ class StorageService {
   static Future<void> saveCases(List<dynamic> cases) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_casesKey, jsonEncode(cases));
+  }
+
+  static Future<List<dynamic>> getCounselors() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(_counselorsKey);
+    if (data == null) return [];
+    return jsonDecode(data);
+  }
+
+  static Future<void> saveCounselors(List<dynamic> counselors) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_counselorsKey, jsonEncode(counselors));
   }
 
   static Future<void> saveDrafts(List<dynamic> drafts) async {
@@ -102,6 +115,7 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_casesKey);
     await prefs.remove(_draftsKey);
+    await prefs.remove(_counselorsKey);
     await prefs.remove(_pendingSyncKey);
     await prefs.remove(_pendingVaultKeysKey);
     await prefs.remove(_nicknameKey);
