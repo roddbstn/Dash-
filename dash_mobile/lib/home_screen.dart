@@ -38,6 +38,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<dynamic> _sharedDrafts = [];
   List<dynamic> _cases = [];
   List<dynamic> _notifications = [];
+  List<dynamic> _counselors = [];
+  String? _selectedCounselorId;
   bool _isSelectionMode = false;
   bool _isPlusPressed = false;
   final List<int> _selectedCaseIds = [];
@@ -164,6 +166,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     var localDrafts = await StorageService.getDrafts();
     var cases = await StorageService.getCases();
+    var counselors = await StorageService.getCounselors();
+
+    // 상담원이 없으면 기본 "내 사례" 상담원 생성
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (counselors.isEmpty && userId != null) {
+      final selfCounselor = {
+        'id': 'self_$userId',
+        'name': '내 사례',
+        'isSelf': true,
+        'sortOrder': 0,
+      };
+      counselors = [selfCounselor];
+      await StorageService.saveCounselors(counselors);
+      await ApiService.syncCounselor({
+        'id': selfCounselor['id'],
+        'user_id': userId,
+        'name': selfCounselor['name'],
+        'is_self': true,
+        'sort_order': 0,
+      });
+    }
+
+    // 서버에서 상담원 복구 (로컬이 비어있을 때)
+    if (counselors.length <= 1 && userId != null) {
+      final serverCounselors = await ApiService.fetchCounselors(userId);
+      if (serverCounselors != null && serverCounselors.length > 1) {
+        counselors = serverCounselors.map<Map<String, dynamic>>((c) => {
+          'id': c['id'],
+          'name': c['name'],
+          'isSelf': c['is_self'] == 1 || c['is_self'] == true,
+          'sortOrder': c['sort_order'] ?? 0,
+        }).toList();
+        await StorageService.saveCounselors(counselors);
+      }
+    }
 
     // 사례 목록이 비어있으면 (재로그인 후 등) 서버에서 복구
     if (cases.isEmpty) {
@@ -191,6 +228,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       setState(() {
         _drafts = localDrafts;
         _cases = cases;
+        _counselors = counselors;
+        if (_selectedCounselorId == null && counselors.isNotEmpty) {
+          _selectedCounselorId = counselors[0]['id']?.toString();
+        }
         _isLoadingInitial = false;
       });
     }
@@ -789,6 +830,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _isSelectionMode = false;
       _selectedCaseIds.clear();
       _isModalOpen = true;
+      if (_selectedCounselorId == null && _counselors.isNotEmpty) {
+        _selectedCounselorId = _counselors[0]['id']?.toString();
+      }
     });
 
     await showModalBottomSheet(
@@ -800,224 +844,397 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
       builder: (modalContext) {
+        bool isEditingCounselors = false;
+
         return StatefulBuilder(
           builder: (context, setModalState) {
+            // 현재 선택된 상담원의 사례만 필터링
+            final filteredCases = _cases.where((c) {
+              final cid = c['counselorId']?.toString();
+              if (_selectedCounselorId == null) return true;
+              // counselorId가 없는 사례는 첫 번째(내 사례) 상담원에 귀속
+              if (cid == null || cid.isEmpty) {
+                return _counselors.isNotEmpty &&
+                    _selectedCounselorId == _counselors[0]['id']?.toString();
+              }
+              return cid == _selectedCounselorId;
+            }).toList();
+
             return DraggableScrollableSheet(
-              initialChildSize: 0.8,
+              initialChildSize: 0.85,
               minChildSize: 0.5,
-              maxChildSize: 0.9,
+              maxChildSize: 0.95,
               expand: false,
               builder: (_, scrollController) {
                 return Container(
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(30),
-                    ),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(30)),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: Stack(
+                  child: Column(
                     children: [
-                      GestureDetector(
-                        onTap: () {
-                          if (_isSelectionMode) {
-                            setState(() {
-                              _isSelectionMode = false;
-                              _selectedCaseIds.clear();
-                            });
-                            setModalState(() {});
-                          }
-                        },
-                        behavior: HitTestBehavior.opaque,
+                      // ── 드래그 핸들 + 헤더 ─────────────────────
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const SizedBox(height: 12),
-                            Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE5E8EB),
-                                borderRadius: BorderRadius.circular(2),
+                            Center(
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE5E8EB),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 24),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        '사례 선택',
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      if (_cases.isNotEmpty)
-                                        GestureDetector(
-                                          onTap: () {
-                                            if (_isSelectionMode &&
-                                                _selectedCaseIds.isNotEmpty) {
-                                              _showCaseDeleteConfirmation(
-                                                modalContext,
-                                              );
-                                            } else {
-                                              setState(() {
-                                                _isSelectionMode =
-                                                    !_isSelectionMode;
-                                                if (!_isSelectionMode) {
-                                                  _selectedCaseIds.clear();
-                                                }
-                                              });
-                                              setModalState(() {});
-                                            }
-                                          },
-                                          child: Text(
-                                            _isSelectionMode
-                                                ? (_selectedCaseIds.isEmpty
-                                                      ? '취소'
-                                                      : '삭제')
-                                                : '편집',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: _isSelectionMode
-                                                  ? AppColors.danger
-                                                  : AppColors.textSub,
-                                              fontWeight: _isSelectionMode
-                                                  ? FontWeight.w700
-                                                  : FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
+                            const SizedBox(height: 20),
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  '사례 선택',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
                                   ),
-                                  const SizedBox(height: 12),
-                                  if (_cases.isNotEmpty)
-                                    const Text(
-                                      'DB를 작성할 사례를 선택해주세요.',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: AppColors.textSub,
-                                      ),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      isEditingCounselors =
+                                          !isEditingCounselors;
+                                    });
+                                  },
+                                  child: Text(
+                                    isEditingCounselors ? '완료' : '편집',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isEditingCounselors
+                                          ? AppColors.primary
+                                          : AppColors.textSub,
+                                      fontWeight: FontWeight.w500,
                                     ),
-                                ],
-                              ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 32),
-                            Expanded(
-                              child: _cases.isEmpty
-                                  ? const Center(
-                                      child: Text(
-                                        '담당 사례들을 추가해주세요.',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Color(0xFFADB5BD),
-                                          fontWeight: FontWeight.w400,
-                                        ),
-                                      ),
-                                    )
-                                  : GridView.builder(
-                                      controller: scrollController,
-                                      padding: const EdgeInsets.fromLTRB(
-                                        20,
-                                        0,
-                                        20,
-                                        40,
-                                      ),
-                                      gridDelegate:
-                                          const SliverGridDelegateWithFixedCrossAxisCount(
-                                            crossAxisCount: 2,
-                                            crossAxisSpacing: 12,
-                                            mainAxisSpacing: 12,
-                                            childAspectRatio: 1.6,
-                                          ),
-                                      itemCount: _cases.length,
-                                      itemBuilder: (context, index) {
-                                        final c = _cases[index];
-                                        final bool isSelected = _selectedCaseIds
-                                            .contains(c['id']);
-                                        final int sIndex =
-                                            _selectedCaseIds.indexOf(c['id']) +
-                                            1;
-                                        return PressableCaseCard(
-                                          caseData: c,
-                                          isSelected: isSelected,
-                                          sIndex: sIndex,
-                                          isSelectionMode: _isSelectionMode,
-                                          onTap: () {
-                                            if (_isSelectionMode) {
-                                              setState(() {
-                                                if (isSelected) {
-                                                  _selectedCaseIds.remove(
-                                                    c['id'],
-                                                  );
-                                                } else {
-                                                  _selectedCaseIds.add(c['id']);
-                                                }
-                                              });
-                                              setModalState(() {});
-                                            } else {
-                                              Navigator.pop(modalContext);
-                                              _goToForm(
-                                                c['realName'],
-                                                c['maskedName'],
-                                                c['dong'],
-                                                caseId: c['id'],
-                                              );
-                                            }
-                                          },
-                                        );
-                                      },
-                                    ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'DB를 작성할 사례를 선택해주세요.',
+                              style: TextStyle(
+                                  fontSize: 14, color: AppColors.textSub),
                             ),
+                            const SizedBox(height: 16),
                           ],
                         ),
                       ),
-                      Positioned(
-                        right: 20,
-                        bottom: 40,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const CreateCaseScreen(),
+
+                      // ── 상담원 탭 ──────────────────────────────
+                      SizedBox(
+                        height: 44,
+                        child: isEditingCounselors
+                            ? ReorderableListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24),
+                                buildDefaultDragHandles: false,
+                                onReorder: (oldIdx, newIdx) {
+                                  setState(() {
+                                    if (newIdx > oldIdx) newIdx--;
+                                    final item =
+                                        _counselors.removeAt(oldIdx);
+                                    _counselors.insert(newIdx, item);
+                                  });
+                                  setModalState(() {});
+                                  StorageService.saveCounselors(_counselors);
+                                  ApiService.reorderCounselors(_counselors);
+                                },
+                                itemCount: _counselors.length,
+                                itemBuilder: (ctx, i) {
+                                  final c = _counselors[i];
+                                  return ReorderableDelayedDragStartListener(
+                                    key: ValueKey(c['id']),
+                                    index: i,
+                                    child: _buildCounselorChip(
+                                      c: c,
+                                      isSelected: _selectedCounselorId ==
+                                          c['id']?.toString(),
+                                      isEditing: true,
+                                      onTap: null,
+                                      onDelete: () async {
+                                        final confirmed =
+                                            await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            backgroundColor: Colors.white,
+                                            surfaceTintColor:
+                                                Colors.transparent,
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                        16)),
+                                            title: const Text('상담원 삭제',
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w800,
+                                                    fontSize: 16)),
+                                            content: const Text(
+                                                '해당 상담원을 삭제하시겠어요?\n소속된 사례도 함께 삭제됩니다.',
+                                                style: TextStyle(
+                                                    fontSize: 14,
+                                                    height: 1.5)),
+                                            actions: [
+                                              TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                          ctx, false),
+                                                  child:
+                                                      const Text('아니오')),
+                                              TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                          ctx, true),
+                                                  child: const Text('삭제',
+                                                      style: TextStyle(
+                                                          color: AppColors
+                                                              .danger))),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirmed == true) {
+                                          final cid =
+                                              c['id']?.toString() ?? '';
+                                          // 소속 사례 삭제
+                                          final updatedCases = _cases
+                                              .where((cs) =>
+                                                  cs['counselorId']
+                                                      ?.toString() !=
+                                                  cid)
+                                              .toList();
+                                          await StorageService.saveCases(
+                                              updatedCases);
+                                          await ApiService.deleteCounselor(
+                                              cid);
+                                          setState(() {
+                                            _counselors.removeWhere((x) =>
+                                                x['id']?.toString() == cid);
+                                            _cases = updatedCases;
+                                            if (_selectedCounselorId ==
+                                                cid) {
+                                              _selectedCounselorId =
+                                                  _counselors.isNotEmpty
+                                                      ? _counselors[0]['id']
+                                                          ?.toString()
+                                                      : null;
+                                            }
+                                          });
+                                          await StorageService.saveCounselors(
+                                              _counselors);
+                                          setModalState(() {});
+                                        }
+                                      },
+                                    ),
+                                  );
+                                },
+                              )
+                            : ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24),
+                                itemCount: _counselors.length,
+                                itemBuilder: (ctx, i) {
+                                  final c = _counselors[i];
+                                  return _buildCounselorChip(
+                                    c: c,
+                                    isSelected: _selectedCounselorId ==
+                                        c['id']?.toString(),
+                                    isEditing: false,
+                                    onTap: () {
+                                      setState(() => _selectedCounselorId =
+                                          c['id']?.toString());
+                                      setModalState(() {});
+                                    },
+                                    onDelete: null,
+                                  );
+                                },
                               ),
-                            );
-                            if (result == true) {
-                              await _loadData();
-                              setModalState(() {});
-                              _showToast('사례를 생성하였어요. DB를 작성해보세요!');
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: AppColors.textMain,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(100),
-                              side: const BorderSide(
-                                color: Color(0xFFE5E8EB),
-                                width: 1,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── 사례 그리드 ────────────────────────────
+                      Expanded(
+                        child: filteredCases.isEmpty
+                            ? Center(
+                                child: Text(
+                                  _cases.isEmpty
+                                      ? '담당 사례들을 추가해주세요.'
+                                      : '이 상담원의 사례가 없어요.',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Color(0xFFADB5BD),
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              )
+                            : Scrollbar(
+                                thumbVisibility: true,
+                                child: GridView.builder(
+                                  controller: scrollController,
+                                  padding: const EdgeInsets.fromLTRB(
+                                      20, 0, 20, 16),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                    childAspectRatio: 1.6,
+                                  ),
+                                  itemCount: filteredCases.length,
+                                  itemBuilder: (context, index) {
+                                    final c = filteredCases[index];
+                                    final bool isSelected =
+                                        _selectedCaseIds.contains(c['id']);
+                                    final int sIndex =
+                                        _selectedCaseIds.indexOf(c['id']) +
+                                            1;
+                                    return PressableCaseCard(
+                                      caseData: c,
+                                      isSelected: isSelected,
+                                      sIndex: sIndex,
+                                      isSelectionMode: _isSelectionMode,
+                                      onTap: () {
+                                        Navigator.pop(modalContext);
+                                        _goToForm(
+                                          c['realName'],
+                                          c['maskedName'],
+                                          c['dong'],
+                                          caseId: c['id'],
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
                               ),
+                      ),
+
+                      // ── 하단 버튼 바 (흰색 구분선) ────────────
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 12,
+                              offset: const Offset(0, -4),
                             ),
-                            elevation: 4,
-                            shadowColor: Colors.black.withValues(alpha: 0.2),
-                          ),
-                          child: const Text(
-                            '+ 사례 생성',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
+                          ],
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () async {
+                                      final name =
+                                          await _showAddCounselorDialog(
+                                              context);
+                                      if (name != null && name.isNotEmpty) {
+                                        final uid = FirebaseAuth
+                                            .instance.currentUser?.uid;
+                                        final newCounselor = {
+                                          'id':
+                                              'c_${DateTime.now().millisecondsSinceEpoch}',
+                                          'name': name,
+                                          'isSelf': false,
+                                          'sortOrder': _counselors.length,
+                                        };
+                                        setState(() => _counselors
+                                            .add(newCounselor));
+                                        await StorageService.saveCounselors(
+                                            _counselors);
+                                        if (uid != null) {
+                                          await ApiService.syncCounselor({
+                                            'id': newCounselor['id'],
+                                            'user_id': uid,
+                                            'name': newCounselor['name'],
+                                            'is_self': false,
+                                            'sort_order':
+                                                newCounselor['sortOrder'],
+                                          });
+                                        }
+                                        setModalState(() {});
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 16),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(100)),
+                                      elevation: 0,
+                                    ),
+                                    child: const Text(
+                                      '동행 파트너 추가',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 15),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton(
+                                  onPressed: () async {
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => CreateCaseScreen(
+                                          counselors: _counselors,
+                                          initialCounselorId:
+                                              _selectedCounselorId,
+                                        ),
+                                      ),
+                                    );
+                                    if (result == true) {
+                                      await _loadData();
+                                      setModalState(() {});
+                                      _showToast(
+                                          '사례를 추가하였어요. DB를 작성해보세요!');
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: AppColors.textMain,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 24, vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(100),
+                                      side: const BorderSide(
+                                          color: Color(0xFFE5E8EB), width: 1),
+                                    ),
+                                    elevation: 2,
+                                    shadowColor:
+                                        Colors.black.withValues(alpha: 0.12),
+                                  ),
+                                  child: const Text(
+                                    '사례 추가',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -1039,6 +1256,104 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _isModalOpen = false;
       });
     }
+  }
+
+  /// 상담원 칩 위젯
+  Widget _buildCounselorChip({
+    required Map<String, dynamic> c,
+    required bool isSelected,
+    required bool isEditing,
+    required VoidCallback? onTap,
+    required VoidCallback? onDelete,
+  }) {
+    return Padding(
+      key: ValueKey(c['id']),
+      padding: const EdgeInsets.only(right: 8),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            onTap: isEditing ? null : onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected && !isEditing ? AppColors.primary : Colors.white,
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(
+                  color: isSelected && !isEditing
+                      ? AppColors.primary
+                      : const Color(0xFFDDE1E7),
+                  width: 1.5,
+                ),
+              ),
+              child: Text(
+                c['name']?.toString() ?? '',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected && !isEditing
+                      ? Colors.white
+                      : AppColors.textMain,
+                ),
+              ),
+            ),
+          ),
+          if (isEditing && onDelete != null && c['isSelf'] != true)
+            Positioned(
+              top: -6,
+              right: 2,
+              child: GestureDetector(
+                onTap: onDelete,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF222222),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 11),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 동행 파트너(상담원) 이름 입력 다이얼로그
+  Future<String?> _showAddCounselorDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('동행 파트너 추가',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '예) 은찬 간사님',
+            hintStyle: TextStyle(color: Color(0xFFADB5BD)),
+          ),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('추가',
+                  style: TextStyle(color: AppColors.primary))),
+        ],
+      ),
+    );
   }
 
   int _currentIndex = 0;
@@ -1324,6 +1639,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       _buildUserGreeting(),
                       if (_userName != null && _userName!.trim().isNotEmpty)
                         const SizedBox(height: 8),
+                      _buildPcGuideBanner(),
+                      const SizedBox(height: 10),
                       _buildCtaCard(),
                     ],
                   ),
@@ -1545,8 +1862,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildPcGuideBanner(),
+        const SizedBox(height: 10),
         _buildCtaCard(),
       ],
+    );
+  }
+
+  Widget _buildPcGuideBanner() {
+    return GestureDetector(
+      onTap: () {}, // 향후 안내 연결 가능
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        decoration: BoxDecoration(
+          color: const Color(0xFF222222),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.laptop_mac_rounded,
+                size: 16, color: Colors.white),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'PC에서 DB를 어떻게 기입하나요?',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                size: 16, color: Colors.white),
+          ],
+        ),
+      ),
     );
   }
 
