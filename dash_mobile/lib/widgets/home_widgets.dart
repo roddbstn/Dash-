@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/api_service.dart';
-import 'package:dash_mobile/privacy_policy_screen.dart';
-import 'package:dash_mobile/user_guide_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -91,13 +89,9 @@ class _PressableCaseCardState extends State<PressableCaseCard> {
                     height: 24,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: widget.isSelected
-                          ? AppColors.primary
-                          : Colors.white,
+                      color: widget.isSelected ? AppColors.primary : Colors.white,
                       border: Border.all(
-                        color: widget.isSelected
-                            ? AppColors.primary
-                            : AppColors.border,
+                        color: widget.isSelected ? AppColors.primary : AppColors.border,
                         width: 1.5,
                       ),
                     ),
@@ -121,163 +115,21 @@ class _PressableCaseCardState extends State<PressableCaseCard> {
   }
 }
 
-class InfoBanner extends StatefulWidget {
-  const InfoBanner({super.key});
-
-  @override
-  State<InfoBanner> createState() => _InfoBannerState();
-}
-
-class _InfoBannerState extends State<InfoBanner> {
-  bool _isLeftPressed = false;
-  bool _isRightPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isAnyPressed = _isLeftPressed || _isRightPressed;
-
-    return AnimatedScale(
-      scale: isAnyPressed ? 0.98 : 1.0,
-      duration: const Duration(milliseconds: 100),
-      curve: Curves.easeOutCubic,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border),
-          boxShadow: isAnyPressed
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            children: [
-              // Left: 이용 안내
-              Expanded(
-                child: GestureDetector(
-                  onTapDown: (_) => setState(() => _isLeftPressed = true),
-                  onTapUp: (_) => setState(() => _isLeftPressed = false),
-                  onTapCancel: () => setState(() => _isLeftPressed = false),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const UserGuideScreen(),
-                      ),
-                    );
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 100),
-                    decoration: BoxDecoration(
-                      color: _isLeftPressed
-                          ? const Color(0xFFF2F4F6)
-                          : Colors.white,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        bottomLeft: Radius.circular(20),
-                      ),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 22),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Text('📋', style: TextStyle(fontSize: 17)),
-                        SizedBox(width: 7),
-                        Text(
-                          '이용 안내',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF222222),
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Vertical divider
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Container(
-                  width: 1,
-                  color: AppColors.bg, // 배경색과 동일한 색으로 변경
-                ),
-              ),
-              // Right: 개인정보처리방침
-              Expanded(
-                child: GestureDetector(
-                  onTapDown: (_) => setState(() => _isRightPressed = true),
-                  onTapUp: (_) => setState(() => _isRightPressed = false),
-                  onTapCancel: () => setState(() => _isRightPressed = false),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PrivacyPolicyScreen(),
-                      ),
-                    );
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 100),
-                    decoration: BoxDecoration(
-                      color: _isRightPressed
-                          ? const Color(0xFFF2F4F6)
-                          : Colors.white,
-                      borderRadius: const BorderRadius.only(
-                        topRight: Radius.circular(20),
-                        bottomRight: Radius.circular(20),
-                      ),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 22),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Text('🔒', style: TextStyle(fontSize: 17)),
-                        SizedBox(width: 7),
-                        Text(
-                          '개인정보처리방침',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF222222),
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class SwipeableDraftCard extends StatefulWidget {
   final dynamic d;
   final VoidCallback onTap;
   final Future<bool> Function() onDelete;
+  final int index;
+  final bool isLast;
 
   const SwipeableDraftCard({
     super.key,
     required this.d,
     required this.onTap,
     required this.onDelete,
+    this.index = 0,
+    this.isLast = true,
   });
 
   @override
@@ -313,10 +165,27 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
   }
 
   Future<void> _copyShareLink() async {
-    final token = widget.d['share_token']?.toString();
-    final key = widget.d['encryption_key']?.toString();
+    String? token = widget.d['share_token']?.toString();
+    String? key = widget.d['encryption_key']?.toString();
+
+    if (token == null || token.isEmpty) {
+      final caseName = widget.d['caseName']?.toString() ?? '';
+      try {
+        final records = await ApiService.fetchRecords();
+        if (records != null) {
+          final match = records.firstWhere(
+            (r) => r['case_name']?.toString() == caseName && (r['share_token']?.toString() ?? '').isNotEmpty,
+            orElse: () => null,
+          );
+          if (match != null) {
+            token = match['share_token']?.toString();
+            key ??= match['encryption_key']?.toString();
+          }
+        }
+      } catch (_) {}
+    }
+
     if (token != null && token.isNotEmpty) {
-      // 암호화 키 없는 레코드 공유 시 경고 (리뷰어 사이트에서 내용 복호화 불가)
       if ((key == null || key.isEmpty) && mounted) {
         final confirmed = await showDialog<bool>(
           context: context,
@@ -390,293 +259,232 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
       animation: _animation,
       builder: (context, child) {
         final offset = _controller.isAnimating ? _animation.value : _dragOffset;
-        return AnimatedScale(
-          scale: _isCardPressed ? 0.98 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.danger.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: GestureDetector(
-                        onTap: () async {
-                          final confirmed = await widget.onDelete();
-                          if (!confirmed && mounted) {
-                            _controller.reverse();
-                            setState(() => _dragOffset = 0);
-                          }
-                        },
-                        child: Container(
-                          width: _maxSwipe,
-                          height: double.infinity,
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.delete,
-                            color: Colors.white,
-                            size: 30,
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: _isCardPressed ? 0.98 : 1.0,
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeOutCubic,
+              child: Stack(
+                children: [
+                  // 삭제 배경
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.danger.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () async {
+                            final confirmed = await widget.onDelete();
+                            if (!confirmed && mounted) {
+                              _controller.reverse();
+                              setState(() => _dragOffset = 0);
+                            }
+                          },
+                          child: Container(
+                            width: _maxSwipe,
+                            height: double.infinity,
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.delete, color: Colors.white, size: 30),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Transform.translate(
-                  offset: Offset(offset, 0),
-                  child: GestureDetector(
-                    onHorizontalDragUpdate: _onHorizontalDragUpdate,
-                    onHorizontalDragEnd: _onHorizontalDragEnd,
-                    onTapDown: (_) => setState(() => _isCardPressed = true),
-                    onTapUp: (_) => setState(() => _isCardPressed = false),
-                    onTapCancel: () => setState(() => _isCardPressed = false),
-                    onTap: widget.onTap,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 100),
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: _isCardPressed
-                            ? const Color(0xFFF2F4F6)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.border),
-                        boxShadow: _isCardPressed
-                            ? []
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                      ),
-                      child: Builder(builder: (context) {
-                        final bool isReviewed = widget.d['status']?.toString().toLowerCase() == 'reviewed';
-                        final bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+                  // 카드 본체
+                  Transform.translate(
+                    offset: Offset(offset, 0),
+                    child: GestureDetector(
+                      onHorizontalDragUpdate: _onHorizontalDragUpdate,
+                      onHorizontalDragEnd: _onHorizontalDragEnd,
+                      onTapDown: (_) => setState(() => _isCardPressed = true),
+                      onTapUp: (_) => setState(() => _isCardPressed = false),
+                      onTapCancel: () => setState(() => _isCardPressed = false),
+                      onTap: widget.onTap,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 100),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: _isCardPressed ? const Color(0xFFF2F4F6) : Colors.white,
+                          borderRadius: BorderRadius.zero,
+                          border: const Border(),
+                        ),
+                        child: Builder(builder: (context) {
+                          final bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
-                        // ── 대상 텍스트 ──────────────────────────
-                        final targets = widget.d['target'].toString().split(', ');
-                        final String targetText = targets.length > 1
-                            ? "${targets[0]} 외 ${targets.length - 1}"
-                            : widget.d['target'].toString();
-                        final String subLine1 = '대상: $targetText | ${widget.d['method'] ?? '방문'}';
+                          // 대상 텍스트
+                          final targets = widget.d['target'].toString().split(', ');
+                          final String targetText = targets.length > 1
+                              ? '${targets[0]} 외 ${targets.length - 1}'
+                              : widget.d['target'].toString();
+                          final String subLine1 = '대상: $targetText | ${widget.d['method'] ?? '방문'}';
 
-                        // ── 제공일시 텍스트 ──────────────────────
-                        final startStr = widget.d['startTime'];
-                        final endStr = widget.d['endTime'];
-                        String subLine2;
-                        if (startStr == null || endStr == null) {
-                          subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
-                        } else {
-                          final start = DateTime.tryParse(startStr);
-                          final end = DateTime.tryParse(endStr);
-                          if (start == null || end == null) {
+                          // 제공일시 텍스트
+                          final startStr = widget.d['startTime'];
+                          final endStr = widget.d['endTime'];
+                          String subLine2;
+                          if (startStr == null || endStr == null) {
                             subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
                           } else {
-                            final bool isSameDay = start.year == end.year &&
-                                start.month == end.month &&
-                                start.day == end.day;
-                            final days = ['월', '화', '수', '목', '금', '토', '일'];
-                            final String startFmt =
-                                "${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}";
-                            if (isSameDay) {
-                              subLine2 = "$startFmt ~ ${DateFormat('HH:mm').format(end)}";
+                            final start = DateTime.tryParse(startStr);
+                            final end = DateTime.tryParse(endStr);
+                            if (start == null || end == null) {
+                              subLine2 = widget.d['datetime'] ?? '제공일시 미설정';
                             } else {
-                              final String endFmt =
-                                  "${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}";
-                              subLine2 = "$startFmt ~ $endFmt";
+                              final bool isSameDay = start.year == end.year &&
+                                  start.month == end.month &&
+                                  start.day == end.day;
+                              final days = ['월', '화', '수', '목', '금', '토', '일'];
+                              final String startFmt =
+                                  '${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}';
+                              if (isSameDay) {
+                                subLine2 = '$startFmt ~ ${DateFormat('HH:mm').format(end)}';
+                              } else {
+                                final String endFmt =
+                                    '${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}';
+                                subLine2 = '$startFmt ~ $endFmt';
+                              }
                             }
                           }
-                        }
 
-
-                        // ── 가로 모드: 태그를 타이틀 오른쪽에 ────
-                        if (isLandscape) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 타이틀 + 태그 (태그는 오른쪽 끝 고정)
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Expanded(
-                                    child: RichText(
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      text: TextSpan(
-                                        children: [
+                          // 가로 모드
+                          if (isLandscape) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: RichText(
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        text: TextSpan(children: [
                                           TextSpan(
                                             text: '${widget.d['caseName']} 아동',
-                                            style: const TextStyle(
-                                              color: Color(0xFF222222),
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: -0.5,
-                                            ),
+                                            style: const TextStyle(color: Color(0xFF222222), fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5),
                                           ),
                                           if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
                                             TextSpan(
                                               text: '  ${widget.d['dong']}',
-                                              style: const TextStyle(
-                                                color: Color(0xFFB0B8C1),
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w400,
-                                                letterSpacing: -0.2,
-                                              ),
+                                              style: const TextStyle(color: Color(0xFFB0B8C1), fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: -0.2),
                                             ),
-                                        ],
+                                        ]),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              // 서브텍스트 1: 대상 | 방법 (1줄)
-                              Text(
-                                subLine1,
-                                style: const TextStyle(
-                                  color: Color(0xFF8B95A1),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
+                                  ],
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              // 서브텍스트 2: 제공일시 (1줄)
-                              Text(
-                                subLine2,
-                                style: const TextStyle(
-                                  color: Color(0xFF8B95A1),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          );
-                        }
+                                const SizedBox(height: 8),
+                                Text(subLine1, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 13, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 2),
+                                Text(subLine2, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 13, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ],
+                            );
+                          }
 
-                        // ── 세로 모드: 태그 상단, 공유 버튼 우하단 ──
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 상단: 타이틀 + 상태 태그
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: RichText(
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    text: TextSpan(
-                                      children: [
+                          // 세로 모드: 파란 번호 + 텍스트 3행 + 공유 버튼
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // 왼쪽: 파란 번호
+                              SizedBox(
+                                width: 32,
+                                child: Text(
+                                  '${widget.index + 1}',
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.5,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // 가운데: 텍스트 3행
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    RichText(
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      text: TextSpan(children: [
                                         TextSpan(
                                           text: '${widget.d['caseName']} 아동',
-                                          style: const TextStyle(
-                                            color: Color(0xFF222222),
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: -0.5,
-                                          ),
+                                          style: const TextStyle(color: Color(0xFF222222), fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                                         ),
                                         if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
                                           TextSpan(
                                             text: '  ${widget.d['dong']}',
-                                            style: const TextStyle(
-                                              color: Color(0xFFB0B8C1),
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w400,
-                                              letterSpacing: -0.2,
-                                            ),
+                                            style: const TextStyle(color: Color(0xFFB0B8C1), fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: -0.2),
                                           ),
-                                      ],
+                                      ]),
                                     ),
-                                  ),
+                                    const SizedBox(height: 4),
+                                    Text(subLine1, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 12, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    const SizedBox(height: 2),
+                                    Text(subLine2, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 12, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            // 하단: 서브텍스트 + 공유 버튼
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '$subLine1\n$subLine2',
-                                    style: const TextStyle(
-                                      color: Color(0xFF8B95A1),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.5,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                GestureDetector(
-                                  onTap: _copyShareLink,
-                                  onTapDown: (_) => setState(() => _isSharePressed = true),
-                                  onTapUp: (_) => setState(() => _isSharePressed = false),
-                                  onTapCancel: () => setState(() => _isSharePressed = false),
-                                  child: AnimatedScale(
-                                    scale: _isSharePressed ? 0.95 : 1.0,
+                              ),
+                              const SizedBox(width: 12),
+                              // 오른쪽: 공유 버튼 (세로 정가운데)
+                              GestureDetector(
+                                onTap: _copyShareLink,
+                                onTapDown: (_) => setState(() => _isSharePressed = true),
+                                onTapUp: (_) => setState(() => _isSharePressed = false),
+                                onTapCancel: () => setState(() => _isSharePressed = false),
+                                child: AnimatedScale(
+                                  scale: _isSharePressed ? 0.95 : 1.0,
+                                  duration: const Duration(milliseconds: 100),
+                                  curve: Curves.easeOutCubic,
+                                  child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 100),
-                                    curve: Curves.easeOutCubic,
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 100),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 18,
-                                        vertical: 10,
-                                      ),
-                                      decoration: BoxDecoration(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _isSharePressed
+                                          ? const Color(0xFFBFDAFF)
+                                          : const Color(0xFFE0EFFF),
+                                      borderRadius: BorderRadius.circular(100),
+                                    ),
+                                    child: Text(
+                                      '공유',
+                                      style: TextStyle(
                                         color: _isSharePressed
-                                            ? Color.lerp(AppColors.primary, Colors.black, 0.1)
+                                            ? AppColors.primary.withValues(alpha: 0.8)
                                             : AppColors.primary,
-                                        borderRadius: BorderRadius.circular(100),
-                                        boxShadow: _isSharePressed
-                                            ? []
-                                            : [
-                                                BoxShadow(
-                                                  color: AppColors.primary.withValues(alpha: 0.25),
-                                                  blurRadius: 8,
-                                                  offset: const Offset(0, 3),
-                                                ),
-                                              ],
-                                      ),
-                                      child: const Text(
-                                        '공유',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ],
-                        );
-                      }),
+                              ),
+                            ],
+                          );
+                        }),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            // 카드 사이 구분선 (마지막 카드 제외)
+            if (!widget.isLast)
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF2F4F6)),
+          ],
         );
       },
     );
   }
 }
+
 
 class PressableProfileMenuItem extends StatefulWidget {
   final IconData icon;
@@ -726,9 +534,7 @@ class _PressableProfileMenuItemState extends State<PressableProfileMenuItem> {
               child: Text(
                 widget.title,
                 style: TextStyle(
-                  color: widget.isDanger
-                      ? AppColors.danger
-                      : AppColors.textMain,
+                  color: widget.isDanger ? AppColors.danger : AppColors.textMain,
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
                 ),
@@ -748,6 +554,7 @@ class SwipeableSharedDraftCard extends StatefulWidget {
   final String authorName;
   final String shareUrl;
   final Future<bool> Function() onDelete;
+  final bool isLast;
 
   const SwipeableSharedDraftCard({
     super.key,
@@ -755,6 +562,7 @@ class SwipeableSharedDraftCard extends StatefulWidget {
     required this.authorName,
     required this.shareUrl,
     required this.onDelete,
+    this.isLast = true,
   });
 
   @override
@@ -817,104 +625,109 @@ class _SwipeableSharedDraftCardState extends State<SwipeableSharedDraftCard>
       animation: _animation,
       builder: (context, child) {
         final offset = _controller.isAnimating ? _animation.value : _dragOffset;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: () async {
-                        final confirmed = await widget.onDelete();
-                        if (!confirmed && mounted) {
-                          _controller.reverse();
-                          setState(() => _dragOffset = 0);
-                        }
-                      },
-                      child: Container(
-                        width: _maxSwipe,
-                        height: double.infinity,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () async {
+                          final confirmed = await widget.onDelete();
+                          if (!confirmed && mounted) {
+                            _controller.reverse();
+                            setState(() => _dragOffset = 0);
+                          }
+                        },
+                        child: Container(
+                          width: _maxSwipe,
+                          height: double.infinity,
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.delete, color: Colors.white, size: 28),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Transform.translate(
-                offset: Offset(offset, 0),
-                child: GestureDetector(
-                  onHorizontalDragUpdate: _onHorizontalDragUpdate,
-                  onHorizontalDragEnd: _onHorizontalDragEnd,
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE0E7FF)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEEF2FF),
-                            borderRadius: BorderRadius.circular(10),
+                Transform.translate(
+                  offset: Offset(offset, 0),
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: _onHorizontalDragUpdate,
+                    onHorizontalDragEnd: _onHorizontalDragEnd,
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.zero,
+                        border: Border(),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEF2FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.folder_shared_rounded, color: AppColors.primary, size: 22),
                           ),
-                          child: const Icon(Icons.folder_shared_rounded, color: AppColors.primary, size: 22),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${widget.caseName} 아동',
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${widget.authorName} 상담원이 공유함',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1)),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (widget.shareUrl.isNotEmpty)
-                          GestureDetector(
-                            onTap: () async {
-                              final uri = Uri.parse(widget.shareUrl);
-                              if (await canLaunchUrl(uri)) {
-                                launchUrl(uri, mode: LaunchMode.externalApplication);
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                '웹에서 보기',
-                                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                              ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${widget.caseName} 아동',
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${widget.authorName} 상담원이 공유함',
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1)),
+                                ),
+                              ],
                             ),
                           ),
-                      ],
+                          if (widget.shareUrl.isNotEmpty)
+                            GestureDetector(
+                              onTap: () async {
+                                final uri = Uri.parse(widget.shareUrl);
+                                if (await canLaunchUrl(uri)) {
+                                  launchUrl(uri, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  '웹에서 보기',
+                                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+            if (!widget.isLast)
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF2F4F6)),
+          ],
         );
       },
     );
   }
 }
+

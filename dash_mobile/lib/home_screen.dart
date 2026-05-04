@@ -52,9 +52,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _notificationsEnabled = true;
 
   // 로딩 / 네트워크 상태
-  bool _isLoadingInitial = true;   // 앱 첫 진입 시 로딩 스피너 표시용
-  bool _serverReachable = true;    // false = 서버 미응답, 오프라인 배너 표시
-  bool _isModalOpen = false;       // 바텀 모달 열림 여부 (FAB 숨김 제어)
+  bool _isLoadingInitial = true; // 앱 첫 진입 시 로딩 스피너 표시용
+  bool _serverReachable = true; // false = 서버 미응답, 오프라인 배너 표시
+  bool _isModalOpen = false; // 바텀 모달 열림 여부 (FAB 숨김 제어)
 
   @override
   void initState() {
@@ -127,20 +127,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final email = user?.email;
     if (email != null) {
       debugPrint('🚀 Initializing SSE for email: $email');
-      _eventSub = ApiService.streamEvents(email).listen((event) {
-        final String? ev = event['event'];
-        debugPrint('🔔 Server Event Received: $ev');
+      _eventSub = ApiService.streamEvents(email).listen(
+        (event) {
+          final String? ev = event['event'];
+          debugPrint('🔔 Server Event Received: $ev');
 
-        // Initial setup/heartbeat event should not trigger a heavy refresh
-        if (ev != 'connected') {
-          _loadData();
-        }
-      }, onDone: () {
-        // 스트림이 완전히 종료되면 구독 초기화 (재연결 허용)
-        _eventSub = null;
-      }, onError: (_) {
-        _eventSub = null;
-      });
+          // Initial setup/heartbeat event should not trigger a heavy refresh
+          if (ev != 'connected') {
+            _loadData();
+          }
+        },
+        onDone: () {
+          // 스트림이 완전히 종료되면 구독 초기화 (재연결 허용)
+          _eventSub = null;
+        },
+        onError: (_) {
+          _eventSub = null;
+        },
+      );
     }
 
     _isInitializingSse = false;
@@ -167,13 +171,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (userId != null) {
         final serverCases = await ApiService.fetchCases(userId);
         if (serverCases != null && serverCases.isNotEmpty) {
-          cases = serverCases.map<Map<String, dynamic>>((c) => {
-            'id': c['id'],
-            'maskedName': c['case_name'],
-            'realName': c['case_name'],
-            'dong': c['dong'] ?? '',
-            'targetSystem': c['target_system_code'] ?? 'NCADS_v2',
-          }).toList();
+          cases = serverCases
+              .map<Map<String, dynamic>>(
+                (c) => {
+                  'id': c['id'],
+                  'maskedName': c['case_name'],
+                  'realName': c['case_name'],
+                  'dong': c['dong'] ?? '',
+                  'targetSystem': c['target_system_code'] ?? 'NCADS_v2',
+                },
+              )
+              .toList();
           await StorageService.saveCases(cases);
         }
       }
@@ -237,7 +245,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       final results = await Future.wait([
         ApiService.fetchRecords(),
-        if (userId != null) ApiService.fetchNotifications(userId) else Future.value(<dynamic>[]),
+        if (userId != null)
+          ApiService.fetchNotifications(userId)
+        else
+          Future.value(<dynamic>[]),
       ]);
 
       final List? serverRecords = results[0];
@@ -247,7 +258,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         setState(() {
           final wasReachable = _serverReachable;
           _serverReachable = serverRecords != null;
-          if (wasReachable && !_serverReachable) AnalyticsService.offlineBannerShown();
+          if (wasReachable && !_serverReachable)
+            AnalyticsService.offlineBannerShown();
           _notifications = serverNotifs;
         });
       }
@@ -256,10 +268,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // 서버 병합 직전 최신 로컬 데이터를 다시 읽어 race condition으로 인한 중복을 방지
       localDrafts = await StorageService.getDrafts();
 
-      if (serverRecords != null && (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
+      if (serverRecords != null &&
+          (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
         // 공유받은 레코드 분리 (병합 로직에서 제외)
-        final List sharedOnly = serverRecords.where((s) => s['record_type'] == 'shared').toList();
-        final List ownedServerRecords = serverRecords.where((s) => s['record_type'] != 'shared').toList();
+        final List sharedOnly = serverRecords
+            .where((s) => s['record_type'] == 'shared')
+            .toList();
+        final List ownedServerRecords = serverRecords
+            .where((s) => s['record_type'] != 'shared')
+            .toList();
         if (mounted) {
           setState(() => _sharedDrafts = sharedOnly);
         }
@@ -307,7 +324,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 final key = encrypt.Key.fromUtf8(
                   keyStr.padRight(32).substring(0, 32),
                 );
-                final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
+                final encrypter = encrypt.Encrypter(
+                  encrypt.AES(key, mode: encrypt.AESMode.cbc),
+                );
                 final decrypted = encrypter.decrypt(encrypted, iv: iv);
                 final decryptedData =
                     jsonDecode(decrypted) as Map<String, dynamic>;
@@ -420,12 +439,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Sync active tokens AFTER merge is complete so we never send stale/empty list
     try {
       // Use the FINAL merged _drafts (which already includes server-only records)
-      final activeTokens =
-          _drafts
-              .map((d) => d['share_token'] as String?)
-              .where((t) => t != null && t.isNotEmpty)
-              .cast<String>()
-              .toList();
+      final activeTokens = _drafts
+          .map((d) => d['share_token'] as String?)
+          .where((t) => t != null && t.isNotEmpty)
+          .cast<String>()
+          .toList();
 
       // Guard: never send an empty list right after a save — it would wipe all server records
       if (activeTokens.isNotEmpty) {
@@ -746,7 +764,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           draftId: draftId,
           userName: _userName,
           // 서버 동기화 완료 후 _loadData() 호출 (race condition 방지)
-          onSyncComplete: () { if (mounted) _loadData(); },
+          onSyncComplete: () {
+            if (mounted) _loadData();
+          },
         ),
       ),
     );
@@ -791,215 +811,220 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 return Container(
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(30),
+                    ),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: Stack(
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        if (_isSelectionMode) {
-                          setState(() {
-                            _isSelectionMode = false;
-                            _selectedCaseIds.clear();
-                          });
-                          setModalState(() {});
-                        }
-                      },
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 12),
-                          Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE5E8EB),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text(
-                                      '사례 선택',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    if (_cases.isNotEmpty)
-                                      GestureDetector(
-                                        onTap: () {
-                                          if (_isSelectionMode &&
-                                              _selectedCaseIds.isNotEmpty) {
-                                            _showCaseDeleteConfirmation(
-                                              modalContext,
-                                            );
-                                          } else {
-                                            setState(() {
-                                              _isSelectionMode =
-                                                  !_isSelectionMode;
-                                              if (!_isSelectionMode) {
-                                                _selectedCaseIds.clear();
-                                              }
-                                            });
-                                            setModalState(() {});
-                                          }
-                                        },
-                                        child: Text(
-                                          _isSelectionMode
-                                              ? (_selectedCaseIds.isEmpty
-                                                    ? '취소'
-                                                    : '삭제')
-                                              : '편집',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: _isSelectionMode
-                                                ? AppColors.danger
-                                                : AppColors.textSub,
-                                            fontWeight: _isSelectionMode
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                if (_cases.isNotEmpty)
-                                  const Text(
-                                    'DB를 작성할 사례를 선택해주세요.',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: AppColors.textSub,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          Expanded(
-                            child: _cases.isEmpty
-                                ? const Center(
-                                    child: Text(
-                                      '담당 사례들을 추가해주세요.',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Color(0xFFADB5BD),
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                    ),
-                                  )
-                                : GridView.builder(
-                                    controller: scrollController,
-                                    padding: const EdgeInsets.fromLTRB(
-                                      20,
-                                      0,
-                                      20,
-                                      40,
-                                    ),
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 2,
-                                          crossAxisSpacing: 12,
-                                          mainAxisSpacing: 12,
-                                          childAspectRatio: 1.6,
-                                        ),
-                                    itemCount: _cases.length,
-                                    itemBuilder: (context, index) {
-                                      final c = _cases[index];
-                                      final bool isSelected = _selectedCaseIds
-                                          .contains(c['id']);
-                                      final int sIndex =
-                                          _selectedCaseIds.indexOf(c['id']) + 1;
-                                      return PressableCaseCard(
-                                        caseData: c,
-                                        isSelected: isSelected,
-                                        sIndex: sIndex,
-                                        isSelectionMode: _isSelectionMode,
-                                        onTap: () {
-                                          if (_isSelectionMode) {
-                                            setState(() {
-                                              if (isSelected) {
-                                                _selectedCaseIds.remove(
-                                                  c['id'],
-                                                );
-                                              } else {
-                                                _selectedCaseIds.add(c['id']);
-                                              }
-                                            });
-                                            setModalState(() {});
-                                          } else {
-                                            Navigator.pop(modalContext);
-                                            _goToForm(
-                                              c['realName'],
-                                              c['maskedName'],
-                                              c['dong'],
-                                              caseId: c['id'],
-                                            );
-                                          }
-                                        },
-                                      );
-                                    },
-                                  ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      right: 20,
-                      bottom: 40,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const CreateCaseScreen(),
-                            ),
-                          );
-                          if (result == true) {
-                            await _loadData();
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          if (_isSelectionMode) {
+                            setState(() {
+                              _isSelectionMode = false;
+                              _selectedCaseIds.clear();
+                            });
                             setModalState(() {});
-                            _showToast('사례를 생성하였어요. DB를 작성해보세요!');
                           }
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.textMain,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(100),
-                            side: const BorderSide(
-                              color: Color(0xFFE5E8EB),
-                              width: 1,
+                        behavior: HitTestBehavior.opaque,
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 12),
+                            Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE5E8EB),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
-                          ),
-                          elevation: 4,
-                          shadowColor: Colors.black.withValues(alpha: 0.2),
+                            const SizedBox(height: 24),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        '사례 선택',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      if (_cases.isNotEmpty)
+                                        GestureDetector(
+                                          onTap: () {
+                                            if (_isSelectionMode &&
+                                                _selectedCaseIds.isNotEmpty) {
+                                              _showCaseDeleteConfirmation(
+                                                modalContext,
+                                              );
+                                            } else {
+                                              setState(() {
+                                                _isSelectionMode =
+                                                    !_isSelectionMode;
+                                                if (!_isSelectionMode) {
+                                                  _selectedCaseIds.clear();
+                                                }
+                                              });
+                                              setModalState(() {});
+                                            }
+                                          },
+                                          child: Text(
+                                            _isSelectionMode
+                                                ? (_selectedCaseIds.isEmpty
+                                                      ? '취소'
+                                                      : '삭제')
+                                                : '편집',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: _isSelectionMode
+                                                  ? AppColors.danger
+                                                  : AppColors.textSub,
+                                              fontWeight: _isSelectionMode
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (_cases.isNotEmpty)
+                                    const Text(
+                                      'DB를 작성할 사례를 선택해주세요.',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: AppColors.textSub,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            Expanded(
+                              child: _cases.isEmpty
+                                  ? const Center(
+                                      child: Text(
+                                        '담당 사례들을 추가해주세요.',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Color(0xFFADB5BD),
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                    )
+                                  : GridView.builder(
+                                      controller: scrollController,
+                                      padding: const EdgeInsets.fromLTRB(
+                                        20,
+                                        0,
+                                        20,
+                                        40,
+                                      ),
+                                      gridDelegate:
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 2,
+                                            crossAxisSpacing: 12,
+                                            mainAxisSpacing: 12,
+                                            childAspectRatio: 1.6,
+                                          ),
+                                      itemCount: _cases.length,
+                                      itemBuilder: (context, index) {
+                                        final c = _cases[index];
+                                        final bool isSelected = _selectedCaseIds
+                                            .contains(c['id']);
+                                        final int sIndex =
+                                            _selectedCaseIds.indexOf(c['id']) +
+                                            1;
+                                        return PressableCaseCard(
+                                          caseData: c,
+                                          isSelected: isSelected,
+                                          sIndex: sIndex,
+                                          isSelectionMode: _isSelectionMode,
+                                          onTap: () {
+                                            if (_isSelectionMode) {
+                                              setState(() {
+                                                if (isSelected) {
+                                                  _selectedCaseIds.remove(
+                                                    c['id'],
+                                                  );
+                                                } else {
+                                                  _selectedCaseIds.add(c['id']);
+                                                }
+                                              });
+                                              setModalState(() {});
+                                            } else {
+                                              Navigator.pop(modalContext);
+                                              _goToForm(
+                                                c['realName'],
+                                                c['maskedName'],
+                                                c['dong'],
+                                                caseId: c['id'],
+                                              );
+                                            }
+                                          },
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
                         ),
-                        child: const Text(
-                          '+ 사례 생성',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                      ),
+                      Positioned(
+                        right: 20,
+                        bottom: 40,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CreateCaseScreen(),
+                              ),
+                            );
+                            if (result == true) {
+                              await _loadData();
+                              setModalState(() {});
+                              _showToast('사례를 생성하였어요. DB를 작성해보세요!');
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppColors.textMain,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(100),
+                              side: const BorderSide(
+                                color: Color(0xFFE5E8EB),
+                                width: 1,
+                              ),
+                            ),
+                            elevation: 4,
+                            shadowColor: Colors.black.withValues(alpha: 0.2),
+                          ),
+                          child: const Text(
+                            '+ 사례 생성',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              );
+                    ],
+                  ),
+                );
               },
             );
           },
@@ -1031,7 +1056,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -2))
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
           ],
         ),
         child: SafeArea(
@@ -1135,9 +1164,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_currentIndex == 0) {
       // 첫 진입 로딩 스피너
       if (_isLoadingInitial) {
-        return const Center(
-          child: CircularProgressIndicator(strokeWidth: 2),
-        );
+        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
       }
       // 오프라인 배너 + 홈 탭
       return Column(
@@ -1147,24 +1174,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       );
     }
-    if (_currentIndex == 1) return NotificationTab(
-      notifications: _notifications,
-      drafts: _drafts,
-      onRefresh: _loadData,
-      onGoToForm: _goToForm,
-      onShowToast: _showToast,
-      onNotificationRead: (notifId) {
-        setState(() {
-          final index = _notifications.indexWhere((n) => n['id'] == notifId);
-          if (index != -1) {
-            _notifications[index]['is_read'] = 1;
-          }
-        });
-      },
-    );
-    if (_currentIndex == 2) return DbHistoryTab(
-      injectedDrafts: _drafts.where((d) => d['status'] == 'Injected').toList(),
-    );
+    if (_currentIndex == 1)
+      return NotificationTab(
+        notifications: _notifications,
+        drafts: _drafts,
+        onRefresh: _loadData,
+        onGoToForm: _goToForm,
+        onShowToast: _showToast,
+        onNotificationRead: (notifId) {
+          setState(() {
+            final index = _notifications.indexWhere((n) => n['id'] == notifId);
+            if (index != -1) {
+              _notifications[index]['is_read'] = 1;
+            }
+          });
+        },
+      );
+    if (_currentIndex == 2)
+      return DbHistoryTab(
+        injectedDrafts: _drafts
+            .where((d) => d['status'] == 'Injected')
+            .toList(),
+      );
     return ProfileTab(
       userName: _userName,
       isProfileLoading: _isProfileLoading,
@@ -1199,8 +1230,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            const Icon(Icons.wifi_off_rounded,
-                size: 15, color: Color(0xFFB45309)),
+            const Icon(
+              Icons.wifi_off_rounded,
+              size: 15,
+              color: Color(0xFFB45309),
+            ),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
@@ -1345,13 +1379,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       return FadeTransition(
                         opacity: animation,
                         child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 0.04),
-                            end: Offset.zero,
-                          ).animate(CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutCubic,
-                          )),
+                          position:
+                              Tween<Offset>(
+                                begin: const Offset(0, 0.04),
+                                end: Offset.zero,
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                              ),
                           child: child,
                         ),
                       );
@@ -1368,6 +1405,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildCtaCard() {
+    final int totalDbCount =
+        _drafts.where((d) => d['status'] != 'Injected').length +
+        _sharedDrafts.length;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
       decoration: BoxDecoration(
@@ -1390,14 +1431,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(
-                  '사무실 밖에서도\n간편하게 DB 작성',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF222222),
-                    letterSpacing: -0.6,
-                    height: 1.25,
+                child: RichText(
+                  text: TextSpan(
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF222222),
+                      letterSpacing: -0.6,
+                      height: 1.25,
+                    ),
+                    children: [
+                      const TextSpan(text: '기입할 DB는 \n'),
+                      TextSpan(
+                        text: '$totalDbCount개',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                          decoration: TextDecoration.underline,
+                          decorationColor: AppColors.primary,
+                          decorationThickness: 2.0,
+                          height: 1.4,
+                        ),
+                      ),
+                      const TextSpan(text: '입니다'),
+                    ],
                   ),
                 ),
               ),
@@ -1423,7 +1480,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ? []
                           : [
                               BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.15),
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.15,
+                                ),
                                 blurRadius: 15,
                                 offset: const Offset(0, 4),
                               ),
@@ -1453,7 +1512,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildUserGreeting() {
-    if (_userName == null || _userName!.trim().isEmpty) return const SizedBox.shrink();
+    if (_userName == null || _userName!.trim().isEmpty)
+      return const SizedBox.shrink();
     return RichText(
       text: TextSpan(
         children: [
@@ -1485,64 +1545,65 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildUserGreeting(),
-        if (_userName != null && _userName!.trim().isNotEmpty)
-          const SizedBox(height: 20),
         _buildCtaCard(),
       ],
     );
   }
 
-  Widget _buildDbList({bool isPad = false, double padWidth = 0, int crossAxisCount = 3}) {
+  Widget _buildDbList({
+    bool isPad = false,
+    double padWidth = 0,
+    int crossAxisCount = 3,
+  }) {
     // 기입 완료(Injected) DB는 홈 목록에서 제외 → DB 내역 탭에서 표시
-    final pendingDrafts = _drafts.where((d) => d['status'] != 'Injected').toList();
+    final pendingDrafts = _drafts
+        .where((d) => d['status'] != 'Injected')
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── 나의 DB ──────────────────────────────────────────
         const Text(
           '나의 DB',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400, letterSpacing: -0.4),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            letterSpacing: -0.4,
+          ),
         ),
         const SizedBox(height: 16),
         if (pendingDrafts.isNotEmpty) ...[
-          if (isPad && padWidth > 0)
-            Builder(
-              builder: (context) {
-                double spacing = 16.0;
-                double itemWidth = (padWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
-                itemWidth = itemWidth.floorToDouble();
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: pendingDrafts.map((d) {
-                    final foundCase = _cases
-                        .cast<Map<String, dynamic>?>()
-                        .firstWhere(
-                          (c) =>
-                              c?['realName'] == d['caseName'] ||
-                              c?['maskedName'] == d['caseName'],
-                          orElse: () => null,
-                        );
-                    final dong = foundCase != null ? foundCase['dong'] : '미지정';
-                    return SizedBox(width: itemWidth, child: _buildDraftCard(d, dong));
-                  }).toList(),
-                );
-              },
-            )
-          else
-            ...pendingDrafts.map((d) {
-              final foundCase = _cases
-                  .cast<Map<String, dynamic>?>()
-                  .firstWhere(
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Column(
+                children: pendingDrafts.asMap().entries.map<Widget>((entry) {
+                  final idx = entry.key;
+                  final d = entry.value;
+                  final foundCase = _cases.cast<Map<String, dynamic>?>().firstWhere(
                     (c) =>
                         c?['realName'] == d['caseName'] ||
                         c?['maskedName'] == d['caseName'],
                     orElse: () => null,
                   );
-              final dong = foundCase != null ? foundCase['dong'] : '미지정';
-              return _buildDraftCard(d, dong);
-            }),
+                  final dong = foundCase != null ? foundCase['dong'] : '미지정';
+                  return _buildDraftCardInBox(d, dong, index: idx, isLast: idx == pendingDrafts.length - 1);
+                }).toList(),
+              ),
+            ),
+          ),
           const SizedBox(height: 30),
         ] else
           _buildEmptyHint('사례를 선택해 DB를 만들어주세요'),
@@ -1550,12 +1611,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // ── 공유받은 DB ──────────────────────────────────────
         const Text(
           '공유받은 DB',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400, letterSpacing: -0.4),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            letterSpacing: -0.4,
+          ),
         ),
         const SizedBox(height: 16),
-        if (_sharedDrafts.isNotEmpty)
-          ..._sharedDrafts.map((d) => _buildSharedDraftCard(d))
-        else
+        if (_sharedDrafts.isNotEmpty) ...[
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Column(
+                children: _sharedDrafts.asMap().entries.map<Widget>((entry) {
+                  final idx = entry.key;
+                  final d = entry.value;
+                  return _buildSharedDraftCardInBox(d, isLast: idx == _sharedDrafts.length - 1);
+                }).toList(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
+        ] else
           _buildEmptyHint('동행자에게 DB 공유를 요청하세요'),
         const SizedBox(height: 30),
       ],
@@ -1578,7 +1667,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildDraftCard(dynamic d, String dong) {
+  Widget _buildDraftCardInBox(dynamic d, String dong, {int index = 0, bool isLast = false}) {
     final foundCase = _cases.cast<Map<String, dynamic>?>().firstWhere(
       (c) =>
           c?['realName'] == d['caseName'] || c?['maskedName'] == d['caseName'],
@@ -1588,6 +1677,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return SwipeableDraftCard(
       key: ValueKey(d['id']),
       d: d,
+      index: index,
+      isLast: isLast,
       onTap: () => _goToForm(
         foundCase?['realName'] ?? d['caseName'],
         d['caseName'],
@@ -1606,7 +1697,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildSharedDraftCard(dynamic d) {
+  Widget _buildSharedDraftCardInBox(dynamic d, {bool isLast = false}) {
     final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
     final String authorName = d['author_name'] ?? '담당자';
     final String? shareToken = d['share_token'];
@@ -1620,18 +1711,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       caseName: caseName,
       authorName: authorName,
       shareUrl: shareUrl,
+      isLast: isLast,
       onDelete: () async {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('목록에서 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            content: const Text('공유받은 DB를 목록에서 삭제할까요?', style: TextStyle(fontSize: 14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              '목록에서 삭제',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            content: const Text(
+              '공유받은 DB를 목록에서 삭제할까요?',
+              style: TextStyle(fontSize: 14),
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('취소'),
+              ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('삭제', style: TextStyle(color: Colors.red)),
+                child: const Text(
+                  '삭제',
+                  style: TextStyle(color: AppColors.danger),
+                ),
               ),
             ],
           ),
