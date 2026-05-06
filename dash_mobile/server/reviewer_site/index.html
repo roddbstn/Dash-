@@ -79,7 +79,6 @@
                                 cursor: not-allowed; color: #ADB5BD; font-size: 16px;
                                 transition: all 0.15s;
                             ">↪</button>
-                            <div id="save-status" class="save-status" style="margin-left: 6px;">방금 저장됨</div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                             <h1 id="page-title">불러오는 중...</h1>
@@ -98,7 +97,7 @@
                             상담원 소견</h4>
                         <textarea id="opinion-editor" placeholder="상담원 소견을 입력하세요..."
                             oninput="handleTyping()" style="background:#fff; cursor:text; resize:none;"></textarea>
-                        <p style="margin-top: 10px; font-size: 12px; color: #abb3bb; font-weight: 500;">* 수정 내용이 실시간으로 반영돼요. 양측이 동시에 수정 중이면 마지막 저장 내용으로 덮어씌워집니다.</p>
+                        <p style="margin-top: 10px; font-size: 12px; color: #abb3bb; font-weight: 500;">* '수정 완료 알림 보내기' 버튼을 눌러야 담당자에게 수정 내용이 전달돼요.</p>
                     </div>
                 </div>
             </main>
@@ -130,7 +129,7 @@
         <div id="modal-container" class="modal-backdrop">
             <div class="modal">
                 <h2>수정 완료 알림</h2>
-                <p>수정된 내용을 공유한 담당자에게 알림을 보낼까요?</p>
+                <p>수정된 내용을 담당자에게 전송할까요? 버튼을 누른 시점의 내용이 저장되고 알림이 발송돼요.</p>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" onclick="closeModal()">취소</button>
                     <button class="btn btn-primary" onclick="confirmNotify()">알림 보내기</button>

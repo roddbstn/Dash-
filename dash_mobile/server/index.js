@@ -1009,19 +1009,8 @@ app.put('/api/records/share/:token', async (req, res) => {
 
     const [result] = await queryWithTimeout(query, params);
     if (result.affectedRows > 0) {
-      // 모바일 오너에게 SSE로 변경 알림 (실시간 반영)
-      try {
-        const [ownerRows] = await queryWithTimeout(
-          `SELECT u.email FROM service_drafts sd
-           JOIN cases c ON sd.case_id = c.id
-           LEFT JOIN dash_users u ON c.user_id = u.id
-           WHERE sd.share_token = ?`,
-          [token]
-        );
-        if (ownerRows.length > 0) {
-          broadcastEvent('record_updated', { user_email: ownerRows[0].email, record_token: token });
-        }
-      } catch (_) {}
+      // ⚠️ 옵션 2: 리뷰어의 중간 저장은 로컬 임시 저장 개념.
+      // 원 생성자에게 SSE 알림을 보내지 않음 — 버튼 클릭(/reviewed) 시에만 반영됨.
       res.json({ message: 'Saved' });
     } else {
       res.status(404).json({ error: 'Not found' });

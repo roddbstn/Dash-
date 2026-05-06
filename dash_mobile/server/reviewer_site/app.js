@@ -126,10 +126,10 @@ async function handleReviewerLogin(user) {
 }
 
 let isInfoExpanded = false;
-let saveTimeout = null;
 let isEditMode = true; // 항상 편집 모드
 let editHistory = []; // [{main, opinion}, ...]
 let historyIndex = -1;
+let hasEverSentNotify = false; // 최초 "수정 완료 알림 보내기" 클릭 여부
 
 // ── 편집 모드 (항상 활성) ──────────────────────────────────────
 // toggleEditMode 제거: 편집 버튼 없이 바로 편집 가능
@@ -211,76 +211,39 @@ function updateCTAState() {
     });
 }
 
-// ── 자동 저장 ────────────────────────────────────────────────
+// 버튼 텍스트를 "저장 후 전송"으로 업데이트 (최초 알림 전송 후)
+function markNotifySent() {
+    hasEverSentNotify = true;
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (token) sessionStorage.setItem('dash_notify_sent_' + token, '1');
+    const headerBtn = document.getElementById('btn-notify-header');
+    const mobileBtn = document.getElementById('btn-notify-mobile');
+    if (headerBtn) headerBtn.textContent = '저장 후 전송';
+    if (mobileBtn) mobileBtn.textContent = '저장 후 전송';
+}
+
+// ── 로컬 임시 저장 (서버 자동저장 없음 — 버튼 클릭 시에만 서버에 반영)
+let _typingTimer = null;
 function handleTyping() {
-    const status = document.getElementById('save-status');
-    status.textContent = '저장 중...';
-    status.style.opacity = '1';
+    const main = document.getElementById('main-editor').value;
+    const opinion = document.getElementById('opinion-editor').value || '';
 
-    if (saveTimeout) clearTimeout(saveTimeout);
+    // 메모리 내 currentRecord 갱신 (버튼 클릭 시 re-encryption에 사용)
+    if (window.currentRecord) {
+        window.currentRecord.serviceDescription = main;
+        window.currentRecord.agentOpinion = opinion;
+    }
 
-    saveTimeout = setTimeout(async () => {
-        const now = new Date();
-        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-
-        const main = document.getElementById('main-editor').value;
-        const opinion = document.getElementById('opinion-editor').value || '';
-
-        // 메모리 내 currentRecord 갱신 (re-encryption 시 최신 값 사용)
-        if (window.currentRecord) {
-            window.currentRecord.serviceDescription = main;
-            window.currentRecord.agentOpinion = opinion;
-        }
-
+    if (_typingTimer) clearTimeout(_typingTimer);
+    _typingTimer = setTimeout(() => {
         // 히스토리에 현재 상태 push (내용이 변경된 경우만)
         const last = editHistory[historyIndex] || {};
         if (last.main !== main || last.opinion !== opinion) {
             pushHistory(main, opinion);
         }
-
         // 세션 임시 저장 (새로고침 복원용)
         persistDraft(main, opinion);
-
-        // ── 서버 자동 저장 ──────────────────────────────────────
-        const token = new URLSearchParams(window.location.search).get('token');
-        if (token) {
-            try {
-                const body = { service_description: main, agent_opinion: opinion };
-
-                // 암호화 키가 있으면 re-encrypt하여 encrypted_blob도 함께 저장
-                const _qp = new URLSearchParams(window.location.search);
-                let encKey = _qp.get('key') || window.location.hash.substring(1) || sessionStorage.getItem('dash_key_' + token) || '';
-                if (encKey && window.currentRecord) {
-                    try {
-                        const updatedData = { ...window.currentRecord, serviceDescription: main, agentOpinion: opinion };
-                        const key = CryptoJS.enc.Utf8.parse(encKey.padEnd(32).substring(0, 32));
-                        const iv = CryptoJS.lib.WordArray.random(16);
-                        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedData), key, { iv });
-                        body.encrypted_blob = iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
-                    } catch (e) {
-                        console.warn('[AutoSave] 암호화 실패, 평문만 저장:', e);
-                    }
-                }
-
-                const res = await fetch(`/api/records/share/${token}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                status.textContent = `✓ ${timeStr} 저장됨`;
-            } catch (e) {
-                console.error('[AutoSave] 서버 저장 실패:', e);
-                status.textContent = `⚠ 저장 실패 (${timeStr})`;
-            }
-        } else {
-            status.textContent = `✓ ${timeStr} 저장됨`;
-        }
-
-        setTimeout(() => {
-            status.style.opacity = '0.6';
-        }, 2000);
-    }, 1500);
+    }, 500);
 }
 
 
@@ -310,18 +273,22 @@ function closeModal() {
     document.getElementById('modal-container').style.display = 'none';
 }
 
-function confirmNotify() {
+async function confirmNotify() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     // 쿼리 파라미터 ?key= 우선, fragment #key 폴백
     const _qp = new URLSearchParams(window.location.search);
-    const encKey = _qp.get('key') || window.location.hash.substring(1);
+    const encKey = _qp.get('key') || window.location.hash.substring(1) || sessionStorage.getItem('dash_key_' + token) || '';
 
     if (!token) {
         alert('토큰 정보가 없어 완료할 수 없습니다.');
         return closeModal();
     }
-    
+
+    // 버튼 로딩 상태
+    const confirmBtn = document.querySelector('#modal-container .btn-primary');
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '전송 중...'; }
+
     const serviceDescription = document.getElementById('main-editor').value;
     const agentOpinion = document.getElementById('opinion-editor').value;
     
@@ -336,30 +303,41 @@ function confirmNotify() {
             const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedData), key, { iv: iv });
             
             body.encrypted_blob = iv.toString(CryptoJS.enc.Base64) + ":" + encrypted.toString();
-            // Still send raw fields for legacy/transition support or specific meta needs, 
-            // but the server should ideally ignore them.
-            body.service_description = ''; 
+            body.service_description = '';
             body.agent_opinion = '';
         } catch (e) {
             console.error("Encryption failed:", e);
         }
     }
 
-    fetch(`/api/records/reviewed/${token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    })
-    .then(res => res.json())
-    .then(data => {
+    try {
+        const res = await fetch(`/api/records/reviewed/${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
-        alert('사례 담당자에게 검토 완료 알림을 보냈습니다.');
+
+        // 최초 전송 완료 마킹 → 버튼 텍스트 변경
+        markNotifySent();
+        // 히스토리 리셋 (현재 상태를 새 baseline으로)
+        const curMain = document.getElementById('main-editor').value;
+        const curOpinion = document.getElementById('opinion-editor').value || '';
+        editHistory = [{ main: curMain, opinion: curOpinion }];
+        historyIndex = 0;
+        updateUndoRedoButtons();
+        updateCTAState();
+
         closeModal();
-    })
-    .catch(err => {
+        // 성공 토스트
+        showToast('담당자에게 수정 완료 알림을 보냈어요.');
+    } catch (err) {
         alert('처리 중 오류가 발생했습니다.');
         console.error(err);
-    });
+    } finally {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '알림 보내기'; }
+    }
 }
 
 function formatDayOfWeek(dateString) {
@@ -507,13 +485,31 @@ function loadRecord(token) {
             });
 }
 
-// ── 본인 DB: 수정 완료 알림 버튼만 숨김 (편집 및 자동저장은 허용)
+// ── 본인 DB: 수정 완료 알림 버튼만 숨김
 function setOwnerReadOnlyMode() {
-    // 수정 완료 알림 버튼만 숨김 (오너는 FCM 알림 불필요)
     document.querySelectorAll('.notify-btn').forEach(btn => btn.style.display = 'none');
-    // 오너임을 표시 (status 영역)
-    const status = document.getElementById('save-status');
-    if (status) { status.textContent = '내 DB · 수정 내용은 자동 저장됩니다'; status.style.opacity = '0.7'; }
+}
+
+// ── 토스트 알림 (간단한 UI 피드백)
+function showToast(msg, duration = 3000) {
+    let toast = document.getElementById('dash-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'dash-toast';
+        toast.style.cssText = [
+            'position:fixed', 'bottom:90px', 'left:50%', 'transform:translateX(-50%)',
+            'background:#1a1a2e', 'color:#fff', 'padding:12px 20px',
+            'border-radius:12px', 'font-size:14px', 'font-weight:500',
+            'box-shadow:0 4px 20px rgba(0,0,0,0.25)', 'z-index:99999',
+            'transition:opacity 0.3s', 'white-space:nowrap',
+            'font-family:Pretendard,sans-serif',
+        ].join(';');
+        document.body.appendChild(toast);
+    }
+    toast.textContent = '✓ ' + msg;
+    toast.style.opacity = '1';
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
 }
 
 // Initialize — 데이터 fetch 없이 인증 모달만 표시
@@ -546,6 +542,15 @@ window.onload = () => {
     if (!token) {
         document.getElementById('auth-modal').style.display = 'none';
         return;
+    }
+
+    // 세션에서 최초 전송 완료 여부 복원
+    if (sessionStorage.getItem('dash_notify_sent_' + token)) {
+        hasEverSentNotify = true;
+        const headerBtn = document.getElementById('btn-notify-header');
+        const mobileBtn = document.getElementById('btn-notify-mobile');
+        if (headerBtn) headerBtn.textContent = '저장 후 전송';
+        if (mobileBtn) mobileBtn.textContent = '저장 후 전송';
     }
 
     // 인앱 브라우저 감지 — 구글 로그인 불가 안내
