@@ -55,26 +55,32 @@ class NotificationTab extends StatelessWidget {
     );
 
     if (unreadNotifs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.notifications_none_rounded,
-              size: 64,
-              color: AppColors.border.withValues(alpha: 0.8),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 48, 24, 16),
+            child: Text(
+              '알림',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF222222)),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              '아직 도착한 알림이 없어요',
-              style: TextStyle(
-                color: Color(0xFFADB5BD),
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
+          ),
+          const Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.notifications_none_rounded, size: 64, color: Color(0xFFDEE2E6)),
+                  SizedBox(height: 16),
+                  Text(
+                    '아직 도착한 알림이 없어요',
+                    style: TextStyle(color: Color(0xFFADB5BD), fontSize: 16, fontWeight: FontWeight.w400),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
@@ -82,7 +88,7 @@ class NotificationTab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
+          padding: EdgeInsets.fromLTRB(24, 48, 24, 16),
           child: Text(
             '알림',
             style: TextStyle(

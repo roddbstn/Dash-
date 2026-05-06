@@ -66,6 +66,8 @@ class _FormScreenState extends State<FormScreen> {
   bool _isLoading = false;
   bool _showDateTimeError = false;
   Map<String, dynamic>? _currentDraft;
+  // 공유받은 DB를 열었을 때, 아무것도 수정하지 않은 상태의 지문(fingerprint)
+  String? _sharedDraftFingerprint;
 
   @override
   void initState() {
@@ -131,13 +133,39 @@ class _FormScreenState extends State<FormScreen> {
         }
         
         _serviceCountController.text = (draft['serviceCount'] ?? draft['service_count'] ?? '1').toString();
-        
+
         final startTimeStr = draft['startTime'] ?? draft['start_time'];
         if (startTimeStr != null) _startDate = DateTime.tryParse(startTimeStr);
         final endTimeStr = draft['endTime'] ?? draft['end_time'];
         if (endTimeStr != null) _endDate = DateTime.tryParse(endTimeStr);
       });
+      // 공유받은 DB는 변경 전 지문 저장 → 저장 버튼 비활성화에 사용
+      if (draft['isShared'] == true) {
+        _sharedDraftFingerprint = _captureFormFingerprint();
+      }
     }
+  }
+
+  /// 현재 폼 상태를 문자열로 직렬화 (공유 DB 변경 감지용)
+  String _captureFormFingerprint() {
+    final sortedTargets = [..._selectedTargets]..sort();
+    return [
+      sortedTargets.join(','),
+      _selectedProvisionType,
+      _selectedMethod,
+      _selectedServiceType,
+      _selectedServiceCategory,
+      _selectedService,
+      _selectedLocation,
+      _travelTime.toString(),
+      _serviceController.text.trim(),
+      _opinionController.text.trim(),
+      _serviceCountController.text,
+      _startDate?.toIso8601String() ?? '',
+      _endDate?.toIso8601String() ?? '',
+      _otherTargetController.text.trim(),
+      _otherLocationController.text.trim(),
+    ].join('||');
   }
 
   void _handleSave() async {
@@ -895,6 +923,10 @@ class _FormScreenState extends State<FormScreen> {
   }
 
   Widget _buildSaveBar() {
+    // 공유받은 DB는 아무 변경도 없을 때 저장 버튼 비활성화
+    final bool isSharedUnchanged = _sharedDraftFingerprint != null &&
+        _sharedDraftFingerprint == _captureFormFingerprint();
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -910,13 +942,15 @@ class _FormScreenState extends State<FormScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: DashButton(
-            onTap: () {
-              if (_startDate == null) {
-                setState(() => _showDateTimeError = true);
-              } else {
-                _handleSave();
-              }
-            },
+            onTap: isSharedUnchanged
+                ? null
+                : () {
+                    if (_startDate == null) {
+                      setState(() => _showDateTimeError = true);
+                    } else {
+                      _handleSave();
+                    }
+                  },
             text: '저장',
             backgroundColor: AppColors.primary,
             height: 56,

@@ -20,7 +20,7 @@ if (hasKeystore) {
 }
 
 android {
-    namespace = "com.dash.app"
+    namespace = "com.dash.mobile.yunsoo"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -46,8 +46,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.dash.app"
-        minSdk = 23  // Firebase Auth, Messaging 등 최소 요구사항
+        applicationId = "com.dash.mobile.yunsoo"
+        minSdk = flutter.minSdkVersion  // Firebase Auth, Messaging 등 최소 요구사항
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

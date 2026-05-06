@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:dash_mobile/theme.dart';
-import 'package:dash_mobile/api_service.dart';
 
 class DbHistoryTab extends StatelessWidget {
   final List<dynamic> injectedDrafts;
@@ -11,25 +9,40 @@ class DbHistoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (injectedDrafts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.history_rounded, size: 64, color: AppColors.border.withValues(alpha: 0.8)),
-            const SizedBox(height: 16),
-            const Text(
-              '기입한 DB가 없어요',
-              style: TextStyle(color: Color(0xFFADB5BD), fontSize: 16, fontWeight: FontWeight.w400),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 48, 24, 16),
+            child: Text(
+              'DB 내역',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF222222)),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              '확장프로그램으로 DB를 기입하면 여기 기록돼요',
-              style: TextStyle(color: Color(0xFFADB5BD), fontSize: 13),
+          ),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.history_rounded, size: 64, color: AppColors.border.withValues(alpha: 0.8)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '기입한 DB가 없어요',
+                    style: TextStyle(color: Color(0xFFADB5BD), fontSize: 16, fontWeight: FontWeight.w400),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '확장프로그램으로 DB를 기입하면 여기 기록돼요',
+                    style: TextStyle(color: Color(0xFFADB5BD), fontSize: 13),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
+
 
     // 날짜별 그룹핑 (updated_at 기준, KST 변환)
     final Map<String, List<dynamic>> groups = {};
@@ -51,7 +64,7 @@ class DbHistoryTab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
+          padding: EdgeInsets.fromLTRB(24, 48, 24, 16),
           child: Text(
             'DB 내역',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF222222)),
@@ -131,28 +144,6 @@ class _HistoryCardState extends State<_HistoryCard> {
     }
   }
 
-  Future<void> _copyShareLink() async {
-    final token = widget.draft['share_token']?.toString();
-    final key = widget.draft['encryption_key']?.toString();
-    if (token == null || token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('공유 링크를 찾을 수 없어요.'), behavior: SnackBarBehavior.floating),
-      );
-      return;
-    }
-    final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
-    final url = '${ApiService.serverUrl}/?token=$token$keyParam';
-    await Clipboard.setData(ClipboardData(text: url));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('공유 링크가 복사됐어요.', textAlign: TextAlign.center),
-          backgroundColor: Colors.black87,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -251,45 +242,19 @@ class _HistoryCardState extends State<_HistoryCard> {
                     _InfoRow(label: '제공구분', value: d['provision_type'] ?? '-'),
                     _InfoRow(label: '서비스유형', value: d['service_type'] ?? '-'),
                     _InfoRow(label: '제공장소', value: d['location'] ?? '-'),
-                    if (serviceDescription.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      const Text('서비스 내용', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF4E5968))),
-                      const SizedBox(height: 6),
-                      Text(serviceDescription, style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF4E5968))),
-                    ],
-                    if (agentOpinion.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      const Text('상담원 소견', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF4E5968))),
-                      const SizedBox(height: 6),
-                      Text(agentOpinion, style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF4E5968))),
-                    ],
+                    const SizedBox(height: 12),
+                    const Text('서비스 내용', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF4E5968))),
+                    const SizedBox(height: 6),
+                    Text(serviceDescription.isNotEmpty ? serviceDescription : '-', style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF4E5968))),
+                    const SizedBox(height: 12),
+                    const Text('상담원 소견', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF4E5968))),
+                    const SizedBox(height: 6),
+                    Text(agentOpinion.isNotEmpty ? agentOpinion : '-', style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF4E5968))),
                   ],
                 ),
               ),
             ],
 
-            // 공유 버튼
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-              child: GestureDetector(
-                onTap: _copyShareLink,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.link_rounded, color: Colors.white, size: 16),
-                      SizedBox(width: 6),
-                      Text('공유 링크 복사', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),

@@ -122,6 +122,7 @@ class SwipeableDraftCard extends StatefulWidget {
   final Future<bool> Function() onDelete;
   final int index;
   final bool isLast;
+  final String? counselorName;
 
   const SwipeableDraftCard({
     super.key,
@@ -130,6 +131,7 @@ class SwipeableDraftCard extends StatefulWidget {
     required this.onDelete,
     this.index = 0,
     this.isLast = true,
+    this.counselorName,
   });
 
   @override
@@ -143,7 +145,6 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
   double _dragOffset = 0;
   static const double _maxSwipe = 90.0;
   bool _isCardPressed = false;
-  bool _isSharePressed = false;
 
   @override
   void initState() {
@@ -210,19 +211,39 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
       final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
       await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('링크가 복사되었습니다.', textAlign: TextAlign.center),
-          backgroundColor: Colors.black87,
-          behavior: SnackBarBehavior.floating,
-        ));
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '클립보드에 복사되었습니다',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: const Color(0xFF222222),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('저장 후 공유할 수 있어요.', textAlign: TextAlign.center),
-          backgroundColor: Colors.black87,
-          behavior: SnackBarBehavior.floating,
-        ));
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '저장 후 공유할 수 있어요',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: const Color(0xFF222222),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
@@ -230,13 +251,19 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
     setState(() {
       _dragOffset += details.primaryDelta!;
-      if (_dragOffset > 0) _dragOffset = 0;
+      if (_dragOffset > _maxSwipe * 1.2) _dragOffset = _maxSwipe * 1.2;
       if (_dragOffset < -_maxSwipe * 1.2) _dragOffset = -_maxSwipe * 1.2;
     });
   }
 
   void _onHorizontalDragEnd(DragEndDetails details) async {
-    if (_dragOffset < -_maxSwipe * 0.7) {
+    if (_dragOffset > _maxSwipe * 0.7) {
+      // 오른쪽 스와이프 → 공유
+      setState(() => _dragOffset = 0);
+      await _copyShareLink();
+    } else if (_dragOffset > 0) {
+      setState(() => _dragOffset = 0);
+    } else if (_dragOffset < -_maxSwipe * 0.7) {
       _controller.forward(from: _dragOffset / -_maxSwipe);
       _dragOffset = -_maxSwipe;
       final confirmed = await widget.onDelete();
@@ -268,33 +295,53 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
               curve: Curves.easeOutCubic,
               child: Stack(
                 children: [
-                  // 삭제 배경
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.danger.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () async {
-                            final confirmed = await widget.onDelete();
-                            if (!confirmed && mounted) {
-                              _controller.reverse();
-                              setState(() => _dragOffset = 0);
-                            }
-                          },
+                  // 공유 배경 (오른쪽 스와이프 — 파란색, 왼쪽 정렬)
+                  if (offset > 0)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
                           child: Container(
                             width: _maxSwipe,
                             height: double.infinity,
                             alignment: Alignment.center,
-                            child: const Icon(Icons.delete, color: Colors.white, size: 30),
+                            child: const Icon(Icons.ios_share_rounded, color: Colors.white, size: 28),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  // 삭제 배경 (왼쪽 스와이프 — 빨간색, 오른쪽 정렬)
+                  if (offset <= 0)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: GestureDetector(
+                            onTap: () async {
+                              final confirmed = await widget.onDelete();
+                              if (!confirmed && mounted) {
+                                _controller.reverse();
+                                setState(() => _dragOffset = 0);
+                              }
+                            },
+                            child: Container(
+                              width: _maxSwipe,
+                              height: double.infinity,
+                              alignment: Alignment.center,
+                              child: const Icon(Icons.delete, color: Colors.white, size: 30),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   // 카드 본체
                   Transform.translate(
                     offset: Offset(offset, 0),
@@ -360,10 +407,8 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Expanded(
-                                      child: RichText(
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        text: TextSpan(children: [
+                                      child: Text.rich(
+                                        TextSpan(children: [
                                           TextSpan(
                                             text: '${widget.d['caseName']} 아동',
                                             style: const TextStyle(color: Color(0xFF222222), fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5),
@@ -374,6 +419,8 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                                               style: const TextStyle(color: Color(0xFFB0B8C1), fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: -0.2),
                                             ),
                                         ]),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
@@ -386,18 +433,18 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                             );
                           }
 
-                          // 세로 모드: 파란 번호 + 텍스트 3행 + 공유 버튼
+                          // 세로 모드: 파란 번호 + 텍스트 3행 + 상담원 태그
                           return Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               // 왼쪽: 파란 번호
                               SizedBox(
-                                width: 32,
+                                width: 28,
                                 child: Text(
                                   '${widget.index + 1}',
                                   style: const TextStyle(
                                     color: AppColors.primary,
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: -0.5,
                                   ),
@@ -411,13 +458,11 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    RichText(
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      text: TextSpan(children: [
+                                    Text.rich(
+                                      TextSpan(children: [
                                         TextSpan(
                                           text: '${widget.d['caseName']} 아동',
-                                          style: const TextStyle(color: Color(0xFF222222), fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                                          style: const TextStyle(color: Color(0xFF222222), fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.4),
                                         ),
                                         if ((widget.d['dong']?.toString() ?? '').isNotEmpty)
                                           TextSpan(
@@ -425,47 +470,36 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                                             style: const TextStyle(color: Color(0xFFB0B8C1), fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: -0.2),
                                           ),
                                       ]),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(subLine1, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 12, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    const SizedBox(height: 3),
+                                    Text(subLine1, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 12, fontWeight: FontWeight.w400), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 2),
-                                    Text(subLine2, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 12, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    Text(subLine2, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 12, fontWeight: FontWeight.w400), maxLines: 1, overflow: TextOverflow.ellipsis),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              // 오른쪽: 공유 버튼 (세로 정가운데)
-                              GestureDetector(
-                                onTap: _copyShareLink,
-                                onTapDown: (_) => setState(() => _isSharePressed = true),
-                                onTapUp: (_) => setState(() => _isSharePressed = false),
-                                onTapCancel: () => setState(() => _isSharePressed = false),
-                                child: AnimatedScale(
-                                  scale: _isSharePressed ? 0.95 : 1.0,
-                                  duration: const Duration(milliseconds: 100),
-                                  curve: Curves.easeOutCubic,
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 100),
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: _isSharePressed
-                                          ? const Color(0xFFBFDAFF)
-                                          : const Color(0xFFE0EFFF),
-                                      borderRadius: BorderRadius.circular(100),
-                                    ),
-                                    child: Text(
-                                      '공유',
-                                      style: TextStyle(
-                                        color: _isSharePressed
-                                            ? AppColors.primary.withValues(alpha: 0.8)
-                                            : AppColors.primary,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                              // 오른쪽: 상담원 태그 (미선택 스타일)
+                              if (widget.counselorName != null) ...[
+                                const SizedBox(width: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(100),
+                                    border: Border.all(color: const Color(0xFFDDE1E7), width: 1.5),
+                                  ),
+                                  child: Text(
+                                    widget.counselorName!,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textMain,
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
                           );
                         }),

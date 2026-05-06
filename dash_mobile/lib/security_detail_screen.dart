@@ -88,9 +88,9 @@ class _SecurityDetailScreenState extends State<SecurityDetailScreen> {
               label: 'STEP 1',
               title: '상담원 기기 (스마트폰)',
               rows: const [
-                _FlowRow(symbol: '✏️', text: '상담 내용 입력'),
-                _FlowRow(symbol: '🔑', text: '입력 즉시 AES-256 암호화\n(열쇠는 기기 안에만 존재)'),
-                _FlowRow(symbol: '📤', text: '암호문만 서버로 전송'),
+                _FlowRow(symbol: '✏️', text: 'DB 내용 입력'),
+                _FlowRow(symbol: '🔑', text: 'DB 저장 즉시 데이터 암호화\n(열쇠는 기기 안에만 존재,\n본인만 열람 가능)'),
+                _FlowRow(symbol: '📤', text: '서버에는 암호문만 전송됨'),
               ],
               tagText: '열쇠 생성 위치',
               tagColor: const Color(0xFF16A34A),

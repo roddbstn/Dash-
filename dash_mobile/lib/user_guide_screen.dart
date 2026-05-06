@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
-import 'package:dash_mobile/security_detail_screen.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -64,7 +63,7 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '현장 기록부터 시스템 입력까지\n5단계로 완성됩니다.',
+                    '현장 기록부터 시스템 입력까지\n5단계로 완성돼요.',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.white.withValues(alpha: 0.85),
@@ -83,7 +82,8 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               icon: Icons.person_add_outlined,
               title: '새 사례 등록',
               description: '홈 화면 하단의 + 버튼을 눌러 새 사례를 만드세요.',
-              tip: '아동 이름은 마스킹되어 외부에 노출되지 않습니다.',
+              tip: '아동 이름은 마스킹되어 외부에 노출되지 않아요.',
+              mockup: const _MockupCaseButton(),
             ),
             _StepConnector(),
 
@@ -91,20 +91,22 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               step: 2,
               icon: Icons.edit_note_outlined,
               title: '상담 기록 작성',
-              description: '\'사무실 밖에서 DB쓰기\'를 터치하여 사례를 선택합니다.\n'
+              description: '\'사무실 밖에서 DB쓰기\'를 터치하여 사례를 선택해요.\n'
                   '실제 DB를 쓰듯이 작성해보세요.',
-              tip: '저장한 기록은 서버 연결 없이도 기기에 보관되며, 연결 복구 시 자동 동기화됩니다.',
+              tip: '저장한 기록은 인터넷이 없어도 폰에 보관되며, 인터넷이 다시 연결되면 자동으로 업로드돼요.',
+              mockup: const _MockupDbButton(),
             ),
             _StepConnector(),
 
             _StepCard(
               step: 3,
               icon: Icons.share_outlined,
-              title: '상사에게 공유 및 검토 요청',
-              description: '작성 완료 후 공유 버튼을 누르면 고유 링크가 생성됩니다.\n'
-                  '링크를 상사에게 전달하면 PC 웹에서 내용을 확인하고\n'
-                  '수정·검토를 진행할 수 있습니다.',
-              tip: '링크는 본인 계정의 기록에만 접근 가능합니다.',
+              title: '동행자에게 공유 및 검토 요청',
+              description: 'DB 생성 후 동행자에게 공유메모를 전달해보세요. 서비스 내용을 공동으로 수정할 수 있어요.\n'
+                  '링크를 동행자에게 전달하면 PC 웹에서 내용을 확인하고\n'
+                  '수정·검토를 진행할 수 있어요.',
+              tip: '링크는 본인 계정의 기록에만 접근 가능해요.',
+              mockup: const _MockupDbCard(),
             ),
             _StepConnector(),
 
@@ -112,9 +114,10 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               step: 4,
               icon: Icons.notifications_active_outlined,
               title: '검토 완료 알림 수신',
-              description: '상사가 검토를 완료하면 즉시 푸시 알림이 도착합니다.\n'
-                  '홈 화면 알림 탭에서 검토 내용을 확인할 수 있습니다.',
-              tip: '알림 설정은 프로필 탭에서 변경할 수 있습니다.',
+              description: '상사가 검토를 완료하면 즉시 푸시 알림이 도착해요.\n'
+                  '홈 화면 알림 탭에서 검토 내용을 확인할 수 있어요.',
+              tip: '알림 설정은 프로필 탭에서 변경할 수 있어요.',
+              mockup: const _MockupNotification(),
             ),
             _StepConnector(),
 
@@ -122,110 +125,22 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               step: 5,
               icon: Icons.computer_outlined,
               title: 'NCADS 자동 입력',
-              description: 'PC에서 Chrome 확장프로그램을 설치하세요.\n'
-                  'NCADS 업무 시스템에 접속한 상태에서 확장프로그램을 열면\n'
-                  '작성한 기록이 클릭 한 번으로 자동 입력됩니다.',
-              tip: 'Chrome 웹 스토어에서 무료로 설치할 수 있습니다.',
+              description: '아동학대정보시스템 화면에서 DASH 확장 프로그램을 열어보세요.\n'
+                  '작성한 DB가 그대로 있으며, 클릭 한 번으로 자동 입력돼요.',
+              tip: 'Chrome 웹스토어에서 무료로 Dash를 설치하세요.',
               actionLabel: 'Chrome 웹 스토어에서 설치하기',
               actionUrl: 'https://chromewebstore.google.com/detail/dpncpmegjlgknkagcfjdaccbgmjncdef?utm_source=item-share-cb',
+              mockup: const _MockupExtensionPopup(),
+              extraNote: const _EdgeInstallNote(),
             ),
 
             const SizedBox(height: 28),
-
-            // E2EE 안내 박스
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.lock_outline,
-                          size: 15, color: Color(0xFF2563EB)),
-                      SizedBox(width: 6),
-                      Text(
-                        '보안에 대해',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1D4ED8),
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _securityRow('모든 상담 내용은 기기에서 AES-256으로 암호화됩니다.'),
-                  _securityRow('DASH 서버는 내용을 열람하거나 저장하지 않습니다.'),
-                  _securityRow('시스템 전송 완료 후 서버 데이터는 즉시 삭제됩니다.'),
-                  const SizedBox(height: 6),
-                  const Divider(height: 1, color: Color(0xFFDBEAFE)),
-                  const SizedBox(height: 8),
-                  Builder(
-                    builder: (context) => GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SecurityDetailScreen(),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            '암호화 구조 자세히 보기',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF2563EB),
-                              letterSpacing: -0.1,
-                            ),
-                          ),
-                          SizedBox(width: 3),
-                          Icon(Icons.arrow_forward_ios,
-                              size: 10, color: Color(0xFF2563EB)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _securityRow(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('∙  ',
-              style: TextStyle(fontSize: 12, color: Color(0xFF3B82F6))),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF1E3A5F),
-                height: 1.5,
-                letterSpacing: -0.1,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ── 스텝 카드 ────────────────────────────────────────────────────────────────
@@ -237,6 +152,8 @@ class _StepCard extends StatelessWidget {
   final String tip;
   final String? actionLabel;
   final String? actionUrl;
+  final Widget? mockup;
+  final Widget? extraNote;
 
   const _StepCard({
     required this.step,
@@ -246,6 +163,8 @@ class _StepCard extends StatelessWidget {
     required this.tip,
     this.actionLabel,
     this.actionUrl,
+    this.mockup,
+    this.extraNote,
   });
 
   @override
@@ -317,6 +236,14 @@ class _StepCard extends StatelessWidget {
                     letterSpacing: -0.1,
                   ),
                 ),
+                if (extraNote != null) ...[
+                  const SizedBox(height: 10),
+                  extraNote!,
+                ],
+                if (mockup != null) ...[
+                  const SizedBox(height: 12),
+                  mockup!,
+                ],
                 const SizedBox(height: 8),
                 Container(
                   padding:
@@ -406,6 +333,638 @@ class _StepConnector extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.border,
               borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Step 1 목업: + 사례 생성 버튼 ────────────────────────────────────────────
+class _MockupCaseButton extends StatelessWidget {
+  const _MockupCaseButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E8EB)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(color: const Color(0xFFE5E8EB), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Text(
+              '+ 사례 생성',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: Color(0xFF111827),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 2 목업: 사무실 밖에서 DB 쓰기 버튼 ──────────────────────────────────
+class _MockupDbButton extends StatelessWidget {
+  const _MockupDbButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Center(
+        child: Text(
+          '사무실 밖에서 DB 쓰기',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Step 3 목업: DB 카드 + 공유 버튼 ─────────────────────────────────────────
+class _MockupDbCard extends StatelessWidget {
+  const _MockupDbCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E8EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 좌측: 아동명 + 부가정보
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '강O수 아동',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '대상: 피해아동  |  방문',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF8B95A1),
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
+                  ),
+                ),
+                const Text(
+                  '4.14 (화) 11:47 ~ 12:47',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF8B95A1),
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // 우측: 공유 버튼
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  '공유',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 4 목업: 푸시 알림 위젯 ──────────────────────────────────────────────
+class _MockupNotification extends StatelessWidget {
+  const _MockupNotification();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 앱 아이콘
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset(
+              'assets/icons/logo.png',
+              width: 36,
+              height: 36,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 10),
+          // 알림 텍스트
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'DASH',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const Text(
+                      '  ·  오후 4:13',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF8B95A1),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  '검토 완료 🗒',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  '강O수 아동 사례 DB가 검토 완료됐어요',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF4B5563),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 5 Edge 브라우저 설치 안내 ────────────────────────────────────────────
+class _EdgeInstallNote extends StatelessWidget {
+  const _EdgeInstallNote();
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = [
+      '프로필 아이콘 오른쪽 ··· 버튼 클릭',
+      '확장 → 확장 관리',
+      'Chrome 웹 스토어 클릭',
+      '\'Dash\' 검색 후 설치',
+    ];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFD1D9F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.public, size: 13, color: Color(0xFF3B5BDB)),
+              SizedBox(width: 5),
+              Text(
+                'Edge 브라우저 설치 방법',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF3B5BDB),
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ...steps.asMap().entries.map(
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${e.key + 1}.  ',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF3B5BDB),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      e.value,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF374151),
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 5 목업: NCADS 브라우저 + 확장 패널 ──────────────────────────────────
+class _MockupExtensionPopup extends StatelessWidget {
+  const _MockupExtensionPopup();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD1D5DB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 브라우저 타이틀바
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: const BoxDecoration(
+              color: Color(0xFFE8EAED),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(10),
+                topRight: Radius.circular(10),
+              ),
+            ),
+            child: Row(
+              children: [
+                // macOS 점
+                const _BrowserDot(color: Color(0xFFFF5F57)),
+                const SizedBox(width: 4),
+                const _BrowserDot(color: Color(0xFFFFBD2E)),
+                const SizedBox(width: 4),
+                const _BrowserDot(color: Color(0xFF28CA41)),
+                const SizedBox(width: 8),
+                // URL 바
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      '아동학대정보시스템',
+                      style: TextStyle(fontSize: 8, color: Color(0xFF6B7280)),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 콘텐츠: NCADS 폼(좌) + 확장 패널(우)
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(10),
+              bottomRight: Radius.circular(10),
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // NCADS 폼 (좌측)
+                  Expanded(
+                    flex: 54,
+                    child: Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '상담 기록',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          _NcadsFormRow(label: '대상자', filled: '피해아동'),
+                          _NcadsFormRow(label: '제공구분', filled: '제공'),
+                          _NcadsFormRow(label: '제공방법', filled: '방문'),
+                          _NcadsFormRow(label: '서비스유형', filled: '아보전'),
+                          _NcadsFormRow(label: '제공서비스', filled: '아동권리교육'),
+                          _NcadsFormRow(label: '제공장소', filled: '기관내'),
+                          _NcadsFormRow(label: '제공일시', filled: '4.8~4.10'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 구분선
+                  Container(width: 1, color: const Color(0xFFE5E8EB)),
+                  // 확장 패널 (우측) — 실제 Dash 확장프로그램 UI
+                  Expanded(
+                    flex: 46,
+                    child: Container(
+                      color: const Color(0xFFF3F4F6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 헤더
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            color: Colors.white,
+                            child: Row(
+                              children: [
+                                Image.asset('assets/icons/logo.png', width: 11, height: 11),
+                                const SizedBox(width: 3),
+                                const Text('Dash', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                                const Spacer(),
+                                const Icon(Icons.close, size: 8, color: Color(0xFF9CA3AF)),
+                              ],
+                            ),
+                          ),
+                          // 상태바
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            color: const Color(0xFFEEF2FF),
+                            child: const Row(
+                              children: [
+                                Text('✅', style: TextStyle(fontSize: 6)),
+                                SizedBox(width: 3),
+                                Expanded(child: Text('삽입할 DB를 선택해주세요', style: TextStyle(fontSize: 6, color: Color(0xFF3B6BFF), fontWeight: FontWeight.w600))),
+                              ],
+                            ),
+                          ),
+                          // 탭
+                          Container(
+                            color: Colors.white,
+                            child: Row(
+                              children: [
+                                _GuideExtTab(label: '대기 중', active: true),
+                                _GuideExtTab(label: '이전 기록', active: false),
+                              ],
+                            ),
+                          ),
+                          // 선택 버튼
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: const Text('○  선택', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+                            ),
+                          ),
+                          // DB 카드
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 5),
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text('류O진 아동 사례', style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800, color: Color(0xFF111827), letterSpacing: -0.2)),
+                                    const SizedBox(width: 3),
+                                    const Text('부사동', style: TextStyle(fontSize: 6, color: Color(0xFF8B95A1))),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                _ExtMiniRow(label: '대상자', value: '피해아동'),
+                                _ExtMiniRow(label: '제공구분', value: '제공'),
+                                _ExtMiniRow(label: '제공방법', value: '방문'),
+                                _ExtMiniRow(label: '서비스유형', value: '아보전'),
+                                _ExtMiniRow(label: '제공서비스', value: '심리치료'),
+                                _ExtMiniRow(label: '제공장소', value: '기관내'),
+                                _ExtMiniRow(label: '제공일시', value: '4.20 11:53~12:53'),
+                                const SizedBox(height: 3),
+                                const Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text('상세 보기 ▼', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+                                ),
+                                const Divider(height: 8, color: Color(0xFFE5E7EB)),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text('🔗 공유', style: TextStyle(fontSize: 6, color: Color(0xFF374151))),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          // 하단 버튼
+                          Container(
+                            margin: const EdgeInsets.fromLTRB(5, 0, 5, 4),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD1D5DB),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Center(
+                              child: Text('삽입할 DB를 선택해주세요', style: TextStyle(fontSize: 6, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BrowserDot extends StatelessWidget {
+  final Color color;
+  const _BrowserDot({required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 7, height: 7,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
+}
+
+class _NcadsFormRow extends StatelessWidget {
+  final String label;
+  final String filled;
+  const _NcadsFormRow({required this.label, required this.filled});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 40,
+            child: Text(label, style: const TextStyle(fontSize: 7, color: Color(0xFF6B7280))),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4FF),
+                border: Border.all(color: const Color(0xFFBDD0FF), width: 0.8),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(filled, style: const TextStyle(fontSize: 7, color: Color(0xFF3B5BDB), fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExtMiniRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _ExtMiniRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 32,
+            child: Text(label, style: const TextStyle(fontSize: 7, color: Color(0xFF6B7280))),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideExtTab extends StatelessWidget {
+  final String label;
+  final bool active;
+  const _GuideExtTab({required this.label, required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: active ? AppColors.primary : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          color: Colors.white,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 6.5,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              color: active ? AppColors.primary : const Color(0xFF9CA3AF),
             ),
           ),
         ),

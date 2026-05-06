@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>803548605147-j9gnf48ei2p61ngvl9is3kdi1caefrdv.apps.googleusercontent.com</string>
+	<string>803548605147-1ei1h5b6toer0icvnbpa26cl2r4us1cu.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.803548605147-j9gnf48ei2p61ngvl9is3kdi1caefrdv</string>
+	<string>com.googleusercontent.apps.803548605147-1ei1h5b6toer0icvnbpa26cl2r4us1cu</string>
 	<key>ANDROID_CLIENT_ID</key>
-	<string>803548605147-l7daf84ndtf9k4bk2sdkkgfb4o7evp57.apps.googleusercontent.com</string>
+	<string>803548605147-brag46fn3bk51tblc5i6o8g45t46cn7j.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyDA5YltJJPDOXSTXQnllXax1f_lPjD7HLc</string>
 	<key>GCM_SENDER_ID</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.dashMobile</string>
+	<string>com.dash.mobile</string>
 	<key>PROJECT_ID</key>
 	<string>dash-7cdea</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:803548605147:ios:ca59357ffcf7921cfc3afe</string>
+	<string>1:803548605147:ios:76b58db0a262b60bfc3afe</string>
 </dict>
 </plist>

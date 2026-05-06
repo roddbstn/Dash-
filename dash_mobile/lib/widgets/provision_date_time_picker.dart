@@ -34,7 +34,7 @@ class _ProvisionDateTimePickerState extends State<ProvisionDateTimePicker> {
     super.initState();
     final now = DateTime.now();
     _startSelectedDate = widget.initialStartDate ?? DateTime(now.year, now.month, now.day);
-    _endSelectedDate = widget.initialEndDate ?? _startSelectedDate;
+    _endSelectedDate = widget.initialEndDate; // null이면 단일 선택 상태 (범위 없음)
     
     _startHour = widget.initialStartDate?.hour ?? now.hour;
     _startMinute = widget.initialStartDate?.minute ?? now.minute;
@@ -310,35 +310,58 @@ class _CustomCalendarState extends State<_CustomCalendar> {
             }
 
             final isSelected = isStart || isEnd;
-            bool isStartInRange = isStart && widget.endSelectedDate != null;
-            bool isEndInRange = isEnd;
+            // 시작=종료가 같은 날짜면 범위 표시 없음 (단일 선택)
+            final isSingleDate = isStart && isEnd;
+            bool isStartInRange = isStart && widget.endSelectedDate != null && !isSingleDate;
+            bool isEndInRange = isEnd && widget.startSelectedDate != null && !isSingleDate;
 
             return GestureDetector(
               onTap: () => widget.onDateSelected(date),
               child: Stack(
+                clipBehavior: Clip.hardEdge,
                 alignment: Alignment.center,
                 children: [
-                  // Range highlight: half-cell for start/end, full-cell for middle
-                  if (isInRange || isStartInRange || isEndInRange)
-                    Positioned.fill(
-                      child: isInRange
-                          ? Container(color: AppColors.primaryLight)
-                          : isStartInRange
-                              ? Align(
-                                  alignment: Alignment.centerRight,
-                                  child: FractionallySizedBox(
-                                    widthFactor: 0.5,
-                                    child: Container(color: AppColors.primaryLight),
-                                  ),
-                                )
-                              : Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: FractionallySizedBox(
-                                    widthFactor: 0.5,
-                                    child: Container(color: AppColors.primaryLight),
-                                  ),
-                                ),
+                  // 중간 날짜: 전체 너비, 높이 44px (원보다 위아래로 4px 여유)
+                  if (isInRange)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      height: 44,
+                      child: ColoredBox(color: AppColors.primaryLight),
                     ),
+                  // 시작 날짜: 전체 너비, 왼쪽 끝 rounded (원을 감싸는 캡슐 왼쪽)
+                  if (isStartInRange)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      height: 44,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(22),
+                            bottomLeft: Radius.circular(22),
+                          ),
+                        ),
+                      ),
+                    ),
+                  // 종료 날짜: 전체 너비, 오른쪽 끝 rounded (원을 감싸는 캡슐 오른쪽)
+                  if (isEndInRange)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      height: 44,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.only(
+                            topRight: Radius.circular(22),
+                            bottomRight: Radius.circular(22),
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Selected circle
                   Container(
                     width: 36,
                     height: 36,

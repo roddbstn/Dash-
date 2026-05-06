@@ -21,6 +21,7 @@ import 'package:dash_mobile/screens/notification_tab.dart';
 import 'package:dash_mobile/screens/profile_tab.dart';
 import 'package:dash_mobile/screens/db_history_tab.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dash_mobile/user_guide_screen.dart';
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -1380,7 +1381,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         child: SafeArea(
           child: SizedBox(
-            height: 70,
+            height: 80,
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 600),
@@ -1423,54 +1424,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
       ),
-      floatingActionButton: (_currentIndex != 0 || _isModalOpen)
-          ? null
-          : Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(color: const Color(0xFFE5E8EB), width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(100),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(100),
-                  onTap: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CreateCaseScreen(),
-                      ),
-                    );
-                    if (result == true) {
-                      _loadData();
-                      _showToast('사례를 생성하였어요. DB를 작성해보세요!');
-                    }
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    child: Text(
-                      '+ 사례 생성',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: AppColors.textMain,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: _buildBody(),
     );
   }
@@ -1582,6 +1535,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _userName;
   bool _isProfileLoading = false;
 
+  /// 홈에 표시할 나의 DB 목록 (Injected 제외, 공유받은 임시 로컬 드래프트 제외)
+  List<dynamic> get _pendingDrafts => _drafts
+      .where((d) => d['status'] != 'Injected' && d['isShared'] != true)
+      .toList();
+
   Future<void> _fetchUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -1639,9 +1597,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       _buildUserGreeting(),
                       if (_userName != null && _userName!.trim().isNotEmpty)
                         const SizedBox(height: 8),
-                      _buildPcGuideBanner(),
-                      const SizedBox(height: 10),
                       _buildCtaCard(),
+                      const SizedBox(height: 12),
+                      _buildPcGuideBanner(),
                     ],
                   ),
                 ),
@@ -1722,9 +1680,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildCtaCard() {
-    final int totalDbCount =
-        _drafts.where((d) => d['status'] != 'Injected').length +
-        _sharedDrafts.length;
+    // pendingDrafts와 동일한 필터 적용으로 count 불일치 방지
+    final int totalDbCount = _pendingDrafts.length + _sharedDrafts.length;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
@@ -1748,22 +1705,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: RichText(
-                  text: TextSpan(
+                child: Text.rich(
+                  TextSpan(
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF222222),
                       letterSpacing: -0.6,
-                      height: 1.25,
+                      height: 1.3,
                     ),
                     children: [
-                      const TextSpan(text: '기입할 DB는 \n'),
+                      TextSpan(
+                        text: (_userName != null && _userName!.trim().isNotEmpty)
+                            ? '$_userName님, 기입할 DB는 \n'
+                            : '기입할 DB는 \n',
+                      ),
                       TextSpan(
                         text: '$totalDbCount개',
                         style: const TextStyle(
                           color: AppColors.primary,
                           fontWeight: FontWeight.w800,
+                          fontSize: 22,
                           decoration: TextDecoration.underline,
                           decorationColor: AppColors.primary,
                           decorationThickness: 2.0,
@@ -1831,8 +1793,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildUserGreeting() {
     if (_userName == null || _userName!.trim().isEmpty)
       return const SizedBox.shrink();
-    return RichText(
-      text: TextSpan(
+    return Text.rich(
+      TextSpan(
         children: [
           TextSpan(
             text: _userName,
@@ -1862,40 +1824,81 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildPcGuideBanner(),
-        const SizedBox(height: 10),
         _buildCtaCard(),
+        const SizedBox(height: 12),
+        _buildPcGuideBanner(),
       ],
     );
   }
 
   Widget _buildPcGuideBanner() {
     return GestureDetector(
-      onTap: () {}, // 향후 안내 연결 가능
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const UserGuideScreen()),
+      ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF222222),
-          borderRadius: BorderRadius.circular(12),
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFF1B2340), Color(0xFF2A3F80)],
+          ),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [
-            const Icon(Icons.laptop_mac_rounded,
-                size: 16, color: Colors.white),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text(
-                'PC에서 DB를 어떻게 기입하나요?',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
-                  letterSpacing: -0.2,
-                ),
+            // 아이콘 컨테이너
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.computer_rounded, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 14),
+            // 텍스트
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'PC에서 모바일로 쓴 DB 확인하려면?',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '서비스 이용 안내 보기',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.white.withValues(alpha: 0.65),
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const Icon(Icons.chevron_right,
-                size: 16, color: Colors.white),
+            const SizedBox(width: 8),
+            // 화살표 버튼
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.white),
+            ),
           ],
         ),
       ),
@@ -1907,10 +1910,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     double padWidth = 0,
     int crossAxisCount = 3,
   }) {
-    // 기입 완료(Injected) DB는 홈 목록에서 제외 → DB 내역 탭에서 표시
-    final pendingDrafts = _drafts
-        .where((d) => d['status'] != 'Injected')
-        .toList();
+    final pendingDrafts = _pendingDrafts;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1918,12 +1918,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         const Text(
           '나의 DB',
           style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            letterSpacing: -0.4,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSub,
+            letterSpacing: -0.2,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         if (pendingDrafts.isNotEmpty) ...[
           Container(
             decoration: BoxDecoration(
@@ -1964,12 +1965,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         const Text(
           '공유받은 DB',
           style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            letterSpacing: -0.4,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSub,
+            letterSpacing: -0.2,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         if (_sharedDrafts.isNotEmpty) ...[
           Container(
             decoration: BoxDecoration(
@@ -2026,11 +2028,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       orElse: () => null,
     );
 
+    // 해당 사례의 상담원 이름 조회
+    final counselorId = foundCase?['counselorId']?.toString();
+    final counselor = counselorId != null
+        ? _counselors.cast<Map<String, dynamic>?>().firstWhere(
+            (c) => c?['id']?.toString() == counselorId,
+            orElse: () => null,
+          )
+        : (_counselors.isNotEmpty ? _counselors[0] as Map<String, dynamic>? : null);
+    final counselorName = counselor?['name']?.toString();
+
     return SwipeableDraftCard(
       key: ValueKey(d['id']),
       d: d,
       index: index,
       isLast: isLast,
+      counselorName: counselorName,
       onTap: () => _goToForm(
         foundCase?['realName'] ?? d['caseName'],
         d['caseName'],
@@ -2086,6 +2099,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             'caseName': caseName,
             'dong': dong,
             'status': 'Draft',
+            'isShared': true, // 나의 DB 목록에 중복 노출 방지용
             'share_token': shareToken,
             'encryption_key': encKey,
             'target': d['target'] ?? '피해아동',

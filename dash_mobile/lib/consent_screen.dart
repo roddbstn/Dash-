@@ -3,6 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/privacy_policy_screen.dart';
 import 'package:dash_mobile/terms_screen.dart';
+import 'package:dash_mobile/security_detail_screen.dart';
+import 'package:dash_mobile/analytics_service.dart';
+import 'package:dash_mobile/nickname_screen.dart';
 
 class ConsentScreen extends StatefulWidget {
   const ConsentScreen({super.key});
@@ -33,6 +36,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
       _consentPrivacy && _consentTerms && _consentMarketing && _consentSensitive;
 
   void _toggleAll(bool value) {
+    AnalyticsService.consentAllToggled(value);
     setState(() {
       _consentPrivacy = value;
       _consentTerms = value;
@@ -41,13 +45,21 @@ class _ConsentScreenState extends State<ConsentScreen> {
     });
   }
 
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.screenConsent();
+  }
+
   Future<void> _proceed() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('consent_v1_completed', true);
     await prefs.setBool('consent_marketing', _consentMarketing);
+    AnalyticsService.consentComplete(marketingAgreed: _consentMarketing);
     if (mounted) {
-      // OnboardingScreen을 import하면 순환 import 가능성이 있으므로 route name 사용
-      Navigator.of(context).pushReplacementNamed('/onboarding');
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const NicknameScreen()),
+      );
     }
   }
 
@@ -94,19 +106,22 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     badgeColor: AppColors.primary,
                     checked: _consentPrivacy,
                     expanded: _expandPrivacy,
-                    onToggle: (v) => setState(() => _consentPrivacy = v),
-                    onExpand: () =>
-                        setState(() => _expandPrivacy = !_expandPrivacy),
+                    onToggle: (v) {
+                      AnalyticsService.consentCheckboxToggled('privacy', v);
+                      setState(() => _consentPrivacy = v);
+                    },
+                    onExpand: () {
+                      AnalyticsService.consentDropdownToggled('privacy', !_expandPrivacy);
+                      setState(() => _expandPrivacy = !_expandPrivacy);
+                    },
                     detail: '∙ 수집 항목: 이름(닉네임), 이메일 주소, 앱 사용 기록\n'
                         '∙ 수집 목적: 서비스 제공, 본인 확인, 상담 기록 관리\n'
                         '∙ 보유 기간: 회원 탈퇴 후 즉시 파기\n'
                         '  (단, 관계 법령에 따른 보존 기간 별도 적용)',
-                    onViewFull: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PrivacyPolicyScreen(),
-                      ),
-                    ),
+                    onViewFull: () {
+                      AnalyticsService.consentFullDocViewed('privacy_policy');
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
+                    },
                   ),
                   const SizedBox(height: 8),
                   _ConsentTile(
@@ -115,17 +130,20 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     badgeColor: AppColors.primary,
                     checked: _consentTerms,
                     expanded: _expandTerms,
-                    onToggle: (v) => setState(() => _consentTerms = v),
-                    onExpand: () =>
-                        setState(() => _expandTerms = !_expandTerms),
+                    onToggle: (v) {
+                      AnalyticsService.consentCheckboxToggled('terms', v);
+                      setState(() => _consentTerms = v);
+                    },
+                    onExpand: () {
+                      AnalyticsService.consentDropdownToggled('terms', !_expandTerms);
+                      setState(() => _expandTerms = !_expandTerms);
+                    },
                     detail: 'DASH 서비스 이용에 관한 이용자와 서비스 제공자의 권리·의무 및 '
                         '책임사항을 규정합니다. 서비스를 이용하시려면 본 약관에 동의하셔야 합니다.',
-                    onViewFull: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const TermsScreen(),
-                      ),
-                    ),
+                    onViewFull: () {
+                      AnalyticsService.consentFullDocViewed('terms');
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsScreen()));
+                    },
                   ),
                   const SizedBox(height: 28),
 
@@ -138,9 +156,14 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     badgeColor: const Color(0xFF8E8E93),
                     checked: _consentMarketing,
                     expanded: _expandMarketing,
-                    onToggle: (v) => setState(() => _consentMarketing = v),
-                    onExpand: () =>
-                        setState(() => _expandMarketing = !_expandMarketing),
+                    onToggle: (v) {
+                      AnalyticsService.consentCheckboxToggled('marketing', v);
+                      setState(() => _consentMarketing = v);
+                    },
+                    onExpand: () {
+                      AnalyticsService.consentDropdownToggled('marketing', !_expandMarketing);
+                      setState(() => _expandMarketing = !_expandMarketing);
+                    },
                     detail: '∙ 서비스 업데이트·기능 안내를 이메일·앱 알림으로 받습니다.\n'
                         '∙ 동의하지 않아도 서비스 이용에 제한이 없습니다.\n'
                         '∙ 수신 동의 후 설정 화면에서 언제든 철회 가능합니다.',
@@ -167,7 +190,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                             Text('🔒', style: TextStyle(fontSize: 13)),
                             SizedBox(width: 6),
                             Text(
-                              'DASH는 아동 정보를 보관하지 않습니다',
+                              'DASH는 구조적으로 내용을 볼 수 없습니다',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -178,15 +201,42 @@ class _ConsentScreenState extends State<ConsentScreen> {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          'DASH는 상담 내용을 기기에서 암호화한 뒤 공식 시스템으로 전달하는 '
-                          '보안 전송 도구입니다. DASH 서버에서는 누구도 암호화된 내용을 열람할 수 없으며, '
-                          '기입 완료된 기록은 즉시 삭제됩니다.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.blue.shade700,
-                            height: 1.55,
-                            letterSpacing: -0.1,
+                        RichText(
+                          text: TextSpan(
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade700,
+                              height: 1.55,
+                              letterSpacing: -0.1,
+                            ),
+                            children: const [
+                              TextSpan(text: '입력하신 내용은 기기를 떠나기 전에 암호화됩니다. '),
+                              TextSpan(
+                                text: '암호 열쇠는 상담원님의 기기에서만 생성되며, DASH 서버에는 전달되지 않습니다.',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              TextSpan(text: ' 열쇠 없이는 DASH 운영진을 포함해 누구도 내용을 열어볼 수 없습니다.\n'),
+                              TextSpan(text: 'DASH는 처음 설계 단계부터 운영진도 데이터에 접근할 수 없는 구조를 지향했습니다. 카카오 비밀채팅, 네이버 MYBOX 보안 폴더 등 국내 주요 서비스에서도 채택한 종단간 암호화(E2EE) 방식과 동일한 원리입니다.'),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: GestureDetector(
+                            onTap: () {
+                              AnalyticsService.consentFullDocViewed('security_detail');
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityDetailScreen()));
+                            },
+                            child: const Text(
+                              '→ 암호화 구조 자세히 보기',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF2563EB),
+                                letterSpacing: -0.1,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -199,13 +249,19 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     badgeColor: const Color(0xFFFF6B35),
                     checked: _consentSensitive,
                     expanded: _expandSensitive,
-                    onToggle: (v) => setState(() => _consentSensitive = v),
-                    onExpand: () =>
-                        setState(() => _expandSensitive = !_expandSensitive),
+                    onToggle: (v) {
+                      AnalyticsService.consentCheckboxToggled('sensitive', v);
+                      setState(() => _consentSensitive = v);
+                    },
+                    onExpand: () {
+                      AnalyticsService.consentDropdownToggled('sensitive', !_expandSensitive);
+                      setState(() => _expandSensitive = !_expandSensitive);
+                    },
                     detail: '∙ 처리 내용: 상담 기록, 사례 정보를 공식 시스템 입력을 위해 임시 처리\n'
-                        '∙ 처리 목적: 업무 보조 — 공식 시스템(NCADS 등) 자동 입력\n'
-                        '∙ 보관 기간: 기입 완료 즉시 삭제 / 미완료 시 최대 5년 후 자동 파기\n'
-                        '  (아동복지법 제28조)\n'
+                        '∙ 처리 목적: 모바일 앱 및 크롬·엣지·웨일 브라우저 확장프로그램 연계를 통한 아동학대정보시스템(NCADS) 서비스 제공 DB 자동 기입 업무 보조\n'
+                        '∙ 보관 기간: DASH 서버의 암호문은 회원 탈퇴 전까지 보존\n'
+                        '  (암호문은 서버에서 확인 불가)\n'
+                        '  미사용 계정은 최대 5년 후 자동 파기 (아동복지법 제28조)\n'
                         '∙ 기기 내 데이터는 AES-256 암호화 후 전송되며,\n'
                         '  서버에서는 복호화가 불가능합니다 (종단간 암호화, E2EE).',
                   ),
@@ -472,45 +528,52 @@ class _ConsentTile extends StatelessWidget {
             ),
           ),
           // 상세 내용
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(44, 0, 14, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    detail,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF6B7280),
-                      height: 1.7,
-                      letterSpacing: -0.1,
-                    ),
-                  ),
-                  if (onViewFull != null) ...[
-                    const SizedBox(height: 6),
-                    GestureDetector(
-                      onTap: onViewFull,
-                      child: const Text(
-                        '전문 보기 →',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2563EB),
-                          letterSpacing: -0.1,
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: AnimatedOpacity(
+                opacity: expanded ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 180),
+                child: expanded
+                    ? Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(44, 0, 14, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              detail,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7280),
+                                height: 1.7,
+                                letterSpacing: -0.1,
+                              ),
+                            ),
+                            if (onViewFull != null) ...[
+                              const SizedBox(height: 6),
+                              GestureDetector(
+                                onTap: onViewFull,
+                                child: const Text(
+                                  '전문 보기 →',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2563EB),
+                                    letterSpacing: -0.1,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 4),
+                          ],
                         ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                ],
+                      )
+                    : const SizedBox(width: double.infinity),
               ),
             ),
-            crossFadeState:
-                expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
           ),
         ],
       ),
