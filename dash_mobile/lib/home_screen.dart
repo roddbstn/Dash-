@@ -1118,7 +1118,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                                       isSelected: isSelected,
                                       sIndex: sIndex,
                                       isSelectionMode: _isSelectionMode,
-                                      onTap: () {
+                                      isEditing: isEditingCounselors,
+                                      onTap: isEditingCounselors ? () {} : () {
                                         Navigator.pop(modalContext);
                                         _goToForm(
                                           c['realName'],
@@ -1126,6 +1127,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                                           c['dong'],
                                           caseId: c['id'],
                                         );
+                                      },
+                                      onDelete: () async {
+                                        final confirmed = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            backgroundColor: Colors.white,
+                                            surfaceTintColor: Colors.transparent,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                            title: const Text('사례 삭제', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                            content: const Text('해당 사례를 삭제하시겠어요?', style: TextStyle(fontSize: 14, height: 1.5)),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(ctx, true),
+                                                child: const Text('삭제', style: TextStyle(color: AppColors.danger)),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirmed == true) {
+                                          final updatedCases = _cases.where((x) => x['id'] != c['id']).toList();
+                                          await StorageService.saveCases(updatedCases);
+                                          setState(() => _cases = updatedCases);
+                                          setModalState(() {});
+                                        }
                                       },
                                     );
                                   },

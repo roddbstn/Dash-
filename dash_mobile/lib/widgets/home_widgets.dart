@@ -10,7 +10,9 @@ class PressableCaseCard extends StatefulWidget {
   final bool isSelected;
   final int sIndex;
   final bool isSelectionMode;
+  final bool isEditing;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   const PressableCaseCard({
     super.key,
@@ -18,7 +20,9 @@ class PressableCaseCard extends StatefulWidget {
     required this.isSelected,
     required this.sIndex,
     required this.isSelectionMode,
+    this.isEditing = false,
     required this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -104,6 +108,23 @@ class _PressableCaseCardState extends State<PressableCaseCard> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                    ),
+                  ),
+                ),
+              if (widget.isEditing && widget.onDelete != null)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: GestureDetector(
+                    onTap: widget.onDelete,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.danger,
+                      ),
+                      child: const Icon(Icons.close, size: 14, color: Colors.white),
                     ),
                   ),
                 ),
