@@ -278,25 +278,44 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
+    padding: 0 12px;
     height: 48px;
-    background: var(--primary-light);
-    border-bottom: 1px solid rgba(49, 130, 246, 0.1);
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
 
 .status-left {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--primary);
 }
 
 .status-right {
     display: flex;
     align-items: center;
+}
+
+.refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: none;
+    color: var(--text-sub);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.refresh-btn:hover {
+    background: var(--border);
+    color: var(--text-main);
+}
+
+.refresh-btn:active {
+    transform: scale(0.92);
 }
 
 .profile-pic {
@@ -397,7 +416,6 @@ body {
     align-items: center;
     padding: 10px 0 0;
     margin-top: 10px;
-    border-top: 1px solid rgba(0,0,0,0.04);
     font-size: 12px;
     font-weight: 600;
     color: var(--text-hint);
@@ -506,7 +524,7 @@ body {
     color: var(--text-hint);
     font-weight: 500;
     flex-shrink: 0;
-    width: 65px;
+    width: 84px;
 }
 
 .info-value {
@@ -639,11 +657,10 @@ body {
 }
 
 .circle-icon {
-    font-size: 22px;
+    font-size: 15px;
     line-height: 1;
     display: flex;
     align-items: center;
-    margin-top: -3px; /* Visual alignment fix (lift up) */
 }
 
 .card-select-number {

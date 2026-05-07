@@ -122,13 +122,15 @@ const resultView = document.getElementById('result-view');
 const btnGoogleLogin = document.getElementById('btn-google-login');
 const btnLogout = document.getElementById('btn-logout');
 const btnRefresh = document.getElementById('btn-refresh');
+
+// 탭 클릭 이벤트 (MV3 CSP: inline onclick 대신 addEventListener 사용)
+document.getElementById('tab-pending').addEventListener('click', () => switchMainTab('pending'));
+document.getElementById('tab-history').addEventListener('click', () => switchMainTab('history'));
 const btnInject = document.getElementById('btn-inject');
 const btnBackToList = document.getElementById('btn-back-to-list');
 const userEmailEl = document.getElementById('user-email');
 const profilePicEl = document.getElementById('profile-pic');
 const statusBar = document.getElementById('status-bar');
-const statusIcon = document.getElementById('status-icon');
-const statusText = document.getElementById('status-text');
 const recordsContainer = document.getElementById('records-container');
 const emptyState = document.getElementById('empty-state');
 const actionBar = document.getElementById('action-bar');
@@ -1006,7 +1008,7 @@ function renderRecords() {
                 </div>
             </div>
             ${record.share_token ? `
-            <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #F2F4F6;">
+            <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:4px;">
                 <button class="btn-share-pending" data-token="${record.share_token}" data-key="${record.encryption_key || ''}" style="
                     display:inline-flex;align-items:center;gap:4px;padding:7px 14px;
                     background:#F2F4F6;color:#4E5968;border:none;border-radius:8px;
@@ -1221,26 +1223,17 @@ btnBackToList.addEventListener('click', () => {
     fetchHistory();
 });
 
+btnRefresh.addEventListener('click', () => {
+    fetchRecords();
+    fetchHistory();
+});
+
 // ==============================================
 // 8. 상태 메시지 표시
 // ==============================================
 
 function setStatus(type, text) {
-    statusBar.className = 'status-bar';
-    switch (type) {
-        case 'loading':
-            statusIcon.textContent = '🔄';
-            break;
-        case 'success':
-            statusIcon.textContent = '✅';
-            statusBar.classList.add('success');
-            break;
-        case 'error':
-            statusIcon.textContent = '❌';
-            statusBar.classList.add('error');
-            break;
-    }
-    statusText.textContent = text;
+    // 상태 텍스트 표시 제거 — status bar는 프로필/새로고침 용도로만 사용
 }
 
 let isSelectionMode = false;
