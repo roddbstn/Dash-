@@ -397,6 +397,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               'dong': s['dong'] ?? local['dong'],
               'serviceDescription': finalDescription,
               'agentOpinion': finalOpinion,
+              'reviewed_at': s['reviewed_at'],
+              'updated_at': s['updated_at'],
+              'service_type': s['service_type'] ?? local['service_type'],
+              'service_category': s['service_category'] ?? local['service_category'],
+              'service_name': s['service_name'] ?? local['service_name'],
               'startTime':
                   (s['status'] == 'Reviewed' && s['start_time'] != null)
                   ? s['start_time']
@@ -432,6 +437,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               'agentOpinion': s['agent_opinion'] ?? '',
               'share_token': s['share_token'],
               'status': s['status'],
+              'reviewed_at': s['reviewed_at'],
+              'updated_at': s['updated_at'],
               'is_server_only': true, // 로컬 복구 데이터 표시용
             });
           }
@@ -1672,7 +1679,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 64, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 350),
                     switchInCurve: Curves.easeOutCubic,
@@ -1713,14 +1720,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       TextSpan(
         style: const TextStyle(
           fontSize: 22,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w400,
           color: Color(0xFF222222),
           letterSpacing: -0.6,
           height: 1.35,
         ),
         children: [
           if (_userName != null && _userName!.trim().isNotEmpty)
-            TextSpan(text: '$_userName님,\n기입할 DB는 '),
+            TextSpan(
+              text: '$_userName님,',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          if (_userName != null && _userName!.trim().isNotEmpty)
+            const TextSpan(text: '\n기입할 DB는 '),
           if (_userName == null || _userName!.trim().isEmpty)
             const TextSpan(text: '기입할 DB는 '),
           TextSpan(
@@ -2222,7 +2234,7 @@ class _NavBarItemState extends State<_NavBarItem> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.selected ? const Color(0xFF222222) : const Color(0xFF8B95A1);
+    final color = widget.selected ? const Color(0xFF222222) : const Color(0xFFBEC7D0);
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
