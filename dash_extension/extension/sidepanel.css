@@ -532,6 +532,10 @@ body {
     font-weight: 600;
     text-align: right;
     flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 /* ===== Selection (Hidden) ===== */
