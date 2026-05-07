@@ -1646,7 +1646,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             child: Column(
               children: [
                 _buildGuideAndCta(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 _buildDbList(
                   isPad: true,
                   padWidth: constraints.maxWidth - 40,
@@ -1662,7 +1662,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             child: Column(
               children: [
                 _buildGuideAndCta(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 _buildDbList(isPad: false),
                 const SizedBox(height: 100),
               ],
