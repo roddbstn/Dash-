@@ -433,26 +433,11 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                             );
                           }
 
-                          // 세로 모드: 파란 번호 + 텍스트 3행 + 상담원 태그
+                          // 세로 모드: 텍스트 3행 + 상담원 태그
                           return Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // 왼쪽: 파란 번호
-                              SizedBox(
-                                width: 28,
-                                child: Text(
-                                  '${widget.index + 1}',
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.5,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // 가운데: 텍스트 3행
+                              // 왼쪽: 텍스트 3행
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -1142,7 +1142,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                           top: false,
                           child: Padding(
                             padding:
-                                const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                                const EdgeInsets.fromLTRB(20, 18, 20, 18),
                             child: Row(
                               children: [
                                 Expanded(
@@ -1639,7 +1639,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             child: Column(
               children: [
                 _buildGuideAndCta(),
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
                 _buildDbList(
                   isPad: true,
                   padWidth: constraints.maxWidth - 40,
@@ -1655,7 +1655,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             child: Column(
               children: [
                 _buildGuideAndCta(),
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
                 _buildDbList(isPad: false),
                 const SizedBox(height: 100),
               ],
@@ -1734,7 +1734,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               decorationThickness: 2.0,
             ),
           ),
-          const TextSpan(text: '입니다'),
+          const TextSpan(text: '예요'),
         ],
       ),
     );
@@ -1884,7 +1884,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             // 텍스트
             const Expanded(
               child: Text(
-                'PC에서 모바일로 쓴 DB 확인하려면?',
+                'PC에서 DB 확인하려면?',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -1942,6 +1942,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
           dividerColor: AppColors.border,
           padding: EdgeInsets.zero,
           labelPadding: const EdgeInsets.only(right: 24, bottom: 2),
+          splashFactory: NoSplash.splashFactory,
+          overlayColor: WidgetStateProperty.all(Colors.transparent),
           tabs: const [
             Tab(text: '나의 DB'),
             Tab(text: '공유받은 DB'),
