@@ -259,9 +259,9 @@ async function handleAutoFill(data) {
             markFail(F.MOVE_TIME || 'mvmnReqreHr');
         }
 
-        // 9. 서비스내용 & 소견
-        smartFill(F.DESC || 'svcProvDesc', data.desc_val);
-        smartFill(F.OPINION || 'consOpn', data.opn_val);
+        // 9. 서비스내용 & 소견 (빈 값이어도 기입 성공으로 처리 — 초록색 표시, 기존 텍스트 초기화)
+        smartFill(F.DESC || 'svcProvDesc', data.desc_val, false, true);
+        smartFill(F.OPINION || 'consOpn', data.opn_val, false, true);
 
         // 10. 대상자 — MutationObserver 기반 이중 드롭다운 기입
         if (data.recipient_fullVal && data.recipient_fullVal.length > 0) {
@@ -278,18 +278,20 @@ async function handleAutoFill(data) {
     }
 }
 
-function smartFill(id, value, forceFail = false) {
+function smartFill(id, value, forceFail = false, allowEmpty = false) {
     const el = document.getElementById(id);
     if (!el) return;
 
-    if (!forceFail && value !== undefined && value !== null && value !== '') {
-        el.value = value;
+    const hasValue = value !== undefined && value !== null && value !== '';
+
+    if (!forceFail && (hasValue || allowEmpty)) {
+        el.value = value || '';
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
         el.classList.add('dbauto-success');
         setTimeout(() => el.classList.remove('dbauto-success'), 1500);
     } else {
-        if (value) el.value = value;
+        el.value = ''; // 기존 텍스트 초기화
         el.classList.add('dbauto-fail');
     }
 }
