@@ -416,10 +416,12 @@ body {
 }
 
 .dropdown-arrow {
-    font-size: 11px;
     color: #ADB5BD;
     transition: transform 0.2s;
-    /* Removed margin-top to better center with label */
+    flex-shrink: 0;
+}
+.dropdown-arrow.open {
+    transform: rotate(180deg);
 }
 
 .record-dropdown-content {

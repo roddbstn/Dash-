@@ -152,6 +152,13 @@ class _HistoryCardState extends State<_HistoryCard> {
     final dong = d['dong'] ?? '';
     final serviceDescription = d['serviceDescription'] ?? d['service_description'] ?? '';
     final agentOpinion = d['agentOpinion'] ?? d['agent_opinion'] ?? '';
+    final serviceCategory = d['service_category'] ?? d['serviceCategory'] ?? '';
+    final serviceName = d['service_name'] ?? d['serviceName'] ?? '';
+    final serviceFullName = serviceCategory.isNotEmpty && serviceName.isNotEmpty
+        ? '$serviceCategory :: $serviceName'
+        : (serviceName.isNotEmpty ? serviceName : '-');
+    final rawServiceType = d['service_type'] ?? d['serviceType'] ?? '';
+    final serviceTypeDisplay = rawServiceType == '아보전' ? '아보전서비스' : (rawServiceType.isNotEmpty ? rawServiceType : '-');
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -171,39 +178,37 @@ class _HistoryCardState extends State<_HistoryCard> {
                 children: [
                   // 헤더
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Text(
-                              '$caseName 아동 사례',
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+                            Flexible(
+                              child: Text(
+                                '$caseName 아동 사례',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                             if (dong.isNotEmpty) ...[
-                              const SizedBox(height: 2),
+                              const SizedBox(width: 6),
                               Text(dong, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
                             ],
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0F0F5),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          _injectedTimeStr,
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF8B95A1)),
-                        ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _injectedTimeStr,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF8B95A1)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   // 요약 정보
                   _InfoRow(label: '제공일시', value: _dateTimeStr),
-                  _InfoRow(label: '제공서비스', value: d['service_name'] ?? '-'),
+                  _InfoRow(label: '제공서비스', value: serviceFullName),
                   _InfoRow(label: '제공방법', value: d['method'] ?? '-'),
                 ],
               ),
@@ -240,7 +245,7 @@ class _HistoryCardState extends State<_HistoryCard> {
                   children: [
                     _InfoRow(label: '대상자', value: d['target'] ?? '-'),
                     _InfoRow(label: '제공구분', value: d['provision_type'] ?? '-'),
-                    _InfoRow(label: '서비스유형', value: d['service_type'] ?? '-'),
+                    _InfoRow(label: '서비스제공유형', value: serviceTypeDisplay),
                     _InfoRow(label: '제공장소', value: d['location'] ?? '-'),
                     const SizedBox(height: 12),
                     const Text('서비스 내용', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF4E5968))),
@@ -275,7 +280,7 @@ class _InfoRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 72,
+            width: 84,
             child: Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1), fontWeight: FontWeight.w500)),
           ),
           Expanded(

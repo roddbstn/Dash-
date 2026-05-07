@@ -709,26 +709,29 @@ function renderHistory() {
                 <div class="record-info-list">
                     <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
                     <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' : ' + record.service_name : (record.service_name || '-')}</span></div>
+                    <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
                 </div>
                 <div class="record-dropdown-toggle" data-target="${dropdownId}">
                     <div style="flex:1;"></div>
                     <span class="dropdown-label">상세 보기</span>
-                    <span class="dropdown-arrow">▼</span>
+                    <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 4L6 8L10 4" stroke="#ADB5BD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
                 <div class="record-dropdown-content hidden" id="${dropdownId}">
                     <div class="record-info-list" style="margin-bottom:12px;">
                         <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
                         <div class="record-info-row"><span class="info-label">제공구분</span><span class="info-value">${record.provision_type || '-'}</span></div>
                         <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
-                        <div class="record-info-row"><span class="info-label">서비스유형</span><span class="info-value">${record.service_type || '-'}</span></div>
+                        <div class="record-info-row"><span class="info-label">서비스제공유형</span><span class="info-value">${record.service_type === '아보전' ? '아보전서비스' : (record.service_type || '-')}</span></div>
                         <div class="record-info-row"><span class="info-label">제공장소</span><span class="info-value">${record.location || '-'}</span></div>
+                        <div class="record-info-row"><span class="info-label">서비스제공횟수</span><span class="info-value">${record.service_count != null ? record.service_count + '회' : '-'}</span></div>
+                        <div class="record-info-row"><span class="info-label">이동소요시간</span><span class="info-value">${record.travel_time != null ? record.travel_time + '분' : '-'}</span></div>
                     </div>
                     <div style="font-weight:700;color:#4e5968;font-size:13px;margin-bottom:6px;">서비스 내용</div>
                     <div class="dropdown-text" style="background:transparent;padding:0;margin-bottom:12px;">${record.service_description || '(내용 없음)'}</div>
                     <div style="font-weight:700;color:#4e5968;font-size:13px;margin-bottom:6px;">상담원 소견</div>
                     <div class="dropdown-text" style="background:transparent;padding:0;">${record.agent_opinion || '(소견 없음)'}</div>
                 </div>
-                <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #F2F4F6;">
+                <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;">
                     <button class="btn-reinject" data-id="${record.id}">⚡ 재기입</button>
                 </div>
             `;
@@ -738,8 +741,11 @@ function renderHistory() {
                 e.stopPropagation();
                 const content = card.querySelector(`#${dropdownId}`);
                 const arrow = card.querySelector('.dropdown-arrow');
+                const label = card.querySelector('.dropdown-label');
                 content.classList.toggle('hidden');
-                arrow.textContent = content.classList.contains('hidden') ? '▼' : '▲';
+                const isHidden = content.classList.contains('hidden');
+                arrow.classList.toggle('open', !isHidden);
+                label.textContent = isHidden ? '상세 보기' : '접기';
             });
 
             // 재기입 버튼
@@ -977,15 +983,17 @@ function renderRecords() {
                 <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">제공구분</span><span class="info-value">${record.provision_type || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
-                <div class="record-info-row"><span class="info-label">서비스유형</span><span class="info-value">${record.service_type || '-'}</span></div>
+                <div class="record-info-row"><span class="info-label">서비스제공유형</span><span class="info-value">${record.service_type === '아보전' ? '아보전서비스' : (record.service_type || '-')}</span></div>
                 <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' : ' + record.service_name : (record.service_name || '-')}</span></div>
                 <div class="record-info-row"><span class="info-label">제공장소</span><span class="info-value">${record.location || '-'}</span></div>
+                <div class="record-info-row"><span class="info-label">서비스제공횟수</span><span class="info-value">${record.service_count != null ? record.service_count + '회' : '-'}</span></div>
+                <div class="record-info-row"><span class="info-label">이동소요시간</span><span class="info-value">${record.travel_time != null ? record.travel_time + '분' : '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
             </div>
             <div class="record-dropdown-toggle" data-target="${dropdownId}">
                 <div style="flex: 1;"></div>
                 <span class="dropdown-label">상세 보기</span>
-                <span class="dropdown-arrow">▼</span>
+                <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 4L6 8L10 4" stroke="#ADB5BD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div class="record-dropdown-content hidden" id="${dropdownId}">
                 <div class="dropdown-section" style="margin-bottom: 24px;">
@@ -1014,8 +1022,11 @@ function renderRecords() {
             e.stopPropagation();
             const content = card.querySelector(`#${dropdownId}`);
             const arrow = toggleBtn.querySelector('.dropdown-arrow');
+            const label = toggleBtn.querySelector('.dropdown-label');
             content.classList.toggle('hidden');
-            arrow.textContent = content.classList.contains('hidden') ? '▼' : '▲';
+            const isHidden = content.classList.contains('hidden');
+            arrow.classList.toggle('open', !isHidden);
+            label.textContent = isHidden ? '상세 보기' : '접기';
         });
 
         // 공유 버튼 (share_token 있을 때만 렌더됨)
