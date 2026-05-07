@@ -1,0 +1,6 @@
+# 민감 정보 파일
+dash_mobile/server/.env
+dash_mobile/server/service-account-file.json
+
+# OS
+.DS_Store

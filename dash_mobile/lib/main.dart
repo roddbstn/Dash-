@@ -8,13 +8,11 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/home_screen.dart';
-import 'package:dash_mobile/login_screen.dart';
 import 'package:dash_mobile/consent_screen.dart';
 import 'package:dash_mobile/onboarding_screen.dart';
 import 'package:dash_mobile/firebase_options.dart';
 import 'package:dash_mobile/storage_service.dart';
-import 'package:dash_mobile/nickname_screen.dart';
-import 'package:dash_mobile/pin_setup_screen.dart';
+
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -110,7 +108,7 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
-// ── 비로그인 라우터: 최초 방문 → 온보딩, 재방문 → 로그인 ──────────────
+// ── 비로그인 라우터: 최초 방문 → 온보딩 1페이지, 재방문(로그아웃) → 온보딩 4페이지
 class _PreLoginRouter extends StatelessWidget {
   const _PreLoginRouter();
 
@@ -124,22 +122,25 @@ class _PreLoginRouter extends StatelessWidget {
           return const _SplashScreen();
         }
         final onboardingDone = snapshot.data ?? false;
-        return onboardingDone ? const LoginScreen() : const OnboardingScreen();
+        return OnboardingScreen(initialPage: onboardingDone ? 3 : 0);
       },
     );
   }
 }
 
 // ── 로그인 후 동의 완료 여부에 따른 라우터 ──────────────────────────────
+// 닉네임·PIN 설정은 신규 회원가입(ConsentScreen 통과) 직후에만 실행됩니다.
+// 로그아웃 후 재로그인한 사용자는 동의가 이미 완료되어 있으므로 바로 홈으로 이동합니다.
 class _PostLoginRouter extends StatelessWidget {
   const _PostLoginRouter();
 
   Future<String> _resolveRoute() async {
     final prefs = await SharedPreferences.getInstance();
     final consentDone = prefs.getBool('consent_v1_completed') ?? false;
+    // 동의가 안 된 경우(최초 가입)만 동의 화면으로
     if (!consentDone) return 'consent';
-    final nickname = await StorageService.getUserNickname();
-    if (nickname == null || nickname.isEmpty) return 'nickname';
+    // 동의 완료된 사용자는 재로그인이든 신규든 바로 홈으로
+    // (닉네임/PIN 설정은 ConsentScreen → NicknameScreen 플로우에서만 진행)
     return 'home';
   }
 
@@ -154,10 +155,6 @@ class _PostLoginRouter extends StatelessWidget {
         switch (snapshot.data) {
           case 'consent':
             return const ConsentScreen();
-          case 'nickname':
-            return const NicknameScreen();
-          case 'pin_setup':
-            return const PinSetupScreen();
           default:
             return const HomeScreen();
         }

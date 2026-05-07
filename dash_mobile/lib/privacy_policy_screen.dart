@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
+import 'package:dash_mobile/analytics_service.dart';
+import 'package:dash_mobile/security_detail_screen.dart';
 
-class PrivacyPolicyScreen extends StatelessWidget {
+class PrivacyPolicyScreen extends StatefulWidget {
   const PrivacyPolicyScreen({super.key});
+
+  @override
+  State<PrivacyPolicyScreen> createState() => _PrivacyPolicyScreenState();
+}
+
+class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.screenPrivacyPolicy();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +47,67 @@ class PrivacyPolicyScreen extends StatelessWidget {
             _intro(),
             const SizedBox(height: 28),
 
+            // 보안에 대해
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.lock_outline, size: 15, color: Color(0xFF2563EB)),
+                      SizedBox(width: 6),
+                      Text(
+                        '보안에 대해',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1D4ED8),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _securityRow('모든 상담 내용은 기기에서 AES-256으로 암호화돼요.'),
+                  _securityRow('DASH 서버는 내용을 열람하거나 저장하지 않아요.'),
+                  _securityRow('시스템 전송 완료 후 서버 데이터는 즉시 삭제돼요.'),
+                  const SizedBox(height: 6),
+                  const Divider(height: 1, color: Color(0xFFDBEAFE)),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SecurityDetailScreen()),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          '암호화 구조 자세히 보기',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2563EB),
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                        SizedBox(width: 3),
+                        Icon(Icons.arrow_forward_ios, size: 10, color: Color(0xFF2563EB)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
             // 0. DASH 서비스의 개인정보 처리 원칙
             _Section(
               number: '0',
@@ -43,6 +117,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 children: [
                   _highlightBox(
                     '🔒 DASH 서버는 상담 내용을 볼 수 없습니다.\n\n'
+                    'DASH는 상담원이 모바일 앱에 DB 내용을 입력하면, PC 브라우저 확장프로그램(크롬·엣지·웨일)이 이를 전달받아 아동학대정보시스템(NCADS)에 자동으로 기입해 주는 서비스입니다. '
+                    '데이터가 모바일 → 서버 → 확장프로그램 순으로 전달되는 구조이기 때문에, 아래와 같은 방식으로 개인정보를 보호합니다.\n\n'
                     '상담원이 모바일에 내용을 입력하면, 전송 전에 자물쇠가 채워집니다. '
                     '이것을 암호화라고 합니다. 암호화된 내용은 알아볼 수 없는 문자 덩어리가 되어 '
                     '서버로 이동합니다. 자물쇠를 여는 것은 복호화라고 하는데, 열쇠는 오직 '
@@ -130,8 +206,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     rows: [
                       ['일반 개인정보\n(이름, 이메일)', '회원 탈퇴 후 즉시 파기', '-'],
                       [
-                        '아동 관련 기록\n(service_drafts)',
-                        '전송 완료 시 즉시 삭제\n미완료 시 최대 5년 후\n자동 파기',
+                        '아동 관련 기록\n(DB 기록)',
+                        'NCADS 등 공식 시스템에\n전송 완료 후 앱에서 삭제\n(미전송 기록은 최대 5년\n보존 후 자동 파기)',
                         '아동복지법 제28조',
                       ],
                       ['로그인 기록', '1년', '통신비밀보호법'],
@@ -141,7 +217,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   _highlightBox(
                     '📌 자동 파기 정책\n'
-                    '법정 보존기간이 경과된 상담 기록은 매일 새벽 2시에 자동으로 파기됩니다. '
+                    '법정 보존기간(5년)이 경과된 상담 기록은 매일 새벽 2시에 자동으로 파기됩니다. '
                     '파기 이력은 retention_policy_log 테이블에 기록되어 관리됩니다.',
                   ),
                 ],
@@ -166,7 +242,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     '∙ 상담 내용은 기기에서 자물쇠가 채워진 뒤(암호화, AES-256) 서버로 전송됩니다.\n'
                     '  → 서버에는 잠긴 내용만 있어 DASH는 내용을 볼 수 없습니다.\n'
                     '  → 잠금을 풀 수 있는 열쇠(복호화 키)는 상담원 본인의 PC에만 있습니다.\n'
-                    '∙ 기입 완료된 기록은 앱에서 즉시 삭제 처리됩니다.\n'
+                    '∙ NCADS 등 공식 시스템에 전송이 완료된 DB 기록은 DASH 앱과 서버에서 즉시 삭제됩니다.\n'    '  (상담 내용이 공식 시스템에 들어가고 나면, DASH에는 해당 기록이 남지 않습니다.)\n'
                     '∙ 미완료 기록은 아동복지법 제28조에 따라 최대 5년 보존 후 자동 파기됩니다.\n'
                     '∙ 업무 목적 외 제3자에게 제공되지 않습니다.',
                   ),
@@ -513,15 +589,13 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ).toList(),
           ),
           _childInfoRow('아동 식별',
-              '이름(마스킹 처리)\n생년월일, 성별', '상담 대상 아동 식별'),
+              '이름(마스킹 처리)', '상담 대상 아동 식별'),
           _childInfoRow('가족 관계',
-              '보호자 관계, 가족 구성', '사례 환경 파악'),
+              '사례 관련 대상자 유형\n(피해아동, 보호자 등)', '사례 환경 파악'),
           _childInfoRow('상담 내용',
-              '학대 유형, 상담 경위\n상담 내용 요약', '공식 시스템\n(NCIS) 입력 보조'),
-          _childInfoRow('보호 조치',
-              '조치 사항, 사후 관리 계획', '사례 관리 연속성'),
+              '서비스 내용,\n상담원 소견', '공식 시스템\n(NCIS) 입력 보조'),
           _childInfoRow('주소 정보',
-              '아동 소재지(시/군/구 단위)', '관할 기관 연계'),
+              '아동 소재지(시/군/구 단위)', '상담 대상 아동 식별'),
         ],
       ),
     );
@@ -578,6 +652,29 @@ class PrivacyPolicyScreen extends StatelessWidget {
               color: Color(0xFF92400E),
               height: 1.7,
               letterSpacing: -0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _securityRow(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('∙  ', style: TextStyle(fontSize: 12, color: Color(0xFF3B82F6))),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF1E3A5F),
+                height: 1.5,
+                letterSpacing: -0.1,
+              ),
             ),
           ),
         ],

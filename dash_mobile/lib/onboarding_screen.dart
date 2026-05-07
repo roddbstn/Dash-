@@ -6,19 +6,19 @@ import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:dash_mobile/consent_screen.dart';
 import 'package:dash_mobile/home_screen.dart';
-import 'package:dash_mobile/nickname_screen.dart';
-import 'package:dash_mobile/storage_service.dart';
+
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final int initialPage;
+  const OnboardingScreen({super.key, this.initialPage = 0});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
+  late final PageController _pageController;
+  late int _currentPage;
   bool _isLoading = false;
 
   static const int _pageCount = 4;
@@ -29,7 +29,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    AnalyticsService.screenOnboarding(0);
+    _currentPage = widget.initialPage;
+    _pageController = PageController(initialPage: widget.initialPage);
+    AnalyticsService.screenOnboarding(_currentPage);
   }
 
   Future<void> _signInWithGoogle() async {
@@ -80,14 +82,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         final p = await SharedPreferences.getInstance();
         final consentDone = p.getBool('consent_v1_completed') ?? false;
         if (consentDone) {
-          final nickname = await StorageService.getUserNickname();
+          // 동의 완료된 사용자 → 재로그인이든 신규든 홈으로 바로
+          // (닉네임/PIN 설정은 ConsentScreen → NicknameScreen 플로우에서만 진행)
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (_) => (nickname == null || nickname.isEmpty)
-                    ? const NicknameScreen()
-                    : const HomeScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
               (route) => false,
             );
           }
@@ -725,8 +724,8 @@ class _OnboardingPage2 extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _PageLayout(
-      title: '작성한 DB를\n곧바로 시스템에',
-      subtitle: '크롬 확장프로그램에 저장해놓고,\n시스템에 원클릭 기입하세요',
+      title: '모바일로 DB 쓰고,\n확장프로그램에서 기입하기',
+      subtitle: '확장프로그램에 DB를 보관해놓고\n시스템에 한번에 기입하세요',
       illustration: _Page2Illustration(),
     );
   }
@@ -742,38 +741,6 @@ class _Page2Illustration extends StatelessWidget {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.bolt, color: Color(0xFFF59E0B), size: 14),
-                  SizedBox(width: 5),
-                  Text(
-                    '클릭 한 번으로 자동 입력',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF111827),
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
             Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -785,7 +752,10 @@ class _Page2Illustration extends StatelessWidget {
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Positioned.fill(child: _NCADSBrowserMock()),
+                      Positioned(
+                        top: 0, left: 0, right: 0,
+                        child: _NCADSBrowserMock(),
+                      ),
                       Positioned(
                         top: 0,
                         right: 0,
@@ -1168,6 +1138,7 @@ class _NCADSBrowserMock extends StatelessWidget {
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -1218,8 +1189,7 @@ class _NCADSBrowserMock extends StatelessWidget {
               ],
             ),
           ),
-          Expanded(
-            child: SingleChildScrollView(
+          SingleChildScrollView(
               physics: const NeverScrollableScrollPhysics(),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
@@ -1251,8 +1221,10 @@ class _NCADSBrowserMock extends StatelessWidget {
                     _NCADSFormRow(label: '제공구분', value: '제공', filled: true),
                     _NCADSFormRow(
                         label: '서비스유형', value: '아보전', filled: true),
-                    _NCADSFormRow(
-                        label: '대상자', value: '피해아동', filled: true),
+                    _NCADSDropdownRow(
+                        label: '대상자',
+                        items: ['피해아동', '류O진'],
+                        selected: ''),
                     _NCADSFormRow(
                       label: '제공기관',
                       value: '대전광역시아동보호전문기관',
@@ -1262,11 +1234,10 @@ class _NCADSBrowserMock extends StatelessWidget {
                         label: '제공장소', value: '기관내', filled: true),
                     _NCADSFormRow(
                       label: '제공일시',
-                      value: '3/17 16:00~17:00',
+                      value: '4.20(일) 11:00~12:00',
                       filled: true,
                     ),
-                    _NCADSFormRow(
-                        label: '서비스\n제공자', value: '김상담원', filled: true),
+                    _NCADSUnfilledRow(label: '서비스\n제공자'),
                     _NCADSTextareaRow(
                       label: '서비스내용',
                       text: '아동은 낯선 환경에서 심한 불안 증상을 보이며, 보호자와 분리 시 과도한 울음과 신체 증상을 나타냄.',
@@ -1289,7 +1260,6 @@ class _NCADSBrowserMock extends StatelessWidget {
                   ],
                 ),
               ),
-            ),
           ),
         ],
       ),
@@ -1350,6 +1320,123 @@ class _NCADSFormRow extends StatelessWidget {
     );
   }
 }
+
+class _NCADSDropdownRow extends StatelessWidget {
+  final String label;
+  final List<String> items;
+  final String selected;
+  const _NCADSDropdownRow({
+    required this.label,
+    required this.items,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 38,
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 7, color: Color(0xFF6B7280), height: 1.3),
+                ),
+              ),
+              const SizedBox(width: 3),
+              const Icon(Icons.keyboard_arrow_down, size: 8, color: Color(0xFF9CA3AF)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          // 드롭다운 항목들 표시
+          ...items.map((item) => Container(
+            margin: const EdgeInsets.only(bottom: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            decoration: BoxDecoration(
+              color: item == selected ? const Color(0xFFFEFCE8) : Colors.white,
+              borderRadius: BorderRadius.circular(2),
+              border: Border.all(
+                color: item == selected ? const Color(0xFFFDE047) : const Color(0xFFE5E7EB),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item,
+                    style: TextStyle(
+                      fontSize: 7,
+                      fontWeight: FontWeight.w600,
+                      color: item == selected ? const Color(0xFF78350F) : const Color(0xFF374151),
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+                if (item == selected)
+                  const Icon(Icons.check_circle_outline, size: 8, color: Color(0xFF059669)),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+// 미기입 상태 행 (대상자/서비스 제공자 등 자동 선택 불가 항목)
+class _NCADSUnfilledRow extends StatelessWidget {
+  final String label;
+  const _NCADSUnfilledRow({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 38,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 7, color: Color(0xFF6B7280), height: 1.3),
+            ),
+          ),
+          const SizedBox(width: 3),
+          Expanded(
+            child: Text(
+              '직접 기입 필요',
+              style: const TextStyle(
+                fontSize: 7,
+                color: Color(0xFFD1D5DB),
+                fontStyle: FontStyle.italic,
+                height: 1.3,
+              ),
+            ),
+          ),
+          const Icon(Icons.edit_outlined, size: 8, color: Color(0xFFD1D5DB)),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _NCADSButton extends StatelessWidget {
   final String label;
@@ -1431,136 +1518,170 @@ class _DashExtensionPopup extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
+            color: Colors.black.withValues(alpha: 0.14),
             blurRadius: 14,
             offset: const Offset(-2, 4),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            borderRadius: BorderRadius.circular(10),
-          ),
+          color: const Color(0xFFF3F4F6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // 헤더
               Container(
-                width: double.infinity,
-                color: AppColors.primary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                color: Colors.white,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.extension, size: 9, color: Colors.white),
-                        SizedBox(width: 3),
-                        Text(
-                          'DASH',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text('×',
-                        style:
-                            TextStyle(fontSize: 10, color: Colors.white70)),
+                    Image.asset('assets/icons/logo.png', width: 11, height: 11),
+                    const SizedBox(width: 3),
+                    const Text('Dash', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                    const Spacer(),
+                    const Icon(Icons.close, size: 8, color: Color(0xFF9CA3AF)),
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+              // 상태바
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                color: const Color(0xFFEEF2FF),
+                child: const Row(
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '강O수 아동 사례',
-                            style: const TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF111827),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFD1FAE5),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            '완료',
-                            style: TextStyle(
-                              fontSize: 7,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF059669),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    const Text('유천동',
-                        style:
-                            TextStyle(fontSize: 7, color: Color(0xFF9CA3AF))),
-                    const SizedBox(height: 6),
-                    Container(height: 1, color: const Color(0xFFF3F4F6)),
-                    const SizedBox(height: 6),
-                    _ExtCardRow(label: '제공구분', value: '제공'),
-                    _ExtCardRow(label: '제공서비스', value: '아보전'),
-                    _ExtCardRow(label: '대상자', value: '피해아동'),
-                    _ExtCardRow(label: '제공장소', value: '기관내'),
-                    _ExtCardRow(label: '제공일시', value: '3/17 16:00~17:00'),
-                    const SizedBox(height: 7),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: const Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.bolt, size: 9, color: Colors.white),
-                            SizedBox(width: 3),
-                            Text(
-                              '자동 기입',
-                              style: TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    Text('✅', style: TextStyle(fontSize: 6)),
+                    SizedBox(width: 3),
+                    Expanded(
+                      child: Text('삽입할 DB를 선택해주세요',
+                          style: TextStyle(fontSize: 6, color: Color(0xFF3B6BFF), fontWeight: FontWeight.w600)),
                     ),
                   ],
+                ),
+              ),
+              // 탭
+              Container(
+                color: Colors.white,
+                child: Row(
+                  children: [
+                    _ExtTab(label: '대기 중', active: true),
+                    _ExtTab(label: '이전 기록', active: false),
+                  ],
+                ),
+              ),
+              // 선택 버튼
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text('○  선택', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+                ),
+              ),
+              // DB 카드
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 5),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Text('류O진 아동 사례',
+                            style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800, color: Color(0xFF111827), letterSpacing: -0.2)),
+                        SizedBox(width: 3),
+                        Text('부사동', style: TextStyle(fontSize: 6, color: Color(0xFF8B95A1))),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    _ExtCardRow(label: '대상자', value: '피해아동'),
+                    _ExtCardRow(label: '제공구분', value: '제공'),
+                    _ExtCardRow(label: '제공방법', value: '방문'),
+                    _ExtCardRow(label: '서비스유형', value: '아보전'),
+                    _ExtCardRow(label: '제공서비스', value: '안전지원 :: 심리치료'),
+                    _ExtCardRow(label: '제공장소', value: '기관내'),
+                    _ExtCardRow(label: '제공일시', value: '4.20(일) 11:00~12:00'),
+                    const SizedBox(height: 3),
+                    const Align(
+                      alignment: Alignment.centerRight,
+                      child: Text('상세 보기 ▼', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+                    ),
+                    const Divider(height: 8, color: Color(0xFFE5E7EB)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('🔗 공유', style: TextStyle(fontSize: 6, color: Color(0xFF374151))),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 5),
+              // 하단 버튼 (활성화 상태 - 파란색)
+              Container(
+                margin: const EdgeInsets.fromLTRB(5, 0, 5, 5),
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Center(
+                  child: Text(
+                    '류O진 아동 사례 삽입',
+                    style: TextStyle(
+                      fontSize: 6,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExtTab extends StatelessWidget {
+  final String label;
+  final bool active;
+  const _ExtTab({required this.label, required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            bottom: BorderSide(
+              color: active ? AppColors.primary : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 6.5,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              color: active ? AppColors.primary : const Color(0xFF9CA3AF),
+            ),
           ),
         ),
       ),
@@ -1576,21 +1697,21 @@ class _ExtCardRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Row(
         children: [
           SizedBox(
             width: 42,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 7, color: Color(0xFF9CA3AF)),
+              style: const TextStyle(fontSize: 5, color: Color(0xFF9CA3AF)),
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: const TextStyle(
-                fontSize: 7,
+                fontSize: 5,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF374151),
               ),
@@ -1902,7 +2023,7 @@ class _ReviewerPhoneMockupState extends State<_ReviewerPhoneMockup>
               ),
               child: const Center(
                 child: Text(
-                  '검토 완료 알림 보내기',
+                  '수정 완료 알림',
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,

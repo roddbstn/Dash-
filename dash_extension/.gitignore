@@ -1,4 +1,5 @@
 .DS_Store
+*.pem
 dbauto_extension.zip
 dash_fast_db_entry.zip
 *.xlsx

@@ -53,7 +53,7 @@ function closeModal() {
 }
 
 function confirmNotify() {
-    alert('사례 담당자에게 검토 완료 알림을 보냈습니다.');
+    alert('사례 담당자에게 수정 완료 알림을 보냈습니다.');
     closeModal();
 }
 

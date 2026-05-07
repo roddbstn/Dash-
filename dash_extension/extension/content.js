@@ -183,6 +183,7 @@ async function handleAutoFill(data) {
         // 매핑 테이블 (config에서 가져오거나 폴백)
         const provCdMap = CFG.PROV_CD_MAP || { '제공': 'A', '부가업무': 'B', '거부': 'C' };
         const meansMap = CFG.MEANS_MAP || { '전화': 'A', '내방': 'B', '방문': 'C' };
+        const typeMap = CFG.TYPE_MAP || { '아보전': 'A', '연계': 'B', '통합': 'C' };
         const locMap = CFG.LOCATION_MAP || { '기관내': 'A', '아동가정': 'B', '유관기관': 'C', '기타': 'X' };
         const svcMap = CFG.SERVICE_MAP || {};
 
@@ -193,8 +194,9 @@ async function handleAutoFill(data) {
         smartFill(F.MEANS || 'provMeansCd', meansMap[data.provMeansCd_val] || data.provMeansCd_val || '');
 
         // 3. 서비스제공유형
-        if (data.provTyCd_val) {
-            smartFill(F.TYPE || 'provTyCd', data.provTyCd_val);
+        const provTyMapped = typeMap[data.provTyCd_val] || data.provTyCd_val;
+        if (provTyMapped) {
+            smartFill(F.TYPE || 'provTyCd', provTyMapped);
         } else {
             markFail(F.TYPE || 'provTyCd');
         }

@@ -40,6 +40,9 @@ window.DBAuto.Config = Object.freeze({
     // 서비스제공방법 (Select)
     MEANS_MAP: { '전화': 'A', '내방': 'B', '방문': 'C' },
 
+    // 서비스제공유형 (Select)
+    TYPE_MAP: { '아보전': 'A', '연계': 'B', '통합': 'C' },
+
     // 제공장소 (Select)
     LOCATION_MAP: { '기관내': 'A', '아동가정': 'B', '유관기관': 'C', '기타': 'X' },
 

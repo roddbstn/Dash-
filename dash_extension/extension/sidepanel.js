@@ -5,10 +5,12 @@
 
 // ===== 설정 =====
 const API_BASE = 'https://dash.qpon/api';
+const FIREBASE_API_KEY = 'AIzaSyDd8anDd8ASoz9zr6oZ_DUwPQMiELVSxjE'; // From mobile google-services.json
 
 // Google OAuth — launchWebAuthFlow (Chrome / Edge 공통 동작)
-const GOOGLE_CLIENT_ID = '918773436696-ncvqmvrgrp5l1h10g0boe9hddv7s70fo.apps.googleusercontent.com';
-const OAUTH_REDIRECT_URI = `https://${chrome.runtime.id}.chromiumapp.org/`;
+// Firebase 프로젝트(dash-7cdea)의 Web client ID (client_type: 3, google-services.json 기준)
+const GOOGLE_CLIENT_ID = '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com';
+const OAUTH_REDIRECT_URI = `https://${chrome.runtime.id}.chromiumapp.org`;
 
 async function getGoogleAccessToken(interactive) {
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -49,42 +51,42 @@ async function getGoogleTokenViaAuthToken() {
     });
 }
 
-// 팝업 없이 조용히 토큰 갱신 (SSE 재연결, 세션 복원 시 사용)
-// chrome.identity가 만료된 토큰을 자동 갱신해줌
-async function getFreshTokenSilent() {
-    return new Promise((resolve, reject) => {
-        chrome.identity.getAuthToken({ interactive: false }, (token) => {
-            if (chrome.runtime.lastError || !token) {
-                reject(new Error(chrome.runtime.lastError?.message || 'Silent refresh 실패'));
-            } else {
-                resolve(token);
-            }
-        });
+// 구글 액세스 토큰을 Firebase ID Token으로 교환 (백엔드 verifyIdToken 대응)
+async function getFirebaseIdToken(googleAccessToken) {
+    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_API_KEY}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            postBody: `access_token=${googleAccessToken}&providerId=google.com`,
+            requestUri: 'http://localhost',
+            returnIdpCredential: true,
+            returnSecureToken: true
+        })
     });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Firebase Auth failed');
+    return data.idToken;
 }
 
-// 공통 로그인 처리 (토큰 → 사용자정보 → 저장 → PIN 확인)
-async function handleGoogleLogin(token) {
+// 팝업 없이 조용히 토큰 갱신 (SSE 재연결, 세션 복원 시 사용)
+// launchWebAuthFlow(prompt=none)으로 Firebase Web client 기준 토큰 갱신
+async function getFreshTokenSilent() {
+    const googleToken = await getGoogleAccessToken(false); // interactive: false
+    return await getFirebaseIdToken(googleToken);
+}
+async function handleGoogleLogin(googleToken) {
+    // 1. 구글 유저 정보 가져오기 (이메일, 사진 등)
     const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${googleToken}` }
     });
     const userInfo = await response.json();
 
-    currentOAuthToken = token;
+    // 2. 구글 액세스 토큰을 Firebase ID Token으로 교환
+    const idToken = await getFirebaseIdToken(googleToken);
+    currentOAuthToken = idToken; // 이제부터 모든 API 요청에 Firebase ID Token 사용
 
-    let firebaseUid = userInfo.id;
-    try {
-        const uidRes = await fetch(
-            `${API_BASE}/test/uid-by-email?email=${encodeURIComponent(userInfo.email)}`,
-            { headers: authHeaders() }
-        );
-        if (uidRes.ok) {
-            const uidData = await uidRes.json();
-            if (uidData.uid) firebaseUid = uidData.uid;
-        }
-    } catch (e) {
-        console.warn('Firebase UID 조회 실패, Google ID 사용:', e);
-    }
+    const firebaseUid = userInfo.id;
 
     currentUser = {
         uid: firebaseUid,
@@ -94,7 +96,7 @@ async function handleGoogleLogin(token) {
     };
 
     chrome.storage.local.set({ dashUser: currentUser });
-    chrome.storage.session.set({ cachedOAuthToken: token });
+    chrome.storage.session.set({ cachedOAuthToken: idToken });
 
     await checkPinAndProceed();
 }
@@ -159,15 +161,8 @@ btnGoogleLogin.addEventListener('click', async () => {
     if (contentsSpan) contentsSpan.textContent = '로그인 중...';
 
     try {
-        // 1차: getAuthToken (Chrome 프로필 계정 연동 — 빠름)
-        let token = null;
-        try {
-            token = await getGoogleTokenViaAuthToken();
-        } catch (authTokenErr) {
-            // getAuthToken 실패 시 launchWebAuthFlow로 폴백
-            console.warn('getAuthToken 실패, launchWebAuthFlow 시도:', authTokenErr.message);
-            token = await getGoogleAccessToken(true);
-        }
+        // launchWebAuthFlow로 Firebase Web client ID 기준 액세스 토큰 획득
+        const token = await getGoogleAccessToken(true);
         await handleGoogleLogin(token);
     } catch (error) {
         console.error('Google 로그인 실패:', error);
@@ -735,11 +730,6 @@ function renderHistory() {
                 </div>
                 <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #F2F4F6;">
                     <button class="btn-reinject" data-id="${record.id}">⚡ 재기입</button>
-                    <button class="btn-share-history" data-token="${record.share_token || ''}" data-key="${record.encryption_key || ''}" style="
-                        display:inline-flex;align-items:center;gap:4px;padding:7px 14px;
-                        background:#F2F4F6;color:#4E5968;border:none;border-radius:8px;
-                        font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
-                    ">🔗 공유</button>
                 </div>
             `;
 
@@ -756,18 +746,6 @@ function renderHistory() {
             card.querySelector('.btn-reinject').addEventListener('click', (e) => {
                 e.stopPropagation();
                 reinjectRecord(record);
-            });
-
-            // 공유 버튼
-            card.querySelector('.btn-share-history').addEventListener('click', (e) => {
-                e.stopPropagation();
-                const token = e.currentTarget.dataset.token;
-                const key = e.currentTarget.dataset.key;
-                if (!token) { alert('저장된 공유 링크가 없어요.'); return; }
-                const url = `https://dash.qpon/?token=${token}${key ? '&key=' + key : ''}`;
-                navigator.clipboard.writeText(url).then(() => {
-                    showToastNotification('공유 링크가 복사됐어요');
-                }).catch(() => alert(url));
             });
 
             container.appendChild(card);

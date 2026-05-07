@@ -39,10 +39,62 @@
               "client_type": 3
             },
             {
-              "client_id": "803548605147-j9gnf48ei2p61ngvl9is3kdi1caefrdv.apps.googleusercontent.com",
+              "client_id": "803548605147-1ei1h5b6toer0icvnbpa26cl2r4us1cu.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.dashMobile"
+                "bundle_id": "com.dash.mobile.yunsoo"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:803548605147:android:56b4527846fde72efc3afe",
+        "android_client_info": {
+          "package_name": "com.dash.mobile.yunsoo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "803548605147-brag46fn3bk51tblc5i6o8g45t46cn7j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dash.mobile.yunsoo",
+            "certificate_hash": "acaf8006e41dab2b262d2ab43e3a8ea66aa52171"
+          }
+        },
+        {
+          "client_id": "803548605147-sc7c1ma2koc05lv34igi7i8ff8dn9ucc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dash.mobile.yunsoo",
+            "certificate_hash": "7c90d4ce9c6ccef6b9dce43a13f542860f91ec64"
+          }
+        },
+        {
+          "client_id": "803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDd8anDd8ASoz9zr6oZ_DUwPQMiELVSxjE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "803548605147-1ei1h5b6toer0icvnbpa26cl2r4us1cu.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.dash.mobile.yunsoo"
               }
             }
           ]
@@ -83,10 +135,10 @@
               "client_type": 3
             },
             {
-              "client_id": "803548605147-j9gnf48ei2p61ngvl9is3kdi1caefrdv.apps.googleusercontent.com",
+              "client_id": "803548605147-1ei1h5b6toer0icvnbpa26cl2r4us1cu.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.dashMobile"
+                "bundle_id": "com.dash.mobile.yunsoo"
               }
             }
           ]

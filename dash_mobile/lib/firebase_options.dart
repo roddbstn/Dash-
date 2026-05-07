@@ -55,7 +55,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDd8anDd8ASoz9zr6oZ_DUwPQMiELVSxjE',
-    appId: '1:803548605147:android:882ff2c1aca5ec12fc3afe',
+    appId: '1:803548605147:android:56b4527846fde72efc3afe',
     messagingSenderId: '803548605147',
     projectId: 'dash-7cdea',
     storageBucket: 'dash-7cdea.firebasestorage.app',
@@ -63,13 +63,13 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDA5YltJJPDOXSTXQnllXax1f_lPjD7HLc',
-    appId: '1:803548605147:ios:ca59357ffcf7921cfc3afe',
+    appId: '1:803548605147:ios:74d84545d76abe6afc3afe',
     messagingSenderId: '803548605147',
     projectId: 'dash-7cdea',
     storageBucket: 'dash-7cdea.firebasestorage.app',
     androidClientId: '803548605147-l7daf84ndtf9k4bk2sdkkgfb4o7evp57.apps.googleusercontent.com',
-    iosClientId: '803548605147-j9gnf48ei2p61ngvl9is3kdi1caefrdv.apps.googleusercontent.com',
-    iosBundleId: 'com.example.dashMobile',
+    iosClientId: '803548605147-7j3nosaj6kmsekr43jv1jin4tp0h8lvj.apps.googleusercontent.com',
+    iosBundleId: 'com.dash.mobile.yunsoo',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

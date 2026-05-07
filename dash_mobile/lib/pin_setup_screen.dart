@@ -160,6 +160,19 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                   );
                 },
               ),
+              const SizedBox(height: 10),
+              Text(
+                _controller.text.isEmpty
+                    ? '숫자 4자리를 입력해주세요'
+                    : _isReady
+                        ? '입력 완료'
+                        : '${4 - _controller.text.length}자리 더 입력해주세요',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: _isReady ? AppColors.primary : AppColors.textSub,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
