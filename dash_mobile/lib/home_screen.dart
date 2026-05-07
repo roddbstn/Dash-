@@ -1924,10 +1924,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
           controller: _dbTabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          indicatorColor: AppColors.primary,
+          indicatorColor: const Color(0xFF222222),
           indicatorWeight: 2.5,
           indicatorSize: TabBarIndicatorSize.label,
-          labelColor: AppColors.primary,
+          labelColor: const Color(0xFF222222),
           unselectedLabelColor: const Color(0xFF8B95A1),
           labelStyle: const TextStyle(
             fontSize: 16,
@@ -2222,7 +2222,7 @@ class _NavBarItemState extends State<_NavBarItem> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.selected ? AppColors.primary : const Color(0xFF8B95A1);
+    final color = widget.selected ? const Color(0xFF222222) : const Color(0xFF8B95A1);
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
