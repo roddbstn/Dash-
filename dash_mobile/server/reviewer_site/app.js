@@ -10,6 +10,8 @@ const _fbConfig = {
     appId: '1:803548605147:web:e9b76ac7245af36afc3afe',
 };
 firebase.initializeApp(_fbConfig);
+const _analytics = firebase.analytics();
+function _logEvent(name, params) { try { _analytics.logEvent(name, params); } catch(_) {} }
 
 // ── 인앱 브라우저 감지 (카카오톡, 라인, 인스타그램 등)
 function isInAppBrowser() {
@@ -101,6 +103,7 @@ async function handleReviewerLogin(user) {
     if (res.ok && data.ok) {
         sessionStorage.setItem('dash_auth_' + token, '1');
         document.getElementById('auth-modal').style.display = 'none';
+        _logEvent('reviewer_login_success', { is_owner: data.isOwner ? 1 : 0 });
         // 프로필 아바타 표시
         showUserProfile(user);
         // 본인 DB 접근 시 편집 UI 숨김 + encryption_key 세션 저장
@@ -329,6 +332,7 @@ async function confirmNotify() {
         updateUndoRedoButtons();
         updateCTAState();
 
+        _logEvent('review_submitted');
         closeModal();
         // 성공 토스트
         showToast('담당자에게 수정 완료 알림을 보냈어요.');
@@ -575,6 +579,7 @@ window.onload = () => {
 };
 
 function updateUI(data) {
+    _logEvent('share_link_visited');
     document.getElementById('page-title').textContent = `${data.case_name || '미지정'} 아동 사례`;
     
     // Update Author Name

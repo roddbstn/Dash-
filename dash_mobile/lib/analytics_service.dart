@@ -139,6 +139,36 @@ class AnalyticsService {
   static Future<void> notificationReceived(String type) =>
       _log('notification_received', {'type': type});
 
+  // ── 동행 파트너(상담원) ──────────────────────────────────────────────
+  static Future<void> counselorAdded() => _log('counselor_added');
+
+  static Future<void> counselorDeleted() => _log('counselor_deleted');
+
+  // ── 탭 네비게이션 ────────────────────────────────────────────────────
+  static Future<void> tabSwitched(String tabName) =>
+      _log('tab_switched', {'tab': tabName});
+
+  static Future<void> dbTabSwitched(String tabName) =>
+      _log('db_tab_switched', {'tab': tabName}); // 나의DB / 공유받은DB
+
+  // ── PIN 재설정 ────────────────────────────────────────────────────
+  static Future<void> pinReset() => _log('pin_reset');
+
+  // ── 사례 선택 모달 ────────────────────────────────────────────────
+  static Future<void> caseSelectionModalOpened() =>
+      _log('case_selection_modal_opened');
+
+  // ── 공유 링크 ────────────────────────────────────────────────────
+  static Future<void> shareUrlOpened() => _log('share_url_opened');
+
+  // ── 웹 리뷰어 ─────────────────────────────────────────────────────
+  /// 공유 링크 페이지 방문 (웹에서 토큰 로드 성공 시 서버가 기록)
+  static Future<void> reviewerPageVisited() => _log('reviewer_page_visited');
+
+  static Future<void> reviewerLoginSuccess() => _log('reviewer_login_success');
+
+  static Future<void> reviewSubmitted() => _log('review_submitted');
+
   // ── Vault 재시도 (Priority 3 관측성) ────────────────────────────────
   static Future<void> vaultKeyRetried({
     required int successCount,

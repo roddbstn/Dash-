@@ -64,6 +64,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
   void initState() {
     super.initState();
     _dbTabController = TabController(length: 2, vsync: this);
+    _dbTabController.addListener(() {
+      if (!_dbTabController.indexIsChanging) {
+        AnalyticsService.dbTabSwitched(
+          _dbTabController.index == 0 ? 'my_db' : 'shared_db',
+        );
+      }
+    });
     WidgetsBinding.instance.addObserver(this);
     AnalyticsService.screenHome();
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -837,6 +844,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
   }
 
   void _showCaseSelectionModal() async {
+    AnalyticsService.caseSelectionModalOpened();
     setState(() {
       _isSelectionMode = false;
       _selectedCaseIds.clear();
@@ -1031,6 +1039,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                                               updatedCases);
                                           await ApiService.deleteCounselor(
                                               cid);
+                                          AnalyticsService.counselorDeleted();
                                           setState(() {
                                             _counselors.removeWhere((x) =>
                                                 x['id']?.toString() == cid);
@@ -1220,6 +1229,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                                                 newCounselor['sortOrder'],
                                           });
                                         }
+                                        AnalyticsService.counselorAdded();
                                         setModalState(() {});
                                       }
                                     },
@@ -1452,7 +1462,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                       icon: const Icon(Icons.home_filled),
                       label: '홈',
                       selected: _currentIndex == 0,
-                      onTap: () => setState(() => _currentIndex = 0),
+                      onTap: () { setState(() => _currentIndex = 0); AnalyticsService.tabSwitched('home'); },
                     ),
                     _NavBarItem(
                       icon: Badge(
@@ -1464,19 +1474,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                       ),
                       label: '알림',
                       selected: _currentIndex == 1,
-                      onTap: () => setState(() => _currentIndex = 1),
+                      onTap: () { setState(() => _currentIndex = 1); AnalyticsService.tabSwitched('notification'); },
                     ),
                     _NavBarItem(
                       icon: const Icon(Icons.history_rounded),
                       label: 'DB 내역',
                       selected: _currentIndex == 2,
-                      onTap: () => setState(() => _currentIndex = 2),
+                      onTap: () { setState(() => _currentIndex = 2); AnalyticsService.tabSwitched('db_history'); },
                     ),
                     _NavBarItem(
                       icon: const Icon(Icons.person),
                       label: '프로필',
                       selected: _currentIndex == 3,
-                      onTap: () => setState(() => _currentIndex = 3),
+                      onTap: () { setState(() => _currentIndex = 3); AnalyticsService.tabSwitched('profile'); },
                     ),
                   ],
                 ),

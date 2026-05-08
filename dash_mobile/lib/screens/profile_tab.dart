@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:dash_mobile/theme.dart';
+import 'package:dash_mobile/analytics_service.dart';
 import 'package:dash_mobile/api_service.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/privacy_policy_screen.dart';
@@ -763,6 +764,7 @@ class _ProfileTabState extends State<ProfileTab> {
       await ApiService.deleteAllRecords();
     }
 
+    AnalyticsService.pinReset();
     widget.onResetComplete();
     widget.onShowToast('PIN 및 로컬 DB 데이터가 안전하게 완전히 삭제되었습니다.');
   }
