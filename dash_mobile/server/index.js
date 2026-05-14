@@ -194,15 +194,7 @@ function queryWithTimeout(sql, params, ms = 8000) {
 }
 
 // ─── User 헬퍼: UID로 사용자 조회, 없으면 이메일로 폴백 ──────────────────
-async function resolveUserId(uid, emailFallback) {
-  const [rows] = await queryWithTimeout('SELECT id FROM dash_users WHERE id = ?', [uid]);
-  if (rows.length > 0) return uid;
-  if (!emailFallback) return uid;
-  const [byEmail] = await queryWithTimeout('SELECT id FROM dash_users WHERE email = ?', [emailFallback]);
-  if (byEmail.length > 0) {
-    console.log(`🔄 Resolved user id via email: ${byEmail[0].id} (was: ${uid})`);
-    return byEmail[0].id;
-  }
+async function resolveUserId(uid) {
   return uid;
 }
 
@@ -439,7 +431,10 @@ app.post('/api/counselors', verifyFirebaseAuth, async (req, res) => {
 // DELETE /api/counselors/:counselorId — 상담원 삭제 (소속 사례도 함께 삭제)
 app.delete('/api/counselors/:counselorId', verifyFirebaseAuth, async (req, res) => {
   const { counselorId } = req.params;
+  const uid = req.firebaseUser?.uid;
   try {
+    const [rows] = await queryWithTimeout('SELECT id FROM counselors WHERE id = ? AND user_id = ?', [counselorId, uid]);
+    if (rows.length === 0) return res.status(403).json({ error: 'Forbidden' });
     await queryWithTimeout('DELETE FROM cases WHERE counselor_id = ?', [counselorId]);
     await queryWithTimeout('DELETE FROM counselors WHERE id = ?', [counselorId]);
     res.json({ message: 'Counselor deleted' });
@@ -451,9 +446,10 @@ app.delete('/api/counselors/:counselorId', verifyFirebaseAuth, async (req, res) 
 // PUT /api/counselors/reorder — 상담원 순서 변경
 app.put('/api/counselors/reorder', verifyFirebaseAuth, async (req, res) => {
   const { counselors } = req.body; // [{id, sort_order}]
+  const uid = req.firebaseUser?.uid;
   try {
     for (const c of counselors) {
-      await queryWithTimeout('UPDATE counselors SET sort_order = ? WHERE id = ?', [c.sort_order, c.id]);
+      await queryWithTimeout('UPDATE counselors SET sort_order = ? WHERE id = ? AND user_id = ?', [c.sort_order, c.id, uid]);
     }
     res.json({ message: 'Reordered' });
   } catch (err) {
@@ -640,9 +636,13 @@ app.delete('/api/records/token/:token', verifyFirebaseAuth, async (req, res) => 
 
 app.delete('/api/records/id/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
+  const uid = req.firebaseUser?.uid;
   console.log(`\n🗑️ [DELETE RECORD] ID: ${id}`);
   try {
-    const [result] = await queryWithTimeout('DELETE FROM service_drafts WHERE id = ?', [id]);
+    const [result] = await queryWithTimeout(
+      'DELETE sd FROM service_drafts sd JOIN cases c ON sd.case_id = c.id WHERE sd.id = ? AND c.user_id = ?',
+      [id, uid]
+    );
     if (result.affectedRows > 0) {
       console.log(`✅ Deleted record (ID: ${id})`);
       res.json({ message: 'Record deleted' });
@@ -745,6 +745,8 @@ app.put('/api/notifications/:id/read', verifyFirebaseAuth, async (req, res) => {
 app.post('/api/records/reviewed/:token', async (req, res) => {
   const { token } = req.params;
   const { service_description, agent_opinion } = req.body;
+  const session = authAttempts.get(token);
+  if (!session?.verified) return res.status(403).json({ error: '인증이 필요합니다.' });
   try {
     const [infoResult] = await queryWithTimeout(
       `SELECT s.case_id, c.case_name, c.user_id, u.email,
