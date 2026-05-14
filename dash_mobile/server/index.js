@@ -850,11 +850,17 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
     );
     if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
 
-    // 모바일 앱에서 실명 등록한 회원인지 확인
-    const [userRows] = await queryWithTimeout(
+    // 모바일 앱에서 실명 등록한 회원인지 확인 (UID 직접 조회 → 이메일 폴백)
+    let [userRows] = await queryWithTimeout(
       `SELECT id FROM dash_users WHERE id = ? AND name IS NOT NULL AND name != '' AND name != email`,
       [uid]
     );
+    if (userRows.length === 0 && email) {
+      [userRows] = await queryWithTimeout(
+        `SELECT id FROM dash_users WHERE email = ? AND name IS NOT NULL AND name != '' AND name != email`,
+        [email]
+      );
+    }
     if (userRows.length === 0) {
       return res.status(403).json({ error: 'not_registered' });
     }
