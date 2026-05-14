@@ -808,14 +808,17 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
           if (userRows.length > 0 && userRows[0].fcm_token) {
             const fcmToken = userRows[0].fcm_token;
             const message = {
-              notification: {
-                title: `${case_name} 아동 DB 수정 완료`,
-                body: `${reviewer_name} 상담원이 DB를 수정했어요.`
-              },
               data: {
                 type: 'review_completed',
                 target_user_id: user_id,
-                record_token: token
+                record_token: token,
+                title: `${case_name} 아동 DB 수정 완료`,
+                body: `${reviewer_name} 상담원이 DB를 수정했어요.`
+              },
+              android: { priority: 'high' },
+              apns: {
+                payload: { aps: { 'content-available': 1 } },
+                headers: { 'apns-priority': '5' }
               },
               token: fcmToken
             };

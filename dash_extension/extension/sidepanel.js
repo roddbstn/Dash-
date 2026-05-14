@@ -710,7 +710,7 @@ function renderHistory() {
                 </div>
                 <div class="record-info-list">
                     <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
-                    <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' : ' + record.service_name : (record.service_name || '-')}</span></div>
+                    <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' :: ' + record.service_name : (record.service_name || '-')}</span></div>
                     <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
                 </div>
                 <div class="record-dropdown-toggle" data-target="${dropdownId}">
@@ -986,7 +986,7 @@ function renderRecords() {
                 <div class="record-info-row"><span class="info-label">제공구분</span><span class="info-value">${record.provision_type || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">서비스제공유형</span><span class="info-value">${record.service_type === '아보전' ? '아보전서비스' : (record.service_type || '-')}</span></div>
-                <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' : ' + record.service_name : (record.service_name || '-')}</span></div>
+                <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' :: ' + record.service_name : (record.service_name || '-')}</span></div>
                 <div class="record-info-row"><span class="info-label">제공장소</span><span class="info-value">${record.location || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">서비스제공횟수</span><span class="info-value">${record.service_count != null ? record.service_count + '회' : '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">이동소요시간</span><span class="info-value">${record.travel_time != null ? record.travel_time + '분' : '-'}</span></div>

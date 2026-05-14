@@ -587,31 +587,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
 
     // 5. 포그라운드 메시지 리스너 (앱이 켜져 있을 때)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      RemoteNotification? notification = message.notification;
-      AndroidNotification? android = message.notification?.android;
+      final targetUserId = message.data['target_user_id'];
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      if (targetUserId != null && targetUserId != currentUid) return;
 
-      if (notification != null && mounted) {
-        AnalyticsService.notificationReceived(notification.title ?? 'unknown');
-        _loadData(); // 알림 리스트 및 배지 상태 갱신
+      final title = message.data['title'] ?? message.notification?.title ?? 'Dash';
+      final body = message.data['body'] ?? message.notification?.body ?? '';
 
-        // Android: 직접 로컬 알림 팝업 표시 (iOS는 setForegroundNotificationPresentationOptions로 처리)
-        if (android != null) {
-          flutterLocalNotificationsPlugin.show(
-            id: notification.hashCode,
-            title: notification.title,
-            body: notification.body,
-            notificationDetails: NotificationDetails(
-              android: AndroidNotificationDetails(
-                channel.id,
-                channel.name,
-                channelDescription: channel.description,
-                importance: Importance.max,
-                priority: Priority.high,
-                ticker: 'ticker',
-              ),
+      if (mounted) {
+        AnalyticsService.notificationReceived(title);
+        _loadData();
+
+        flutterLocalNotificationsPlugin.show(
+          id: message.messageId?.hashCode ?? 0,
+          title: title,
+          body: body,
+          notificationDetails: NotificationDetails(
+            android: AndroidNotificationDetails(
+              channel.id,
+              channel.name,
+              channelDescription: channel.description,
+              importance: Importance.max,
+              priority: Priority.high,
+              ticker: 'ticker',
             ),
-          );
-        }
+          ),
+        );
       }
     });
 
