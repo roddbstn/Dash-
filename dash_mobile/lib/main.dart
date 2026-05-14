@@ -5,7 +5,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/home_screen.dart';
@@ -18,35 +17,7 @@ import 'package:dash_mobile/storage_service.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  final targetUserId = message.data['target_user_id'];
-  final currentUid = FirebaseAuth.instance.currentUser?.uid;
-
-  // 현재 로그인된 계정의 알림만 표시
-  if (targetUserId != null && targetUserId != currentUid) return;
-
-  final title = message.data['title'] ?? 'Dash';
-  final body = message.data['body'] ?? '';
-
-  final plugin = FlutterLocalNotificationsPlugin();
-  await plugin.initialize(
-    settings: const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-    ),
-  );
-  await plugin.show(
-    id: message.messageId?.hashCode ?? 0,
-    title: title,
-    body: body,
-    notificationDetails: const NotificationDetails(
-      android: AndroidNotificationDetails(
-        'high_importance_channel',
-        'High Importance Notifications',
-        importance: Importance.max,
-        priority: Priority.high,
-      ),
-    ),
-  );
+  // notification 키가 있으면 OS가 자동으로 표시하므로 별도 처리 불필요
 }
 
 void main() async {

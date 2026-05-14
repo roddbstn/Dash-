@@ -822,17 +822,19 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
           if (userRows.length > 0 && userRows[0].fcm_token) {
             const fcmToken = userRows[0].fcm_token;
             const message = {
+              notification: {
+                title: `${case_name} 아동 DB 수정 완료`,
+                body: `${reviewer_name} 상담원님이 DB를 수정했어요.`
+              },
               data: {
                 type: 'review_completed',
-                target_user_id: user_id,
-                record_token: token,
-                title: `${case_name} 아동 DB 수정 완료`,
-                body: `${reviewer_name} 상담원이 DB를 수정했어요.`
+                target_user_id: String(user_id),
+                record_token: token
               },
               android: { priority: 'high' },
               apns: {
                 payload: { aps: { 'content-available': 1 } },
-                headers: { 'apns-priority': '5' }
+                headers: { 'apns-priority': '10' }
               },
               token: fcmToken
             };

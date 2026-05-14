@@ -589,30 +589,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final targetUserId = message.data['target_user_id'];
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      // 다른 계정의 알림은 포그라운드에서 무시
       if (targetUserId != null && targetUserId != currentUid) return;
 
-      final title = message.data['title'] ?? message.notification?.title ?? 'Dash';
-      final body = message.data['body'] ?? message.notification?.body ?? '';
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
 
-      if (mounted) {
-        AnalyticsService.notificationReceived(title);
+      if (notification != null && mounted) {
+        AnalyticsService.notificationReceived(notification.title ?? 'unknown');
         _loadData();
 
-        flutterLocalNotificationsPlugin.show(
-          id: message.messageId?.hashCode ?? 0,
-          title: title,
-          body: body,
-          notificationDetails: NotificationDetails(
-            android: AndroidNotificationDetails(
-              channel.id,
-              channel.name,
-              channelDescription: channel.description,
-              importance: Importance.max,
-              priority: Priority.high,
-              ticker: 'ticker',
+        if (android != null) {
+          flutterLocalNotificationsPlugin.show(
+            id: notification.hashCode,
+            title: notification.title,
+            body: notification.body,
+            notificationDetails: NotificationDetails(
+              android: AndroidNotificationDetails(
+                channel.id,
+                channel.name,
+                channelDescription: channel.description,
+                importance: Importance.max,
+                priority: Priority.high,
+                ticker: 'ticker',
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     });
 
