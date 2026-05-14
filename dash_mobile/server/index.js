@@ -750,7 +750,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
   try {
     const [infoResult] = await queryWithTimeout(
       `SELECT s.case_id, c.case_name, c.user_id, u.email,
-              COALESCE(r.name, r.email, '리뷰어') AS reviewer_name
+              CASE WHEN r.name IS NOT NULL AND r.name != '' AND r.name != r.email THEN r.name ELSE '동행상담원' END AS reviewer_name
        FROM service_drafts s
        JOIN cases c ON s.case_id = c.id
        JOIN dash_users u ON c.user_id = u.id
@@ -814,7 +814,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
               },
               data: {
                 type: 'review_completed',
-                case_id: user_id, // Fallback
+                target_user_id: user_id,
                 record_token: token
               },
               token: fcmToken

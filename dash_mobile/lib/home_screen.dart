@@ -618,6 +618,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     // 6. 알림 클릭으로 앱이 열렸을 때 처리
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('🚀 Notification opened app: ${message.data}');
+      final targetUserId = message.data['target_user_id'];
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      if (targetUserId != null && targetUserId != currentUid) {
+        // 다른 계정의 알림 — 무시
+        debugPrint('⚠️ Notification for different account ($targetUserId), current: $currentUid');
+        return;
+      }
       setState(() => _currentIndex = 1); // 알림 탭으로 이동
     });
   }

@@ -620,7 +620,7 @@ function updateUI(data) {
         { label: '제공구분', value: data.provision_type || '-' },
         { label: '제공방법', value: data.method || '-' },
         { label: '서비스유형', value: data.service_type || '-' },
-        { label: '제공서비스', value: (data.service_category && data.service_name) ? `${data.service_category}: ${data.service_name}` : (data.service_name || '-') },
+        { label: '제공서비스', value: (data.service_category && data.service_name) ? `${data.service_category} :: ${data.service_name}` : (data.service_name || '-') },
         { label: '제공장소', value: data.location || '-' },
         { label: '제공일시', value: formatDateTimeRange(data.start_time, data.end_time) },
         { label: '이동시간', value: data.travel_time ? `${data.travel_time}분` : '-' },
