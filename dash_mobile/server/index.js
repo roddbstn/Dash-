@@ -1228,12 +1228,24 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
 app.get('/api/users/vault/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   try {
-    // userId가 DB에 없으면 Firebase 토큰 이메일로 실제 user_id 해석
-    const resolvedId = await resolveUserId(userId, req.firebaseUser?.email);
-    const [rows] = await queryWithTimeout(
+    // 1차: uid로 직접 조회
+    let [rows] = await queryWithTimeout(
       'SELECT encrypted_vault, salt FROM user_key_vault WHERE user_id = ?',
-      [resolvedId]
+      [userId]
     );
+    // 2차: uid로 없으면 Firebase 검증 이메일로 user_id 찾아 재조회 (UID 불일치 대응)
+    if (rows.length === 0 && req.firebaseUser?.email) {
+      const [byEmail] = await queryWithTimeout(
+        'SELECT id FROM dash_users WHERE email = ?',
+        [req.firebaseUser.email]
+      );
+      if (byEmail.length > 0 && byEmail[0].id !== userId) {
+        [rows] = await queryWithTimeout(
+          'SELECT encrypted_vault, salt FROM user_key_vault WHERE user_id = ?',
+          [byEmail[0].id]
+        );
+      }
+    }
     if (rows.length === 0) {
       return res.status(404).json({ message: 'Vault not found' });
     }
