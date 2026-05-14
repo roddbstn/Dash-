@@ -781,7 +781,7 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
 
     if (result.affectedRows > 0) {
       // 📝 Create Notification for the counselor
-      const message = `${reviewer_name} 상담원이 DB를 수정 완료했어요.`;
+      const message = `${reviewer_name} 상담원님이 DB를 수정 완료했어요.`;
       // 📝 Mark previous unread notifications for the same record as read (Requirement: Replace with latest for same DB)
       await queryWithTimeout(
         'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND record_token = ? AND is_read = 0',
@@ -881,9 +881,10 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
 
     // 최초 접근 시 reviewer_user_id 연결 (이미 연결된 경우 덮어쓰지 않음, 본인이면 연결 불필요)
     if (!isOwner) {
+      const reviewerDbId = userRows[0].id; // 이메일 폴백으로 찾은 경우 DB id 사용
       await queryWithTimeout(
         'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ? AND reviewer_user_id IS NULL',
-        [uid, token]
+        [reviewerDbId, token]
       );
     }
 
