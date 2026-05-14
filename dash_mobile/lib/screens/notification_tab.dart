@@ -3,17 +3,29 @@ import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/api_service.dart';
 import 'package:intl/intl.dart';
 
-/// 알림 메시지에서 이메일 주소를 이름(@ 앞부분)으로 치환
+/// 알림 메시지에서 이메일 주소를 제거 (백엔드가 이름 전송 시 자동으로 사용됨)
 String _cleanNotifMessage(String? msg) {
   if (msg == null || msg.isEmpty) return 'DB가 수정 완료되었어요.';
-  return msg.replaceAllMapped(
-    RegExp(r'([\w.+-]+)@[\w\-]+\.[\w.\-]+'),
-    (m) {
-      final local = m.group(1) ?? '상담원';
-      // 이메일 로컬파트를 이름처럼 보이게 (마침표/플러스 제거)
-      return local.replaceAll(RegExp(r'[.+_\-]'), ' ').trim();
-    },
-  );
+  // 이메일 패턴이 포함된 경우 이메일 부분 제거
+  return msg.replaceAll(RegExp(r'[\w.+-]+@[\w\-]+\.[\w.\-]+\s*'), '');
+}
+
+/// 알림 시간 포맷: 오늘/어제는 상대 표현, 그 이전은 날짜+시간
+String _formatNotifDate(String? rawDate) {
+  if (rawDate == null || rawDate.isEmpty) return '';
+  final dt = DateTime.parse(
+    rawDate.endsWith('Z') ? rawDate : '${rawDate}Z',
+  ).toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+  final dtDate = DateTime(dt.year, dt.month, dt.day);
+  final timeStr = DateFormat('HH:mm').format(dt);
+
+  if (dtDate == today) return '오늘 $timeStr';
+  if (dtDate == yesterday) return '어제 $timeStr';
+  const days = ['월', '화', '수', '목', '금', '토', '일'];
+  return '${dt.month}.${dt.day} (${days[dt.weekday - 1]}) $timeStr';
 }
 
 class NotificationTab extends StatelessWidget {
@@ -123,17 +135,7 @@ class NotificationTab extends StatelessWidget {
                 final n = unreadNotifs[index];
                 final String caseName = n['case_name'] ?? '미지정';
 
-                String dateStr = '';
-                if (n['created_at'] != null) {
-                  // 서버 타임스탬프는 UTC — 'Z' 접미사로 UTC 명시 후 로컬(KST)로 변환
-                  final raw = n['created_at'] as String;
-                  final dt = DateTime.parse(
-                    raw.endsWith('Z') ? raw : '${raw}Z',
-                  ).toLocal();
-                  const days = ['월', '화', '수', '목', '금', '토', '일'];
-                  final dayName = days[dt.weekday - 1];
-                  dateStr = '${dt.month}.${dt.day} ($dayName) ${DateFormat('HH:mm').format(dt)}';
-                }
+                final String dateStr = _formatNotifDate(n['created_at'] as String?);
 
                 final String? nToken = n['record_token'];
                 final int? notifId = n['id'];
