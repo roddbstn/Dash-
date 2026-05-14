@@ -306,8 +306,7 @@ async function confirmNotify() {
             const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedData), key, { iv: iv });
             
             body.encrypted_blob = iv.toString(CryptoJS.enc.Base64) + ":" + encrypted.toString();
-            body.service_description = '';
-            body.agent_opinion = '';
+            // plaintext도 함께 저장 (복호화 실패 시 폴백)
         } catch (e) {
             console.error("Encryption failed:", e);
         }

@@ -770,8 +770,14 @@ app.post('/api/records/reviewed/:token', async (req, res) => {
     let queryParams = [service_description || '', agent_opinion || ''];
 
     if (encrypted_blob) {
-      updateQuery = `UPDATE service_drafts SET status = 'Reviewed', encrypted_blob = ?, service_description = ?, agent_opinion = ?, updated_at = NOW()`;
-      queryParams = [encrypted_blob, service_description || '', agent_opinion || ''];
+      // plaintext가 있으면 함께 저장, 없으면 기존 값 유지 (COALESCE)
+      if (service_description || agent_opinion) {
+        updateQuery = `UPDATE service_drafts SET status = 'Reviewed', encrypted_blob = ?, service_description = ?, agent_opinion = ?, updated_at = NOW()`;
+        queryParams = [encrypted_blob, service_description || '', agent_opinion || ''];
+      } else {
+        updateQuery = `UPDATE service_drafts SET status = 'Reviewed', encrypted_blob = ?, updated_at = NOW()`;
+        queryParams = [encrypted_blob];
+      }
     }
     
     updateQuery += ` WHERE share_token = ?`;
