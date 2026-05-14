@@ -742,11 +742,19 @@ app.put('/api/notifications/:id/read', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
-app.post('/api/records/reviewed/:token', async (req, res) => {
+app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) => {
   const { token } = req.params;
   const { service_description, agent_opinion } = req.body;
+  const { uid, email } = req.firebaseUser;
+  // 세션 체크는 폴백으로만 사용 (서버 재시작 후에도 Firebase 인증으로 통과 가능)
   const session = authAttempts.get(token);
-  if (!session?.verified) return res.status(403).json({ error: '인증이 필요합니다.' });
+  if (!session?.verified) {
+    // Firebase 인증된 Dash 사용자면 허용
+    const [userCheck] = await queryWithTimeout(
+      'SELECT id FROM dash_users WHERE id = ? OR email = ?', [uid, email]
+    );
+    if (userCheck.length === 0) return res.status(403).json({ error: '인증이 필요합니다.' });
+  }
   try {
     const [infoResult] = await queryWithTimeout(
       `SELECT s.case_id, c.case_name, c.user_id, u.email,

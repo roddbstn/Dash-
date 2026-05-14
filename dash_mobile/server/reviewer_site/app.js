@@ -93,7 +93,7 @@ async function handleReviewerLogin(user) {
     const token = new URLSearchParams(window.location.search).get('token');
     if (!token) return;
 
-    const idToken = await user.getIdToken();
+    const idToken = await user.getIdToken(true); // 강제 갱신
     const res = await fetch(`/api/records/reviewer-login/${token}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${idToken}` },
@@ -313,9 +313,14 @@ async function confirmNotify() {
     }
 
     try {
+        const currentUser = firebase.auth().currentUser;
+        const idToken = currentUser ? await currentUser.getIdToken(true) : null;
         const res = await fetch(`/api/records/reviewed/${token}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+            },
             body: JSON.stringify(body)
         });
         const data = await res.json();
