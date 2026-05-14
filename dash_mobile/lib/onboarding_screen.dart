@@ -139,8 +139,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
+            Column(
+              children: [
             const SizedBox(height: 52),
 
             Expanded(
@@ -270,6 +272,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ],
               ),
             ),
+          ],
+        ),
+
+            // 건너뛰기 버튼 (첫 3페이지에만 표시)
+            if (_currentPage < _pageCount - 1)
+              Positioned(
+                top: 8,
+                right: 16,
+                child: GestureDetector(
+                  onTap: () => _pageController.animateToPage(
+                    _pageCount - 1,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Text(
+                      '건너뛰기',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFFADB5BD),
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

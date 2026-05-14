@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class UserGuideScreen extends StatefulWidget {
   const UserGuideScreen({super.key});
@@ -91,7 +92,7 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               step: 2,
               icon: Icons.edit_note_outlined,
               title: '상담 기록 작성',
-              description: '\'사무실 밖에서 DB쓰기\'를 터치하여 사례를 선택해요.\n'
+              description: '\'DB 작성하기\'를 터치하여 사례를 선택해요.\n'
                   '실제 DB를 쓰듯이 작성해보세요.',
               tip: '저장한 기록은 인터넷이 없어도 폰에 보관되며, 인터넷이 다시 연결되면 자동으로 업로드돼요.',
               mockup: const _MockupDbButton(),
@@ -124,7 +125,7 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
             _StepCard(
               step: 5,
               icon: Icons.computer_outlined,
-              title: 'NCADS 자동 입력',
+              title: '확장프로그램 설치 후 자동입력',
               description: '아동학대정보시스템 화면에서 DASH 확장 프로그램을 열어보세요.\n'
                   '작성한 DB가 그대로 있으며, 클릭 한 번으로 자동 입력돼요.',
               tip: 'Chrome 웹스토어에서 무료로 Dash를 설치하세요.',
@@ -341,46 +342,110 @@ class _StepConnector extends StatelessWidget {
   }
 }
 
-// ── Step 1 목업: + 사례 생성 버튼 ────────────────────────────────────────────
+// ── Step 1 목업: 사례 선택 모달 하단 버튼 영역 ────────────────────────────────
 class _MockupCaseButton extends StatelessWidget {
   const _MockupCaseButton();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F8FA),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE5E8EB)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      child: Column(
         children: [
+          // 사례 그리드 미리보기 (2열)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+            child: Row(
+              children: [
+                _MockCaseChip('김O희'),
+                const SizedBox(width: 8),
+                _MockCaseChip('박O준'),
+              ],
+            ),
+          ),
+          // 구분선 + 하단 버튼
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: const Color(0xFFE5E8EB), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+              border: Border(top: BorderSide(color: Color(0xFFE5E8EB))),
+            ),
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        '동행 파트너 추가',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: const Color(0xFFE5E8EB)),
+                  ),
+                  child: const Text(
+                    '사례 추가',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
                 ),
               ],
             ),
-            child: const Text(
-              '+ 사례 생성',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: Color(0xFF111827),
-              ),
-            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MockCaseChip extends StatelessWidget {
+  final String name;
+  const _MockCaseChip(this.name);
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE5E8EB)),
+        ),
+        child: Center(
+          child: Text(
+            name,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF111827),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -401,7 +466,7 @@ class _MockupDbButton extends StatelessWidget {
       ),
       child: const Center(
         child: Text(
-          '사무실 밖에서 DB 쓰기',
+          'DB 작성하기',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -414,88 +479,119 @@ class _MockupDbButton extends StatelessWidget {
   }
 }
 
-// ── Step 3 목업: DB 카드 + 공유 버튼 ─────────────────────────────────────────
-class _MockupDbCard extends StatelessWidget {
+// ── Step 3 목업: 스와이프 공유 애니메이션 ────────────────────────────────────
+class _MockupDbCard extends StatefulWidget {
   const _MockupDbCard();
 
   @override
+  State<_MockupDbCard> createState() => _MockupDbCardState();
+}
+
+class _MockupDbCardState extends State<_MockupDbCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _slide = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 0.0), weight: 20), // 대기
+      TweenSequenceItem(
+          tween: Tween(begin: 0.0, end: 72.0)
+              .chain(CurveTween(curve: Curves.easeOut)),
+          weight: 35), // 스와이프
+      TweenSequenceItem(tween: Tween(begin: 72.0, end: 72.0), weight: 25), // 유지
+      TweenSequenceItem(
+          tween: Tween(begin: 72.0, end: 0.0)
+              .chain(CurveTween(curve: Curves.easeIn)),
+          weight: 20), // 복귀
+    ]).animate(_ctrl);
+    _ctrl.repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E8EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 좌측: 아동명 + 부가정보
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '강O수 아동',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF111827),
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '대상: 피해아동  |  방문',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF8B95A1),
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                  ),
-                ),
-                const Text(
-                  '4.14 (화) 11:47 ~ 12:47',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF8B95A1),
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // 우측: 공유 버튼
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedBuilder(
+        animation: _slide,
+        builder: (_, __) {
+          return Stack(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                decoration: BoxDecoration(
+              // 배경: 파란 공유 패널
+              Positioned.fill(
+                child: Container(
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(20),
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 16),
+                  child: const Icon(Icons.ios_share_rounded,
+                      color: Colors.white, size: 22),
                 ),
-                child: const Text(
-                  '공유',
-                  style: TextStyle(
+              ),
+              // 카드: 오른쪽으로 슬라이드
+              Transform.translate(
+                offset: Offset(_slide.value, 0),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                  decoration: BoxDecoration(
                     color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE5E8EB)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '강O수 아동',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF111827),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        '대상: 피해아동  |  방문',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF8B95A1),
+                            fontWeight: FontWeight.w500,
+                            height: 1.5),
+                      ),
+                      const Text(
+                        '4.14 (화) 11:47 ~ 12:47',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF8B95A1),
+                            fontWeight: FontWeight.w500,
+                            height: 1.5),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -592,7 +688,7 @@ class _EdgeInstallNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const steps = [
-      '프로필 아이콘 오른쪽 ··· 버튼 클릭',
+      '브라우저 프로필 아이콘 오른쪽 ··· 버튼 클릭',
       '확장 → 확장 관리',
       'Chrome 웹 스토어 클릭',
       '\'Dash\' 검색 후 설치',
@@ -609,7 +705,7 @@ class _EdgeInstallNote extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.public, size: 13, color: Color(0xFF3B5BDB)),
+              const FaIcon(FontAwesomeIcons.edge, size: 13, color: Color(0xFF3B5BDB)),
               SizedBox(width: 5),
               Text(
                 'Edge 브라우저 설치 방법',

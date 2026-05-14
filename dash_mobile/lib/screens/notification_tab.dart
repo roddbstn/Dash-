@@ -3,6 +3,19 @@ import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/api_service.dart';
 import 'package:intl/intl.dart';
 
+/// 알림 메시지에서 이메일 주소를 이름(@ 앞부분)으로 치환
+String _cleanNotifMessage(String? msg) {
+  if (msg == null || msg.isEmpty) return 'DB가 수정 완료되었어요.';
+  return msg.replaceAllMapped(
+    RegExp(r'([\w.+-]+)@[\w\-]+\.[\w.\-]+'),
+    (m) {
+      final local = m.group(1) ?? '상담원';
+      // 이메일 로컬파트를 이름처럼 보이게 (마침표/플러스 제거)
+      return local.replaceAll(RegExp(r'[.+_\-]'), ' ').trim();
+    },
+  );
+}
+
 class NotificationTab extends StatelessWidget {
   final List<dynamic> notifications;
   final List<dynamic> drafts;
@@ -199,7 +212,7 @@ class NotificationTab extends StatelessWidget {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                "${n['message'] ?? 'DB가 수정 완료되었어요.'}\n수정 사항을 확인해 보세요.",
+                                "${_cleanNotifMessage(n['message'])}\n수정 사항을 확인해 보세요.",
                                 style: const TextStyle(
                                   fontSize: 14,
                                   height: 1.5,
