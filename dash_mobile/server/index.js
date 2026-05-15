@@ -831,7 +831,10 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
                 target_user_id: String(user_id),
                 record_token: token
               },
-              android: { priority: 'high' },
+              android: {
+                priority: 'high',
+                notification: { channelId: 'high_importance_channel' },
+              },
               apns: {
                 payload: { aps: { 'content-available': 1 } },
                 headers: { 'apns-priority': '10' }
