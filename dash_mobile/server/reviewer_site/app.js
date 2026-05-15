@@ -469,6 +469,12 @@ function loadRecord(token) {
             return res.json();
         })
         .then(data => {
+                // 서버 응답의 encryption_key를 폴백으로 사용 (레거시 레코드 호환)
+                if (!encKey && data.encryption_key) {
+                    encKey = data.encryption_key;
+                    sessionStorage.setItem('dash_key_' + token, encKey);
+                }
+
                 // E2EE Decryption
                 if (data.encrypted_blob && encKey) {
                     try {

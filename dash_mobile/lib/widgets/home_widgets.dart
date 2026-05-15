@@ -278,26 +278,6 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
     if (token != null && token.isNotEmpty) {
       // [Security] 키는 SecureStorage keyMap에서 조회, URL fragment(#)로 전달
       final String? key = await StorageService.getKeyFromMap(token);
-      if ((key == null || key.isEmpty) && mounted) {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('주의', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-            content: const Text(
-              '이 레코드의 암호화 키를 찾을 수 없어\n서비스 내용·상담원 소견이 리뷰어 화면에 표시되지 않을 수 있습니다.\n\n앱을 재설치했거나 다른 기기에서 생성된 경우 발생합니다.',
-              style: TextStyle(fontSize: 14, height: 1.5),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('그래도 공유', style: TextStyle(color: AppColors.primary))),
-            ],
-          ),
-        );
-        if (confirmed != true) return;
-      }
       await _showShareExpirySheet(token, key);
     } else {
       if (mounted) {

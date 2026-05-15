@@ -371,6 +371,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               finalOpinion = s['agent_opinion'];
             }
 
+            // [E2EE] 기존 레코드 encryption_key → SecureStorage 자동 마이그레이션
+            final String? serverToken = s['share_token']?.toString();
+            final String? legacyKey = s['encryption_key']?.toString();
+            if (serverToken != null && legacyKey != null && legacyKey.isNotEmpty
+                && !keyMap.containsKey(serverToken)) {
+              await StorageService.saveKeyToMap(serverToken, legacyKey);
+              keyMap[serverToken] = legacyKey;
+            }
+
             // [E2EE] 복호화 로직 — 키는 SecureStorage keyMap에서 조회
             final String? blob = s['encrypted_blob'];
             final String? keyStr = keyMap[s['share_token']?.toString()];
@@ -493,6 +502,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
         if (mounted) {
           setState(() {
             _drafts = updatedDrafts;
+            _keyMap = keyMap; // 마이그레이션된 키 포함하여 상태 갱신
           });
           await StorageService.saveDrafts(updatedDrafts);
         }

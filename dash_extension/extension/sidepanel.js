@@ -581,10 +581,12 @@ async function fetchRecords() {
 
         const rawRecords = await res.json();
 
-        // encrypted_blob을 vaultKeys로 복호화하여 service_description, agent_opinion 복원
+        // encrypted_blob을 vaultKeys로 복호화 (없으면 레거시 encryption_key 폴백)
         records = await Promise.all(rawRecords.map(async (record) => {
-            if (record.encrypted_blob && record.share_token && vaultKeys[record.share_token]) {
-                const decrypted = await decryptBlob(record.encrypted_blob, vaultKeys[record.share_token]);
+            const decryptKey = (record.share_token && vaultKeys[record.share_token])
+                || record.encryption_key || null;
+            if (record.encrypted_blob && decryptKey) {
+                const decrypted = await decryptBlob(record.encrypted_blob, decryptKey);
                 if (decrypted) {
                     return {
                         ...record,
@@ -656,10 +658,12 @@ async function fetchHistory() {
         if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
         historyRecords = await res.json();
 
-        // 복호화 (vaultKeys 있으면)
+        // 복호화 (vaultKeys 또는 레거시 encryption_key 폴백)
         historyRecords = await Promise.all(historyRecords.map(async (record) => {
-            if (record.encrypted_blob && record.share_token && vaultKeys[record.share_token]) {
-                const decrypted = await decryptBlob(record.encrypted_blob, vaultKeys[record.share_token]);
+            const decryptKey = (record.share_token && vaultKeys[record.share_token])
+                || record.encryption_key || null;
+            if (record.encrypted_blob && decryptKey) {
+                const decrypted = await decryptBlob(record.encrypted_blob, decryptKey);
                 if (decrypted) {
                     return {
                         ...record,
