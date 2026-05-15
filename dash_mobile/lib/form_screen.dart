@@ -179,7 +179,9 @@ class _FormScreenState extends State<FormScreen> {
     }
     final targetValue = finalTargets.join(', ');
 
-    String? encryptionKey = _currentDraft?['encryption_key'];
+    // [Security] 키는 SecureStorage keyMap에서 조회, 없으면 새로 생성
+    final String? existingShareToken = _currentDraft?['share_token'];
+    String? encryptionKey = await StorageService.getKeyFromMap(existingShareToken);
     if (encryptionKey == null) {
       final random = math.Random.secure();
       final values = List<int>.generate(16, (i) => random.nextInt(256));
@@ -218,7 +220,6 @@ class _FormScreenState extends State<FormScreen> {
       'serviceCount': _serviceCountController.text.isEmpty ? '1' : _serviceCountController.text,
       'travelTime': _travelTime,
       'updatedAt': DateTime.now().toIso8601String(),
-      'encryption_key': encryptionKey,
     };
 
     final key = encrypt.Key.fromUtf8(encryptionKey.padRight(32).substring(0, 32));
@@ -271,7 +272,6 @@ class _FormScreenState extends State<FormScreen> {
       'service_description': '',
       'agent_opinion': '',
       'encrypted_blob': encryptedBlob,
-      'encryption_key': encryptionKey,
       'share_token': _currentDraft?['share_token'],
     };
 
@@ -321,6 +321,8 @@ class _FormScreenState extends State<FormScreen> {
         updatedDrafts[idx]['status'] = 'Synced';
         await StorageService.saveDrafts(updatedDrafts);
       }
+      // [Security] 서버 sync 완료 후 share_token으로 keyMap에 키 저장
+      await StorageService.saveKeyToMap(shareToken, encryptionKey);
       unawaited(_syncKeyToVault(userId, shareToken, encryptionKey, pin));
       // 동기화 완료 → 홈화면에서 _loadData() 트리거 (share_token 저장 후 호출)
       widget.onSyncComplete?.call();
@@ -630,20 +632,20 @@ class _FormScreenState extends State<FormScreen> {
 
   Future<void> _copyShareLink() async {
     String? token = _currentDraft?['share_token'];
-    String? key = _currentDraft?['encryption_key'];
     // 백그라운드 sync가 완료됐을 수 있으므로 스토리지에서 최신 값 재조회
-    if ((token == null || token.isEmpty || key == null || key.isEmpty) && widget.draftId != null) {
+    if ((token == null || token.isEmpty) && widget.draftId != null) {
       final drafts = await StorageService.getDrafts();
       final fresh = drafts.firstWhere(
         (d) => d['id'].toString() == widget.draftId.toString(),
         orElse: () => null,
       );
       token = fresh?['share_token'] ?? token;
-      key = fresh?['encryption_key'] ?? key;
     }
     final String host = ApiService.baseUrl.replaceAll('/api', '');
     if (token != null && token.isNotEmpty) {
-      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
+      // [Security] 키는 SecureStorage keyMap에서 조회, URL fragment(#)로 전달
+      final String? key = await StorageService.getKeyFromMap(token);
+      final keyParam = (key != null && key.isNotEmpty) ? '#key=$key' : '';
       Clipboard.setData(ClipboardData(text: "$host/?token=$token$keyParam"));
       AnalyticsService.linkCopied();
       _showToast('링크가 복사되었습니다.');

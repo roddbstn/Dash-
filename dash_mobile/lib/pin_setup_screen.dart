@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
-import 'package:dash_mobile/api_service.dart';
+import 'package:dash_mobile/vault_service.dart';
 import 'package:dash_mobile/widgets/dash_button.dart';
 
 class PinSetupScreen extends StatefulWidget {
@@ -45,24 +43,16 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      final drafts = await StorageService.getDrafts();
-      final Map<String, dynamic> keyMap = {};
-      for (final draft in drafts) {
-        final shareToken = draft['share_token'];
-        final encKey = draft['encryption_key'];
-        if (shareToken != null &&
-            encKey != null &&
-            shareToken.toString().isNotEmpty &&
-            encKey.toString().isNotEmpty) {
-          keyMap[shareToken.toString()] = encKey.toString();
-        }
+      // SecureStorage keyMap에서 모든 키 수집
+      final keyMap = await StorageService.getKeyMap();
+      if (keyMap.isEmpty) return;
+      // VaultService를 통해 첫 번째 키로 vault 초기화 (salt 생성 포함)
+      final firstEntry = keyMap.entries.first;
+      await VaultService.syncKey(user.uid, firstEntry.key, firstEntry.value, newPin);
+      // 나머지 키 추가
+      for (final entry in keyMap.entries.skip(1)) {
+        await VaultService.syncKey(user.uid, entry.key, entry.value, newPin);
       }
-      final vaultKey = encrypt.Key.fromUtf8(newPin.padRight(32).substring(0, 32));
-      final iv = encrypt.IV.fromLength(16);
-      final encrypter = encrypt.Encrypter(encrypt.AES(vaultKey, mode: encrypt.AESMode.cbc));
-      final encrypted = encrypter.encrypt(jsonEncode(keyMap), iv: iv);
-      final encryptedVaultBlob = '${iv.base64}:${encrypted.base64}';
-      await ApiService.saveVault(user.uid, encryptedVaultBlob, user.uid);
     } catch (e) {
       debugPrint('❌ PinSetupScreen: vault sync error: $e');
     }

@@ -258,12 +258,21 @@ pool.query("ALTER TABLE service_drafts ADD COLUMN reviewer_user_id VARCHAR(36) D
     }
   });
 
-pool.query("ALTER TABLE service_drafts ADD COLUMN encryption_key VARCHAR(255) DEFAULT NULL")
+// [Security] encryption_key는 더 이상 서버에 저장하지 않음 — 컬럼은 레거시 호환을 위해 유지(NULL)
+// 신규 레코드는 encryption_key를 서버로 전송하지 않으며, 키는 PIN-encrypted Vault에만 보관
+
+// Phase 3-A: 공유 링크 만료 컬럼 추가
+pool.query("ALTER TABLE service_drafts ADD COLUMN share_expires_at DATETIME DEFAULT NULL")
   .catch(err => {
     if (err.code !== 'ER_DUP_FIELDNAME') {
-      console.error('[migration] encryption_key 컬럼 추가 실패:', err.message);
+      console.error('[migration] share_expires_at 컬럼 추가 실패:', err.message);
     }
   });
+
+// Phase 3-B: Vault 접근 Rate Limiting (메모리 기반, 서버 재시작 시 초기화)
+const vaultAttempts = new Map(); // uid → { count, windowStart }
+const VAULT_MAX_REQUESTS = 10;  // 10분당 최대 10회
+const VAULT_WINDOW_MS = 10 * 60 * 1000;
 
 // --- API Endpoints ---
 
@@ -591,9 +600,9 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
       share_token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
       const [result] = await queryWithTimeout(
         `INSERT INTO service_drafts
-        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, encryption_key, target, share_token, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
-        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, encryption_key || null, target || '', share_token]
+        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
+        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token]
       );
       recordId = result.insertId;
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);
@@ -911,22 +920,8 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
     authAttempts.set(token, { verified: true, verifiedAt: Date.now(), uid });
     console.log(`✅ [REVIEWER LOGIN] uid=${uid} → token=${token} isOwner=${isOwner}`);
 
-    // 오너 본인이면 encryption_key 반환 (키 없는 URL로 접근해도 복호화 가능하게)
-    if (isOwner) {
-      let encryptionKey = null;
-      try {
-        const [keyRows] = await queryWithTimeout(
-          'SELECT encryption_key FROM service_drafts WHERE share_token = ?', [token]
-        );
-        encryptionKey = keyRows.length > 0 ? keyRows[0].encryption_key : null;
-      } catch (keyErr) {
-        // encryption_key 컬럼 미존재 시 무시 (마이그레이션 전 구버전 DB 대응)
-        console.warn('[REVIEWER LOGIN] encryption_key 조회 실패 (컬럼 없음):', keyErr.code);
-      }
-      return res.json({ ok: true, isOwner, encryptionKey });
-    }
-
-    res.json({ ok: true, isOwner });
+    // [Security] encryption_key는 서버에 저장하지 않음 — 키는 PIN Vault에서만 복호화
+    return res.json({ ok: true, isOwner });
   } catch (err) {
     console.error('Reviewer login error:', err);
     res.status(500).json({ error: err.message });
@@ -1007,6 +1002,11 @@ app.get('/api/records/share/:token', async (req, res) => {
     if (rows.length === 0) {
       console.log('⚠️  Data not found for token');
       return res.status(404).json({ error: 'Data not found' });
+    }
+    // Phase 3-A: 공유 링크 만료 검증
+    if (rows[0].share_expires_at && new Date() > new Date(rows[0].share_expires_at)) {
+      console.log(`⛔ [SHARE] Expired link accessed: ${token}`);
+      return res.status(410).json({ error: '만료된 공유 링크입니다.' });
     }
     console.log(`✅ Data fetched for ${rows[0].case_name}`);
     res.json(rows[0]);
@@ -1256,6 +1256,21 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
 // [Security] 7. Key Vault API (Zero-Knowledge PIN Sync)
 app.get('/api/users/vault/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
+
+  // Phase 3-B: Rate limiting — 10분 window에 최대 10회
+  const now = Date.now();
+  const attempts = vaultAttempts.get(userId) || { count: 0, windowStart: now };
+  if (now - attempts.windowStart > VAULT_WINDOW_MS) {
+    attempts.count = 0;
+    attempts.windowStart = now;
+  }
+  attempts.count++;
+  vaultAttempts.set(userId, attempts);
+  if (attempts.count > VAULT_MAX_REQUESTS) {
+    console.warn(`⚠️ [VAULT] Rate limit exceeded for userId: ${userId}`);
+    return res.status(429).json({ error: 'Too many requests. Try again later.' });
+  }
+
   try {
     // 1차: uid로 직접 조회
     let [rows] = await queryWithTimeout(

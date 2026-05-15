@@ -37,6 +37,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   List<dynamic> _drafts = [];
   List<dynamic> _sharedDrafts = [];
+  Map<String, String> _keyMap = {};
   List<dynamic> _cases = [];
   List<dynamic> _notifications = [];
   List<dynamic> _counselors = [];
@@ -176,6 +177,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     _pendingLoadData = false;
 
     var localDrafts = await StorageService.getDrafts();
+    final keyMap = await StorageService.getKeyMap();
     var cases = await StorageService.getCases();
     var counselors = await StorageService.getCounselors();
 
@@ -240,6 +242,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
         _drafts = localDrafts;
         _cases = cases;
         _counselors = counselors;
+        _keyMap = keyMap;
         if (_selectedCounselorId == null && counselors.isNotEmpty) {
           _selectedCounselorId = counselors[0]['id']?.toString();
         }
@@ -365,9 +368,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               finalOpinion = s['agent_opinion'];
             }
 
-            // [E2EE] 복호화 로직 (동일)
+            // [E2EE] 복호화 로직 — 키는 SecureStorage keyMap에서 조회
             final String? blob = s['encrypted_blob'];
-            final String? keyStr = local['encryption_key'];
+            final String? keyStr = keyMap[s['share_token']?.toString()];
             if (blob != null && keyStr != null && blob.contains(':')) {
               try {
                 final parts = blob.split(':');
@@ -399,7 +402,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               ...local,
               'status': s['status'],
               'share_token': s['share_token'],
-              'encryption_key': local['encryption_key'] ?? s['encryption_key']?.toString(),
               'treatment': s['target_system_code'] ?? local['treatment'],
               'caseName': s['case_name'] ?? local['caseName'],
               'dong': s['dong'] ?? local['dong'],
@@ -444,7 +446,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               'serviceDescription': s['service_description'] ?? '',
               'agentOpinion': s['agent_opinion'] ?? '',
               'share_token': s['share_token'],
-              'encryption_key': s['encryption_key']?.toString(),
               'status': s['status'],
               'reviewed_at': s['reviewed_at'],
               'updated_at': s['updated_at'],
@@ -2187,10 +2188,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
     final String authorName = d['author_name'] ?? '담당자';
     final String? shareToken = d['share_token'];
-    final String? encKey = d['encryption_key']?.toString();
+    final String? encKey = shareToken != null ? _keyMap[shareToken] : null;
     final String recordId = d['id'].toString();
     final String shareUrl = shareToken != null
-        ? '${ApiService.serverUrl}/?token=$shareToken${(encKey != null && encKey.isNotEmpty) ? '&key=$encKey' : ''}'
+        ? '${ApiService.serverUrl}/?token=$shareToken${(encKey != null && encKey.isNotEmpty) ? '#key=$encKey' : ''}'
         : '';
 
     return SwipeableSharedDraftCard(

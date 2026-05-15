@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/api_service.dart';
+import 'package:dash_mobile/storage_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -188,7 +189,6 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
 
   Future<void> _copyShareLink() async {
     String? token = widget.d['share_token']?.toString();
-    String? key = widget.d['encryption_key']?.toString();
 
     if (token == null || token.isEmpty) {
       final caseName = widget.d['caseName']?.toString() ?? '';
@@ -201,13 +201,14 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
           );
           if (match != null) {
             token = match['share_token']?.toString();
-            key ??= match['encryption_key']?.toString();
           }
         }
       } catch (_) {}
     }
 
     if (token != null && token.isNotEmpty) {
+      // [Security] 키는 SecureStorage keyMap에서 조회, URL fragment(#)로 전달
+      final String? key = await StorageService.getKeyFromMap(token);
       if ((key == null || key.isEmpty) && mounted) {
         final confirmed = await showDialog<bool>(
           context: context,
@@ -229,7 +230,7 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
         if (confirmed != true) return;
       }
       final host = ApiService.serverUrl;
-      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
+      final keyParam = (key != null && key.isNotEmpty) ? '#key=$key' : '';
       await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();

@@ -110,6 +110,31 @@ class StorageService {
     // _saltKey, _secureStorage PIN, _casesKey, _draftsKey 등은 유지
   }
 
+  // [Security] Encryption Key Map — SecureStorage에 보관 ({ share_token: encryption_key })
+  static const String _keyMapKey = 'dash_key_map';
+
+  static Future<Map<String, String>> getKeyMap() async {
+    final data = await _secureStorage.read(key: _keyMapKey);
+    if (data == null) return {};
+    return Map<String, String>.from(jsonDecode(data));
+  }
+
+  static Future<void> saveKeyToMap(String shareToken, String encryptionKey) async {
+    final map = await getKeyMap();
+    map[shareToken] = encryptionKey;
+    await _secureStorage.write(key: _keyMapKey, value: jsonEncode(map));
+  }
+
+  static Future<String?> getKeyFromMap(String? shareToken) async {
+    if (shareToken == null || shareToken.isEmpty) return null;
+    final map = await getKeyMap();
+    return map[shareToken];
+  }
+
+  static Future<void> clearKeyMap() async {
+    await _secureStorage.delete(key: _keyMapKey);
+  }
+
   // 로그아웃 시 로컬 캐시 초기화 (온보딩·동의 플래그는 유지)
   static Future<void> clearSessionData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -122,6 +147,7 @@ class StorageService {
     await prefs.remove(_pinKey); // legacy 잔존 시 제거
     await prefs.remove(_saltKey);
     await _secureStorage.delete(key: _pinKey);
+    await clearKeyMap();
   }
 
   // 계정 탈퇴 시 모든 데이터 초기화 (온보딩·동의 플래그 포함)

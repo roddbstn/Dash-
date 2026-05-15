@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:dash_mobile/api_service.dart';
@@ -14,7 +13,7 @@ import 'package:dash_mobile/widgets/home_widgets.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:dash_mobile/vault_service.dart';
 
 class ProfileTab extends StatefulWidget {
   final String? userName;
@@ -364,32 +363,20 @@ class _ProfileTabState extends State<ProfileTab> {
     }
   }
 
-  /// Encrypts all locally-synced case keys with [newPin] and saves to server vault.
-  /// This must be called whenever the PIN is first created or changed.
   Future<void> _syncPinToVault(String newPin) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-
-      // Collect all synced draft keys: { share_token -> encryption_key }
-      final drafts = await StorageService.getDrafts();
-      final Map<String, dynamic> keyMap = {};
-      for (final draft in drafts) {
-        final shareToken = draft['share_token'];
-        final encKey = draft['encryption_key'];
-        if (shareToken != null && encKey != null &&
-            shareToken.toString().isNotEmpty && encKey.toString().isNotEmpty) {
-          keyMap[shareToken.toString()] = encKey.toString();
-        }
+      final keyMap = await StorageService.getKeyMap();
+      if (keyMap.isEmpty) {
+        debugPrint('✅ Vault sync skipped: no keys to sync');
+        return;
       }
-
-      final vaultKey = encrypt.Key.fromUtf8(newPin.padRight(32).substring(0, 32));
-      final iv = encrypt.IV.fromLength(16);
-      final encrypter = encrypt.Encrypter(encrypt.AES(vaultKey, mode: encrypt.AESMode.cbc));
-      final encrypted = encrypter.encrypt(jsonEncode(keyMap), iv: iv);
-      final encryptedVaultBlob = '${iv.base64}:${encrypted.base64}';
-
-      await ApiService.saveVault(user.uid, encryptedVaultBlob, user.uid);
+      final firstEntry = keyMap.entries.first;
+      await VaultService.syncKey(user.uid, firstEntry.key, firstEntry.value, newPin);
+      for (final entry in keyMap.entries.skip(1)) {
+        await VaultService.syncKey(user.uid, entry.key, entry.value, newPin);
+      }
       debugPrint('✅ Vault synced with new PIN (${keyMap.length} keys)');
     } catch (e) {
       debugPrint('❌ Error syncing vault with new PIN: $e');

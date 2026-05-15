@@ -320,6 +320,7 @@ async function checkPinAndProceed() {
         pinAuthenticated = true;
         showMainView();
         fetchRecords();
+        fetchHistory();
         setupRealtimeSync();
         return;
     }
@@ -331,6 +332,7 @@ async function checkPinAndProceed() {
         // → 기록도 없을 것이므로 빈 상태 mainView로 진입
         showMainView();
         fetchRecords();
+        fetchHistory();
         setupRealtimeSync();
         return;
     }
@@ -358,10 +360,10 @@ async function verifyPinWithVault(pin) {
         const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
         if (!res.ok) return null;
 
-        const { encrypted_vault } = await res.json();
+        const { encrypted_vault, salt } = await res.json();
         if (!encrypted_vault) return null;
 
-        return await attemptDecryptVault(pin, encrypted_vault);
+        return await attemptDecryptVault(pin, encrypted_vault, salt);
     } catch (e) {
         console.error('PIN verification failed:', e);
         return null;
@@ -375,29 +377,51 @@ function removePkcs7(bytes) {
     return bytes.slice(0, bytes.length - padLen);
 }
 
-// Vault 복호화 — CBC(신규) → CTR+PKCS7제거(구버전 SIC) 순으로 시도
+// [Security] Phase 1-B: PBKDF2로 PIN → Vault 키 파생 (100,000 iterations, SHA-256)
+async function deriveVaultKey(pin, saltB64) {
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(pin),
+        'PBKDF2',
+        false,
+        ['deriveBits']
+    );
+    const saltBytes = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: 100000 },
+        keyMaterial,
+        256
+    );
+    return new Uint8Array(bits);
+}
+
+// Vault 복호화 — PBKDF2(신규) → raw PIN pad(레거시 폴백) 순으로 시도
 // 성공 시 파싱된 Vault 객체 반환, 실패 시 null
-async function attemptDecryptVault(pin, encryptedVaultB64) {
+async function attemptDecryptVault(pin, encryptedVaultB64, salt) {
     const parts = encryptedVaultB64.split(':');
     if (parts.length !== 2) return null;
 
     const iv = base64ToArrayBuffer(parts[0]);
     const ciphertext = base64ToArrayBuffer(parts[1]);
-    const keyStr = pin.padEnd(32).substring(0, 32);
-    const keyBytes = new TextEncoder().encode(keyStr);
 
-    // 1차 시도: AES-CBC (Flutter AESMode.cbc — 신규 Vault)
-    // Web Crypto AES-CBC는 PKCS7 자동 처리
+    // 1차 시도: PBKDF2 파생 키 (salt가 있는 신규 Vault)
+    if (salt && salt.length > 10) {
+        try {
+            const keyBytes = await deriveVaultKey(pin, salt);
+            const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
+            const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
+            return JSON.parse(new TextDecoder().decode(buf));
+        } catch {}
+        return null; // 신규 Vault는 PBKDF2만 시도 — 실패 = PIN 불일치
+    }
+
+    // 2차 시도: 레거시 raw PIN pad (salt 없는 구버전 Vault)
+    const keyBytes = new TextEncoder().encode(pin.padEnd(32).substring(0, 32));
     try {
         const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
         const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
         return JSON.parse(new TextDecoder().decode(buf));
     } catch {}
-
-    // 2차 시도: AES-CTR + 수동 PKCS7 제거
-    // Flutter AESMode.sic = PointyCastle SIC = CTR 방식
-    // 단, Flutter encrypt 패키지는 기본 padding='PKCS7' 적용 →
-    // CTR 복호화 후 나온 바이트에 PKCS7 패딩이 포함되어 있으므로 수동 제거 필요
     try {
         const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CTR' }, false, ['decrypt']);
         const buf = await crypto.subtle.decrypt({ name: 'AES-CTR', counter: iv, length: 128 }, key, ciphertext);
@@ -405,7 +429,7 @@ async function attemptDecryptVault(pin, encryptedVaultB64) {
         return JSON.parse(new TextDecoder().decode(unpadded));
     } catch {}
 
-    return null; // 양쪽 모두 실패 = PIN 불일치
+    return null;
 }
 
 // encrypted_blob 복호화 — 성공 시 draftData 객체 반환, 실패 시 null
@@ -503,6 +527,7 @@ pinKeypad.addEventListener('click', async (e) => {
             setTimeout(() => {
                 showMainView();
                 fetchRecords();
+                fetchHistory();
                 setupRealtimeSync();
             }, 500);
         } else {
@@ -1009,7 +1034,7 @@ function renderRecords() {
             </div>
             ${record.share_token ? `
             <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:4px;">
-                <button class="btn-share-pending" data-token="${record.share_token}" data-key="${record.encryption_key || ''}" style="
+                <button class="btn-share-pending" data-token="${record.share_token}" data-key="${vaultKeys[record.share_token] || ''}" style="
                     display:inline-flex;align-items:center;gap:4px;padding:7px 14px;
                     background:#F2F4F6;color:#4E5968;border:none;border-radius:8px;
                     font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
@@ -1038,7 +1063,8 @@ function renderRecords() {
                 e.stopPropagation();
                 const token = e.currentTarget.dataset.token;
                 const key = e.currentTarget.dataset.key;
-                const url = `https://dash.qpon/?token=${token}${key ? '&key=' + key : ''}`;
+                // [Security] Phase 2-B: 키는 URL fragment(#)로 전달 — 서버 로그에 남지 않음
+                const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
                 navigator.clipboard.writeText(url).then(() => {
                     showToastNotification('공유 링크가 복사됐어요');
                 }).catch(() => alert(url));
