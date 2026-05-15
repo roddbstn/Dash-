@@ -46,7 +46,11 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
               decoration: BoxDecoration(
-                color: AppColors.primary,
+                gradient: const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [Color(0xFF1B2340), Color(0xFF2A3F80)],
+                ),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
