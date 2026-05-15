@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class UserGuideScreen extends StatefulWidget {
   const UserGuideScreen({super.key});
@@ -654,7 +653,7 @@ class _MockupNotification extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  '검토 완료 🗒',
+                  '수정 완료 🗒',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -663,7 +662,7 @@ class _MockupNotification extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  '강O수 아동 사례 DB가 검토 완료됐어요',
+                  'OOO 상담원이 강O수 아동 사례 DB를 일부 수정했어요',
                   style: TextStyle(
                     fontSize: 12,
                     color: Color(0xFF4B5563),
@@ -701,11 +700,11 @@ class _EdgeInstallNote extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              const FaIcon(FontAwesomeIcons.edge, size: 13, color: Color(0xFF3B5BDB)),
-              SizedBox(width: 5),
-              Text(
+              Image.asset('assets/images/edge_logo.png', width: 13, height: 13),
+              const SizedBox(width: 5),
+              const Text(
                 'Edge 브라우저 설치 방법',
                 style: TextStyle(
                   fontSize: 11,
@@ -1197,8 +1196,8 @@ class _MockupDbCreation extends StatelessWidget {
                         children: [
                           const Expanded(
                             child: Text(
-                              '아동은|',
-                              style: TextStyle(fontSize: 12, color: Color(0xFF111827)),
+                              '아동은 전반적으로 안정된 상태이며, 가정 내 보호자와의 관계 개선이 이루어지고 있음.',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF111827), height: 1.5),
                             ),
                           ),
                           Container(
