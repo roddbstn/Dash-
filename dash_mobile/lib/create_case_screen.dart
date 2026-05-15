@@ -131,9 +131,10 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   }
 
   // ── 상담원 추가 바텀시트 ───────────────────────────────────────────────────
+  // 시트 ctx를 외부로 넘기지 않고, Navigator.pop(ctx, name)으로 결과값만 반환
   Future<void> _showAddCounselorSheet(int rowIndex) async {
     final ctrl = TextEditingController();
-    await showModalBottomSheet(
+    final String? newName = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -143,7 +144,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: StatefulBuilder(
-          builder: (ctx, setSt) => Padding(
+          builder: (sheetCtx, setSt) => Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -174,8 +175,8 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                   autofocus: true,
                   maxLength: 10,
                   onChanged: (_) => setSt(() {}),
-                  onSubmitted: (_) {
-                    if (ctrl.text.trim().isNotEmpty) _doAddCounselor(ctrl.text.trim(), rowIndex, ctx);
+                  onSubmitted: (v) {
+                    if (v.trim().isNotEmpty) Navigator.pop(sheetCtx, v.trim());
                   },
                   decoration: InputDecoration(
                     hintText: '예) 이상훈',
@@ -200,7 +201,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 DashButton(
                   onTap: ctrl.text.trim().isEmpty
                       ? null
-                      : () => _doAddCounselor(ctrl.text.trim(), rowIndex, ctx),
+                      : () => Navigator.pop(sheetCtx, ctrl.text.trim()),
                   text: '추가하기',
                   backgroundColor: AppColors.primary,
                   height: 52,
@@ -213,12 +214,15 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       ),
     );
     ctrl.dispose();
+
+    // 시트가 닫힌 후 안전하게 처리 (ctx 참조 없음)
+    if (newName == null || newName.isEmpty || !mounted) return;
+    _doAddCounselor(newName, rowIndex);
   }
 
-  void _doAddCounselor(String name, int rowIndex, BuildContext sheetCtx) {
+  void _doAddCounselor(String name, int rowIndex) {
     final alreadyExists = _counselors.any((c) => c['name']?.toString() == name);
     if (alreadyExists) {
-      Navigator.pop(sheetCtx);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('\'$name\'은(는) 이미 있는 상담원이에요.'),
@@ -233,7 +237,6 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       _counselors.add({'id': tempId, 'name': name});
       _rows[rowIndex].counselorId = tempId;
     });
-    Navigator.pop(sheetCtx);
     // 서버 저장 (비동기, 실패해도 로컬은 유지)
     ApiService.syncCounselor({'name': name});
   }
