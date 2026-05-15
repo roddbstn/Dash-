@@ -399,6 +399,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               ...local,
               'status': s['status'],
               'share_token': s['share_token'],
+              'encryption_key': local['encryption_key'] ?? s['encryption_key']?.toString(),
               'treatment': s['target_system_code'] ?? local['treatment'],
               'caseName': s['case_name'] ?? local['caseName'],
               'dong': s['dong'] ?? local['dong'],
@@ -443,6 +444,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               'serviceDescription': s['service_description'] ?? '',
               'agentOpinion': s['agent_opinion'] ?? '',
               'share_token': s['share_token'],
+              'encryption_key': s['encryption_key']?.toString(),
               'status': s['status'],
               'reviewed_at': s['reviewed_at'],
               'updated_at': s['updated_at'],
@@ -599,23 +601,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
         AnalyticsService.notificationReceived(notification.title ?? 'unknown');
         _loadData();
 
-        if (android != null) {
-          flutterLocalNotificationsPlugin.show(
-            id: notification.hashCode,
-            title: notification.title,
-            body: notification.body,
-            notificationDetails: NotificationDetails(
-              android: AndroidNotificationDetails(
-                channel.id,
-                channel.name,
-                channelDescription: channel.description,
-                importance: Importance.max,
-                priority: Priority.high,
-                ticker: 'ticker',
-              ),
+        flutterLocalNotificationsPlugin.show(
+          id: notification.hashCode,
+          title: notification.title,
+          body: notification.body,
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'high_importance_channel',
+              'High Importance Notifications',
+              channelDescription: 'This channel is used for important notifications.',
+              importance: Importance.max,
+              priority: Priority.high,
             ),
-          );
-        }
+          ),
+        );
       }
     });
 
