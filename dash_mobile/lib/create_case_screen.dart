@@ -41,10 +41,15 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
   void initState() {
     super.initState();
     AnalyticsService.screenCreateCase();
-    _selectedCounselorId = null; // 미리 선택하지 않음
+    _selectedCounselorId = widget.initialCounselorId; // 모달에서 선택한 상담원 유지
 
     // 상담원이 1명(나)만 있으면 step 0 건너뜀
     _currentStep = _hasMulipleCounselors ? 0 : 1;
+
+    // step 0 다음 버튼: 모달에서 이미 선택된 상담원이 있으면 활성화
+    if (_hasMulipleCounselors) {
+      _isNextEnabled = _selectedCounselorId != null;
+    }
 
     _cursorAnimationController = AnimationController(
       vsync: this,
@@ -194,7 +199,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
             ),
           ),
         ),
-        bottomNavigationBar: (_isLoading || _currentStep == 0)
+        bottomNavigationBar: _isLoading
             ? null
             : Container(
                 decoration: BoxDecoration(
@@ -212,7 +217,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                     child: DashButton(
                       onTap: _isNextEnabled ? _handleNext : null,
-                      text: _currentStep == 1 ? '다음' : '저장',
+                      text: _currentStep == 2 ? '저장' : '다음',
                       backgroundColor: AppColors.primary,
                       height: 56,
                       borderRadius: 12,
@@ -253,10 +258,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
               onTap: () {
                 setState(() {
                   _selectedCounselorId = c['id']?.toString();
-                });
-                // 선택 즉시 다음 단계로 이동
-                Future.delayed(const Duration(milliseconds: 150), () {
-                  if (mounted) _handleNext();
+                  _isNextEnabled = true;
                 });
               },
               child: AnimatedContainer(
