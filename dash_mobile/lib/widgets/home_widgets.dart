@@ -187,6 +187,75 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
     super.dispose();
   }
 
+  // picked 값: 7/30/90 = 해당 일수, 0 = 무제한, null = 시트 닫힘(취소)
+  Future<void> _showShareExpirySheet(String token, String? key) async {
+    if (!mounted) return;
+    final recordId = widget.d['id']?.toString();
+    const options = [
+      {'label': '7일', 'days': 7},
+      {'label': '30일', 'days': 30},
+      {'label': '90일', 'days': 90},
+      {'label': '무제한', 'days': 0}, // 0 = sentinel for unlimited
+    ];
+
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('공유 링크 유효 기간', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              const Text('기간이 지나면 링크가 자동으로 만료됩니다', style: TextStyle(fontSize: 13, color: Color(0xFF868E96))),
+              const SizedBox(height: 16),
+              ...options.map((o) {
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(o['label'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  trailing: const Icon(Icons.chevron_right, color: Color(0xFFADB5BD)),
+                  onTap: () => Navigator.pop(ctx, o['days'] as int),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (picked == null) return; // 취소 (시트 닫힘)
+
+    // 서버에 만료일 설정 (0 = 무제한 → null로 변환)
+    if (recordId != null && recordId.isNotEmpty) {
+      await ApiService.setShareExpiry(recordId, picked == 0 ? null : picked);
+    }
+
+    // 링크 복사
+    final host = ApiService.serverUrl;
+    final keyParam = (key != null && key.isNotEmpty) ? '#key=$key' : '';
+    await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('클립보드에 복사되었습니다', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+          backgroundColor: const Color(0xFF222222),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Future<void> _copyShareLink() async {
     String? token = widget.d['share_token']?.toString();
 
@@ -229,26 +298,7 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
         );
         if (confirmed != true) return;
       }
-      final host = ApiService.serverUrl;
-      final keyParam = (key != null && key.isNotEmpty) ? '#key=$key' : '';
-      await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              '클립보드에 복사되었습니다',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            backgroundColor: const Color(0xFF222222),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      await _showShareExpirySheet(token, key);
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();

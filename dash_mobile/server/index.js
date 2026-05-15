@@ -1129,6 +1129,29 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
+// [Mobile] 4-B. 공유 링크 만료 설정
+app.patch('/api/records/:id/share-expiry', verifyFirebaseAuth, async (req, res) => {
+  const { id } = req.params;
+  const { expires_days } = req.body; // null = 무제한, 숫자 = 일수
+  const uid = req.firebaseUser?.uid;
+  try {
+    let expiresAt = null;
+    if (expires_days != null && expires_days > 0) {
+      expiresAt = new Date(Date.now() + expires_days * 24 * 60 * 60 * 1000);
+    }
+    const [result] = await queryWithTimeout(
+      `UPDATE service_drafts SET share_expires_at = ? WHERE id = ? AND user_id = (SELECT id FROM dash_users WHERE id = ? LIMIT 1)`,
+      [expiresAt, id, uid]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Not found or not authorized' });
+    }
+    res.json({ message: 'Updated', expires_at: expiresAt });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // [Mobile] 5-0. 공유받은 DB 수동 삭제 (reviewer_user_id 해제)
 app.delete('/api/records/shared/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;

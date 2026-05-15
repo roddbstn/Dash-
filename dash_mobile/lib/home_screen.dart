@@ -60,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
   bool _isLoadingInitial = true; // 앱 첫 진입 시 로딩 스피너 표시용
   bool _serverReachable = true; // false = 서버 미응답, 오프라인 배너 표시
   bool _isModalOpen = false; // 바텀 모달 열림 여부 (FAB 숨김 제어)
+  bool _hasPromptedVaultRecovery = false; // keyMap 복구 다이얼로그 중복 표시 방지
 
   @override
   void initState() {
@@ -248,6 +249,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
         }
         _isLoadingInitial = false;
       });
+      // 앱 재설치 후 keyMap이 비어있고 동기화된 레코드가 있으면 Vault 복구 유도
+      _checkAndPromptVaultRecovery(keyMap, localDrafts);
     }
 
     // Background Sync for offline drafts
@@ -625,12 +628,128 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       final targetUserId = message.data['target_user_id'];
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
       if (targetUserId != null && targetUserId != currentUid) {
-        // 다른 계정의 알림 — 무시
         debugPrint('⚠️ Notification for different account ($targetUserId), current: $currentUid');
         return;
       }
-      setState(() => _currentIndex = 1); // 알림 탭으로 이동
+      _handleFcmNavigation(message.data);
     });
+  }
+
+  void _handleFcmNavigation(Map<String, dynamic> data) {
+    final recordToken = data['record_token']?.toString();
+    if (recordToken == null || recordToken.isEmpty) {
+      setState(() => _currentIndex = 1);
+      return;
+    }
+    // share_token으로 로컬 draft 조회 후 FormScreen으로 이동
+    final draft = _drafts.cast<Map<String, dynamic>?>().firstWhere(
+      (d) => d?['share_token']?.toString() == recordToken,
+      orElse: () => null,
+    );
+    if (draft != null && mounted) {
+      setState(() => _currentIndex = 0);
+      final caseName = draft['caseName']?.toString() ?? draft['case_name']?.toString() ?? '';
+      final dong = draft['dong']?.toString() ?? '';
+      final caseId = draft['caseId'] ?? draft['case_id'];
+      final draftId = int.tryParse(draft['id']?.toString() ?? '');
+      _goToForm(caseName, caseName, dong, caseId: caseId, draftId: draftId);
+    } else {
+      setState(() => _currentIndex = 1); // 해당 레코드 없으면 알림 탭으로
+    }
+  }
+
+  void _checkAndPromptVaultRecovery(Map<String, String> keyMap, List<dynamic> drafts) {
+    if (_hasPromptedVaultRecovery) return;
+    if (keyMap.isNotEmpty) return;
+    final hasSyncedDrafts = drafts.any(
+      (d) => d['share_token'] != null && (d['share_token']?.toString().isNotEmpty ?? false),
+    );
+    if (!hasSyncedDrafts) return;
+    _hasPromptedVaultRecovery = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showVaultRecoveryDialog();
+    });
+  }
+
+  void _showVaultRecoveryDialog() {
+    final controller = TextEditingController();
+    bool isLoading = false;
+    String? errorMsg;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (context, setStateSB) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('암호화 키 복구', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '앱 재설치로 암호화 키가 초기화됐어요.\nPIN 번호를 입력하면 서버 Vault에서 키를 복구할 수 있어요.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: 4,
+                  obscureText: true,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    counterText: '',
+                    hintText: 'PIN 4자리',
+                    errorText: errorMsg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('나중에', style: TextStyle(color: AppColors.textSub)),
+              ),
+              TextButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        final pin = controller.text;
+                        if (pin.length != 4) return;
+                        setStateSB(() { isLoading = true; errorMsg = null; });
+                        final userId = FirebaseAuth.instance.currentUser?.uid;
+                        if (userId == null) { Navigator.pop(ctx); return; }
+                        final vaultMap = await VaultService.decryptVault(pin, userId);
+                        if (vaultMap == null) {
+                          setStateSB(() { isLoading = false; errorMsg = 'PIN이 틀렸거나 Vault가 없어요'; });
+                          return;
+                        }
+                        for (final entry in vaultMap.entries) {
+                          await StorageService.saveKeyToMap(entry.key, entry.value.toString());
+                        }
+                        await StorageService.savePin(pin);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        _loadData();
+                      },
+                child: isLoading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('복구하기', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          );
+        });
+      },
+    );
   }
 
   void _showCaseDeleteConfirmation(BuildContext modalContext) {

@@ -225,8 +225,21 @@ function markNotifySent() {
     if (mobileBtn) mobileBtn.textContent = '저장 후 전송';
 }
 
-// ── 로컬 임시 저장 (서버 자동저장 없음 — 버튼 클릭 시에만 서버에 반영)
+// ── 로컬 임시 저장 + 서버 자동 저장 (2초 debounce)
 let _typingTimer = null;
+let _autoSaveTimer = null;
+
+function _getEncKey(token) {
+    const qp = new URLSearchParams(window.location.search);
+    let key = qp.get('key');
+    if (!key) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        key = hashParams.get('key') || '';
+    }
+    if (!key) key = sessionStorage.getItem('dash_key_' + token) || '';
+    return key;
+}
+
 function handleTyping() {
     const main = document.getElementById('main-editor').value;
     const opinion = document.getElementById('opinion-editor').value || '';
@@ -247,6 +260,29 @@ function handleTyping() {
         // 세션 임시 저장 (새로고침 복원용)
         persistDraft(main, opinion);
     }, 500);
+
+    // 서버 자동 저장 (2초 debounce)
+    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(async () => {
+        const token = new URLSearchParams(window.location.search).get('token');
+        if (!token) return;
+        try {
+            const body = { service_description: main, agent_opinion: opinion };
+            const encKey = _getEncKey(token);
+            if (encKey && window.currentRecord) {
+                const updatedData = { ...window.currentRecord, serviceDescription: main, agentOpinion: opinion };
+                const aesKey = CryptoJS.enc.Utf8.parse(encKey.padEnd(32).substring(0, 32));
+                const iv = CryptoJS.lib.WordArray.random(16);
+                const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedData), aesKey, { iv });
+                body.encrypted_blob = iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
+            }
+            await fetch(`/api/records/share/${token}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+        } catch (_) { /* 자동 저장 실패는 조용히 무시 */ }
+    }, 2000);
 }
 
 
@@ -279,9 +315,7 @@ function closeModal() {
 async function confirmNotify() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
-    // 쿼리 파라미터 ?key= 우선, fragment #key 폴백
-    const _qp = new URLSearchParams(window.location.search);
-    const encKey = _qp.get('key') || window.location.hash.substring(1) || sessionStorage.getItem('dash_key_' + token) || '';
+    const encKey = _getEncKey(token);
 
     if (!token) {
         alert('토큰 정보가 없어 완료할 수 없습니다.');

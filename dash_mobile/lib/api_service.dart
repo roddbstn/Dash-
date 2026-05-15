@@ -344,6 +344,21 @@ class ApiService {
     }
   }
 
+  // [Share] 공유 링크 만료 설정 (null = 무제한)
+  static Future<bool> setShareExpiry(String recordId, int? expiresDays) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/records/$recordId/share-expiry'),
+        headers: await _authHeaders(),
+        body: jsonEncode({'expires_days': expiresDays}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('❌ Error setting share expiry: $e');
+      return false;
+    }
+  }
+
   // [Security] Delete user data (PIPL Compliance)
   static Future<bool> deleteUser(String userId, {String? email}) async {
     try {

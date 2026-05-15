@@ -451,6 +451,22 @@ class _ProfileTabState extends State<ProfileTab> {
                   GestureDetector(
                     onTap: () {
                       Navigator.pop(ctx);
+                      _showPinChangeDialog(pin);
+                    },
+                    child: const Text(
+                      'PIN 변경하기',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
                       _showPinResetWarningDialog();
                     },
                     child: const Text(
@@ -498,6 +514,99 @@ class _ProfileTabState extends State<ProfileTab> {
             );
           },
         );
+      },
+    );
+  }
+
+  void _showPinChangeDialog(String currentPin) {
+    final newPinController = TextEditingController();
+    bool isLoading = false;
+    String? errorMsg;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (context, setStateSB) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('PIN 변경', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '새 PIN 번호를 입력해주세요.\n변경 시 암호화 키도 새 PIN으로 재암호화됩니다.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: newPinController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: 4,
+                  obscureText: true,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    counterText: '',
+                    hintText: '새 PIN 4자리',
+                    errorText: errorMsg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('취소', style: TextStyle(color: AppColors.textSub)),
+              ),
+              TextButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        final newPin = newPinController.text;
+                        if (newPin.length != 4) {
+                          setStateSB(() => errorMsg = 'PIN은 4자리여야 해요');
+                          return;
+                        }
+                        if (newPin == currentPin) {
+                          setStateSB(() => errorMsg = '현재 PIN과 동일해요');
+                          return;
+                        }
+                        setStateSB(() { isLoading = true; errorMsg = null; });
+                        try {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user == null) { Navigator.pop(ctx); return; }
+                          // 기존 Vault 복호화 → 새 PIN으로 재암호화
+                          final keyMap = await StorageService.getKeyMap();
+                          if (keyMap.isNotEmpty) {
+                            for (final entry in keyMap.entries) {
+                              await VaultService.syncKey(user.uid, entry.key, entry.value, newPin);
+                            }
+                          }
+                          await StorageService.savePin(newPin);
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            widget.onShowToast('PIN이 변경되었습니다');
+                          }
+                        } catch (e) {
+                          setStateSB(() { isLoading = false; errorMsg = '변경 중 오류가 발생했어요'; });
+                        }
+                      },
+                child: isLoading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('변경하기', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          );
+        });
       },
     );
   }

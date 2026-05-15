@@ -1,8 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Dash",
-    "version": "3.1",
-    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsydxCVQfliTw9N8LAlk/5/bEuupg/YWEZXBjLONwFbqwC2A+lT4tVg8C4Pbqci37LhLDrjtO5l2Xd9MA7EDIcgCw66aKr3zCK3Y++DyiokHJuZIKxiNd6g44TyjOC/MW5pfR7Uce4BI7T92uGwQdjko5jt9SuTalnPY1td2rMBr7FtISXItx+WecrG5tyIPyLN1CY8lbuSl1PTR/zox+jsnZuttD9hJ8cRhBEZ3bqqawplZAyYIRTDXQLYEjMLiTp9eUQxEL8TeZb0NkMqlITqUK8MeYsqbxbt3fMLs0MO0rloSnwgZItCq5ezWbBRzZtFoxupAy9Bn6PykoBHeGpQIDAQAB",
+    "version": "3.2",
     "description": "모바일에서 작성한 상담 기록을 아동학대정보시스템에 1초 만에 주입합니다.",
     "permissions": [
         "storage",
@@ -11,7 +10,6 @@
         "identity"
     ],
     "host_permissions": [
-        "*://localhost:*/*",
         "*://ncads.go.kr/*",
         "*://*.ncads.go.kr/*",
         "*://dash.qpon/*",
@@ -48,9 +46,6 @@
     "content_scripts": [
         {
             "matches": [
-                "http://localhost:8080/*",
-                "*://localhost:*/*",
-                "*://localhost/*",
                 "*://ncads.go.kr/*",
                 "*://*.ncads.go.kr/*"
             ],

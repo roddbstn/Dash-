@@ -1034,7 +1034,7 @@ function renderRecords() {
             </div>
             ${record.share_token ? `
             <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:4px;">
-                <button class="btn-share-pending" data-token="${record.share_token}" data-key="${vaultKeys[record.share_token] || ''}" style="
+                <button class="btn-share-pending" data-token="${record.share_token}" style="
                     display:inline-flex;align-items:center;gap:4px;padding:7px 14px;
                     background:#F2F4F6;color:#4E5968;border:none;border-radius:8px;
                     font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
@@ -1062,8 +1062,8 @@ function renderRecords() {
             shareBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const token = e.currentTarget.dataset.token;
-                const key = e.currentTarget.dataset.key;
-                // [Security] Phase 2-B: 키는 URL fragment(#)로 전달 — 서버 로그에 남지 않음
+                // [Security] Phase 2-B: 클릭 시점에 vaultKeys에서 키 조회 (렌더 타이밍 문제 방지)
+                const key = vaultKeys[token] || '';
                 const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
                 navigator.clipboard.writeText(url).then(() => {
                     showToastNotification('공유 링크가 복사됐어요');
