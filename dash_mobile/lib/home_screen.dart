@@ -1760,6 +1760,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     ); // LayoutBuilder
   }
 
+  // ── 탭 배지 (숫자 동그라미) ──────────────────────────────────
+  Widget _buildTabBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDCEEFF),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '$count',
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF2979FF),
+        ),
+      ),
+    );
+  }
+
   // ── 좌상단 인사말 + DB 카운트 (CTA 카드 밖)
   Widget _buildGreetingHeader() {
     final int totalDbCount = _pendingDrafts.length + _sharedDrafts.length;
@@ -2003,9 +2022,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
           labelPadding: const EdgeInsets.only(right: 24, bottom: 2),
           splashFactory: NoSplash.splashFactory,
           overlayColor: WidgetStateProperty.all(Colors.transparent),
-          tabs: const [
-            Tab(text: '나의 DB'),
-            Tab(text: '공유받은 DB'),
+          tabs: [
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('나의 DB'),
+                  const SizedBox(width: 5),
+                  _buildTabBadge(_pendingDrafts.length),
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('공유받은 DB'),
+                  const SizedBox(width: 5),
+                  _buildTabBadge(_sharedDrafts.length),
+                ],
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
