@@ -80,22 +80,21 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
             // 스텝 카드들
             _StepCard(
               step: 1,
-              icon: Icons.person_add_outlined,
-              title: '새 사례 등록',
-              description: '홈 화면 하단의 + 버튼을 눌러 새 사례를 만드세요.',
-              tip: '아동 이름은 마스킹되어 외부에 노출되지 않아요.',
-              mockup: const _MockupCaseButton(),
+              icon: Icons.edit_note_outlined,
+              title: 'DB 작성하기',
+              description: 'DB 작성하기를 클릭하여 상담원님의 사례를\n등록해주세요.',
+              tip: '저장한 기록은 인터넷이 없어도 폰에 보관되며, 인터넷이 다시 연결되면 자동으로 업로드돼요.',
+              mockup: const _MockupCtaAndModal(),
             ),
             _StepConnector(),
 
             _StepCard(
               step: 2,
-              icon: Icons.edit_note_outlined,
+              icon: Icons.person_add_outlined,
               title: '상담 기록 작성',
-              description: '\'DB 작성하기\'를 터치하여 사례를 선택해요.\n'
-                  '실제 DB를 쓰듯이 작성해보세요.',
-              tip: '저장한 기록은 인터넷이 없어도 폰에 보관되며, 인터넷이 다시 연결되면 자동으로 업로드돼요.',
-              mockup: const _MockupDbButton(),
+              description: '사례를 선택한 뒤, 시스템에 기입하듯이 DB를 작성해보세요.',
+              tip: '아동 이름은 마스킹되어 외부에 노출되지 않아요.',
+              mockup: const _MockupDbCreation(),
             ),
             _StepConnector(),
 
@@ -103,9 +102,7 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               step: 3,
               icon: Icons.share_outlined,
               title: '동행자에게 공유 및 검토 요청',
-              description: 'DB 생성 후 동행자에게 공유메모를 전달해보세요. 서비스 내용을 공동으로 수정할 수 있어요.\n'
-                  '링크를 동행자에게 전달하면 PC 웹에서 내용을 확인하고\n'
-                  '수정·검토를 진행할 수 있어요.',
+              description: 'DB 생성 후 동행자에게 공유메모를 전달해보세요. 서비스 내용을 공동으로 수정할 수 있어요.',
               tip: '링크는 본인 계정의 기록에만 접근 가능해요.',
               mockup: const _MockupDbCard(),
             ),
@@ -114,9 +111,9 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
             _StepCard(
               step: 4,
               icon: Icons.notifications_active_outlined,
-              title: '검토 완료 알림 수신',
-              description: '상사가 검토를 완료하면 즉시 푸시 알림이 도착해요.\n'
-                  '홈 화면 알림 탭에서 검토 내용을 확인할 수 있어요.',
+              title: '수정 완료 알림 받기',
+              description: '동행자가 수정을 완료하면 완료 알림이 도착해요.\n'
+                  '완료 즉시 수정 내용이 나의 DB에 반영돼요.',
               tip: '알림 설정은 프로필 탭에서 변경할 수 있어요.',
               mockup: const _MockupNotification(),
             ),
@@ -497,19 +494,19 @@ class _MockupDbCardState extends State<_MockupDbCard>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 2400),
     );
     _slide = TweenSequence([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 0.0), weight: 20), // 대기
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 0.0), weight: 25), // 대기
       TweenSequenceItem(
           tween: Tween(begin: 0.0, end: 72.0)
               .chain(CurveTween(curve: Curves.easeOut)),
-          weight: 35), // 스와이프
+          weight: 25), // 스와이프
       TweenSequenceItem(tween: Tween(begin: 72.0, end: 72.0), weight: 25), // 유지
       TweenSequenceItem(
           tween: Tween(begin: 72.0, end: 0.0)
               .chain(CurveTween(curve: Curves.easeIn)),
-          weight: 20), // 복귀
+          weight: 25), // 복귀
     ]).animate(_ctrl);
     _ctrl.repeat();
   }
@@ -543,6 +540,7 @@ class _MockupDbCardState extends State<_MockupDbCard>
               Transform.translate(
                 offset: Offset(_slide.value, 0),
                 child: Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -815,31 +813,79 @@ class _MockupExtensionPopup extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // NCADS 폼 (좌측)
+                  // NCADS 폼 (좌측) — 실제 아동학대정보시스템 UI
                   Expanded(
                     flex: 54,
                     child: Container(
                       color: Colors.white,
-                      padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
+                      padding: const EdgeInsets.fromLTRB(6, 6, 4, 6),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            '상담 기록',
-                            style: TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF111827),
-                            ),
+                          Row(
+                            children: [
+                              Container(width: 2.5, height: 10, color: const Color(0xFF3B5BDB)),
+                              const SizedBox(width: 3),
+                              const Text(
+                                '서비스 제공 내용',
+                                style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 5),
-                          _NcadsFormRow(label: '대상자', filled: '피해아동'),
-                          _NcadsFormRow(label: '제공구분', filled: '제공'),
-                          _NcadsFormRow(label: '제공방법', filled: '방문'),
-                          _NcadsFormRow(label: '서비스유형', filled: '아보전'),
-                          _NcadsFormRow(label: '제공서비스', filled: '아동권리교육'),
-                          _NcadsFormRow(label: '제공장소', filled: '기관내'),
-                          _NcadsFormRow(label: '제공일시', filled: '4.8~4.10'),
+                          const SizedBox(height: 4),
+                          _NcadsSection(label: '제공구분', value: '제공'),
+                          _NcadsSection(label: '서비스제공방법', value: '방문'),
+                          _NcadsSection(label: '서비스제공유형', value: '아보전서비스'),
+                          _NcadsSection(label: '제공서비스', value: '아동 안전점검'),
+                          _NcadsSection(label: '서비스제공기관', value: '대전광역시아동보호'),
+                          _NcadsSection(label: '제공장소', value: '아동가정'),
+                          const SizedBox(height: 3),
+                          Container(height: 0.5, color: const Color(0xFFE5E7EB)),
+                          const SizedBox(height: 3),
+                          _NcadsSection(label: '대상자', value: '피해아동'),
+                          _NcadsSection(label: '서비스제공횟수', value: '1회'),
+                          _NcadsSection(label: '이동소요시간', value: '15분'),
+                          _NcadsSection(label: '서비스제공일시', value: '5.4 15:00~15:30'),
+                          const SizedBox(height: 3),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: const Color(0xFFD1D5DB), width: 0.5),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: const Text('서비스내용 입력...', style: TextStyle(fontSize: 6, color: Color(0xFF9CA3AF))),
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: const Color(0xFFD1D5DB), width: 0.5),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: const Text('상담원소견 입력...', style: TextStyle(fontSize: 6, color: Color(0xFF9CA3AF))),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(color: const Color(0xFF6B7280), borderRadius: BorderRadius.circular(2)),
+                                child: const Text('저장', style: TextStyle(fontSize: 6, color: Colors.white, fontWeight: FontWeight.w600)),
+                              ),
+                              const SizedBox(width: 3),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: const Color(0xFFD1D5DB), width: 0.5),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: const Text('닫기', style: TextStyle(fontSize: 6, color: Color(0xFF374151), fontWeight: FontWeight.w600)),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -977,6 +1023,262 @@ class _BrowserDot extends StatelessWidget {
         width: 7, height: 7,
         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       );
+}
+
+// ── Step 1 새 목업: DB 작성하기 CTA → 사례 선택 모달 버튼 ──────────────────────
+class _MockupCtaAndModal extends StatelessWidget {
+  const _MockupCtaAndModal();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // DB 작성하기 버튼 (홈화면 CTA)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Center(
+            child: Text(
+              'DB 작성하기',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // 화살표
+        const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF8B95A1), size: 22),
+        const SizedBox(height: 10),
+        // 사례 선택 모달 하단 버튼 영역
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE5E8EB)),
+          ),
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '동행 파트너 추가',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: const Color(0xFFE5E8EB)),
+                ),
+                child: const Text(
+                  '사례 추가',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Step 2 새 목업: DB 생성 화면 ───────────────────────────────────────────────
+class _MockupDbCreation extends StatelessWidget {
+  const _MockupDbCreation();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E8EB)),
+      ),
+      child: Column(
+        children: [
+          // AppBar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              border: Border(bottom: BorderSide(color: Color(0xFFF1F3F5))),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.arrow_back_ios_new, size: 12, color: Color(0xFF8B95A1)),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      'DB 생성',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              children: [
+                // 사례 카드
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE5E8EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text(
+                        '강O수 아동',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '유천동',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // 서비스 내용 섹션
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE5E8EB)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '서비스 내용',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF3B5BDB)),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              '아동은|',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF111827)),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('완료', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // 상담원 소견 섹션
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE5E8EB)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '상담원 소견',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF3B5BDB)),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '입력해주세요',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── NCADS Section row (개선된 버전) ────────────────────────────────────────────
+class _NcadsSection extends StatelessWidget {
+  final String label;
+  final String value;
+  const _NcadsSection({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2.5),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 44,
+            child: Text(label, style: const TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4FF),
+                border: Border.all(color: const Color(0xFFBDD0FF), width: 0.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Text(value, style: const TextStyle(fontSize: 6, color: Color(0xFF3B5BDB), fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _NcadsFormRow extends StatelessWidget {

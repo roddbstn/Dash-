@@ -208,7 +208,7 @@ class NotificationTab extends StatelessWidget {
                                 "$caseName 아동",
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 13,
+                                  fontSize: 15,
                                   color: AppColors.primary,
                                 ),
                               ),

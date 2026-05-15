@@ -41,7 +41,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
   void initState() {
     super.initState();
     AnalyticsService.screenCreateCase();
-    _selectedCounselorId = widget.initialCounselorId;
+    _selectedCounselorId = null; // 미리 선택하지 않음
 
     // 상담원이 1명(나)만 있으면 step 0 건너뜀
     _currentStep = _hasMulipleCounselors ? 0 : 1;
@@ -294,11 +294,10 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
     int displayBoxCount = name.length < 2 ? 2 : name.length;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '피해아동의 이름을\n 입력해주세요',
-          textAlign: TextAlign.center,
+          '피해아동의 이름을\n입력해주세요',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w800,
@@ -309,7 +308,6 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
         const SizedBox(height: 12),
         const Text(
           '이름 중간 글자는 저장하지 않아요',
-          textAlign: TextAlign.center,
           style: TextStyle(fontSize: 16, color: AppColors.textSub),
         ),
         const SizedBox(height: 60),
@@ -317,7 +315,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
           behavior: HitTestBehavior.opaque,
           onTap: () => _nameFocusNode.requestFocus(),
           child: Stack(
-            alignment: Alignment.center,
+            alignment: Alignment.centerLeft,
             children: [
               Opacity(
                 opacity: 0,
@@ -343,7 +341,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.start,
                     children: List.generate(displayBoxCount, (index) {
                       final maskedName = _getMaskedName(name);
                       String char = "";
@@ -409,11 +407,10 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
 
   Widget _buildDongStep() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           '아동이 사는 동이름을\n입력해주세요',
-          textAlign: TextAlign.center,
           style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w800,
@@ -423,7 +420,6 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
         const SizedBox(height: 12),
         const Text(
           '예) 선화동, 유천동',
-          textAlign: TextAlign.center,
           style: TextStyle(fontSize: 16, color: AppColors.textSub),
         ),
         const SizedBox(height: 80),
@@ -431,7 +427,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen>
           key: const ValueKey('dong_field'),
           controller: _dongController,
           autofocus: true,
-          textAlign: TextAlign.center,
+          textAlign: TextAlign.left,
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
           decoration: const InputDecoration(
             hintText: '동 이름 입력',
