@@ -249,8 +249,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
         }
         _isLoadingInitial = false;
       });
-      // 앱 재설치 후 keyMap이 비어있고 동기화된 레코드가 있으면 Vault 복구 유도
-      _checkAndPromptVaultRecovery(keyMap, localDrafts);
+      // Vault 복구 유도는 서버 레코드 처리 + auto-migration 이후로 이동
     }
 
     // Background Sync for offline drafts
@@ -440,7 +439,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             });
           } else {
             // 로컬에 없는데 서버에만 있는 경우 (다른 기기에서 작성했거나 재설치 등)
-            // 비암호화 정보들만이라도 복구하여 목록에 표시
+            // [E2EE] 재설치 후 자동 복구 — encryption_key → keyMap에 저장
+            final String? reToken = s['share_token']?.toString();
+            final String? reKey = s['encryption_key']?.toString();
+            if (reToken != null && reKey != null && reKey.isNotEmpty
+                && !keyMap.containsKey(reToken)) {
+              await StorageService.saveKeyToMap(reToken, reKey);
+              keyMap[reToken] = reKey;
+            }
             updatedDrafts.add({
               'id': s['id'],
               'caseName': s['case_name'],
@@ -505,6 +511,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             _keyMap = keyMap; // 마이그레이션된 키 포함하여 상태 갱신
           });
           await StorageService.saveDrafts(updatedDrafts);
+          // auto-migration 완료 후 keyMap 체크 → 여전히 비어있을 때만 Vault 복구 유도
+          _checkAndPromptVaultRecovery(keyMap, updatedDrafts);
         }
       }
     } catch (e) {

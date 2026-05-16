@@ -79,6 +79,28 @@ class VaultService {
     await ApiService.saveVault(userId, '${iv.base64}:${encrypted.base64}', salt);
   }
 
+  /// PIN 설정 시 keyMap이 비어있어도 salt를 확립하기 위해 빈 Vault를 서버에 초기화합니다.
+  /// 이후 syncKey 호출 시 동일 salt를 재사용하므로 PIN-Vault 일관성이 보장됩니다.
+  static Future<void> initEmptyVault(String userId, String pin) async {
+    try {
+      // 기존 Vault가 이미 있으면 덮어쓰지 않음 (salt 보존)
+      final existing = await ApiService.fetchVault(userId);
+      if (existing != null && existing['encrypted_vault'] != null) return;
+
+      final salt = _generateSalt();
+      final derivedKey = _deriveKey(pin, salt);
+      final vaultKey = enc.Key(derivedKey);
+      final iv = enc.IV.fromLength(16);
+      final encrypter = enc.Encrypter(enc.AES(vaultKey, mode: enc.AESMode.cbc));
+      // 빈 keyMap을 암호화
+      final encrypted = encrypter.encrypt(jsonEncode({}), iv: iv);
+      await ApiService.saveVault(userId, '${iv.base64}:${encrypted.base64}', salt);
+      debugPrint('✅ VaultService: empty Vault initialized with new salt');
+    } catch (e) {
+      debugPrint('❌ VaultService.initEmptyVault failed: $e');
+    }
+  }
+
   /// Vault 동기화 실패 항목을 큐에 적재합니다.
   static Future<void> enqueueFailedKey({
     required String userId,

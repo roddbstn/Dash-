@@ -43,15 +43,18 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      // SecureStorage keyMap에서 모든 키 수집
       final keyMap = await StorageService.getKeyMap();
-      if (keyMap.isEmpty) return;
-      // VaultService를 통해 첫 번째 키로 vault 초기화 (salt 생성 포함)
-      final firstEntry = keyMap.entries.first;
-      await VaultService.syncKey(user.uid, firstEntry.key, firstEntry.value, newPin);
-      // 나머지 키 추가
-      for (final entry in keyMap.entries.skip(1)) {
-        await VaultService.syncKey(user.uid, entry.key, entry.value, newPin);
+      if (keyMap.isNotEmpty) {
+        // 기존 키가 있으면 모두 새 PIN으로 재암호화하여 Vault 갱신
+        final firstEntry = keyMap.entries.first;
+        await VaultService.syncKey(user.uid, firstEntry.key, firstEntry.value, newPin);
+        for (final entry in keyMap.entries.skip(1)) {
+          await VaultService.syncKey(user.uid, entry.key, entry.value, newPin);
+        }
+      } else {
+        // keyMap이 비어있어도 빈 Vault를 서버에 생성하여 salt를 확립
+        // → 이후 form_screen에서 syncKey 호출 시 같은 salt를 재사용하므로 PIN 일관성 보장
+        await VaultService.initEmptyVault(user.uid, newPin);
       }
     } catch (e) {
       debugPrint('❌ PinSetupScreen: vault sync error: $e');

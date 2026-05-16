@@ -106,7 +106,7 @@ class StorageService {
   static Future<void> clearSessionDataForLogout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_nicknameKey);
-    await prefs.remove(_pinKey); // legacy SharedPreferences PIN 잔존 시만 제거 (secure storage는 유지)
+    // PIN(SecureStorage·SharedPreferences 모두)과 Salt는 재로그인 후에도 Vault 복구를 위해 유지
     // _saltKey, _secureStorage PIN, _casesKey, _draftsKey 등은 유지
   }
 
@@ -135,7 +135,7 @@ class StorageService {
     await _secureStorage.delete(key: _keyMapKey);
   }
 
-  // 로그아웃 시 로컬 캐시 초기화 (온보딩·동의 플래그는 유지)
+  // 계정 탈퇴 시 PIN·Salt 포함 모든 로컬 데이터 초기화
   static Future<void> clearSessionData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_casesKey);
@@ -144,7 +144,7 @@ class StorageService {
     await prefs.remove(_pendingSyncKey);
     await prefs.remove(_pendingVaultKeysKey);
     await prefs.remove(_nicknameKey);
-    await prefs.remove(_pinKey); // legacy 잔존 시 제거
+    await prefs.remove(_pinKey); // SharedPreferences backup PIN 삭제
     await prefs.remove(_saltKey);
     await _secureStorage.delete(key: _pinKey);
     await clearKeyMap();
@@ -190,11 +190,24 @@ class StorageService {
   }
 
   static Future<String?> getPin() async {
-    return await _secureStorage.read(key: _pinKey);
+    // SecureStorage 우선, 없으면 SharedPreferences에서 복원 (앱 재설치 후 Auto Backup 복구)
+    final securePin = await _secureStorage.read(key: _pinKey);
+    if (securePin != null) return securePin;
+    final prefs = await SharedPreferences.getInstance();
+    final backupPin = prefs.getString(_pinKey);
+    if (backupPin != null) {
+      // SecureStorage에도 복원해 두어 이후 조회는 빠르게
+      await _secureStorage.write(key: _pinKey, value: backupPin);
+    }
+    return backupPin;
   }
 
   static Future<void> savePin(String pin) async {
+    // SecureStorage: 런타임 보안 (Keystore 연동, 앱 삭제 시 소멸)
     await _secureStorage.write(key: _pinKey, value: pin);
+    // SharedPreferences: Android Auto Backup 대상 (앱 삭제·재설치 후에도 복원)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pinKey, pin);
   }
 
   static Future<String?> getSalt() async {

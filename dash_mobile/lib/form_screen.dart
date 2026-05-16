@@ -323,7 +323,7 @@ class _FormScreenState extends State<FormScreen> {
       }
       // [Security] 서버 sync 완료 후 share_token으로 keyMap에 키 저장
       await StorageService.saveKeyToMap(shareToken, encryptionKey);
-      unawaited(_syncKeyToVault(userId, shareToken, encryptionKey, pin));
+      await _syncKeyToVault(userId, shareToken, encryptionKey, pin);
       // 동기화 완료 → 홈화면에서 _loadData() 트리거 (share_token 저장 후 호출)
       widget.onSyncComplete?.call();
     } else {
@@ -410,16 +410,24 @@ class _FormScreenState extends State<FormScreen> {
 
   // [Security] Sync Encryption Key to User's Vault (E2EE)
   Future<void> _syncKeyToVault(String userId, String recordId, String keyStr, String pin) async {
-    try {
-      await VaultService.syncKey(userId, recordId, keyStr, pin);
-    } catch (e, stack) {
-      debugPrint('❌ Vault sync failed, queuing for retry: $e');
-      CrashService.recordError(e, stack, reason: 'syncKeyToVault');
-      await VaultService.enqueueFailedKey(
-        userId: userId,
-        recordId: recordId,
-        encryptionKey: keyStr,
-      );
+    const maxRetries = 3;
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await VaultService.syncKey(userId, recordId, keyStr, pin);
+        debugPrint('✅ Vault sync success (attempt $attempt)');
+        return;
+      } catch (e, stack) {
+        debugPrint('❌ Vault sync failed (attempt $attempt/$maxRetries): $e');
+        if (attempt == maxRetries) {
+          CrashService.recordError(e, stack, reason: 'syncKeyToVault');
+          await VaultService.enqueueFailedKey(
+            userId: userId,
+            recordId: recordId,
+            encryptionKey: keyStr,
+          );
+        }
+        if (attempt < maxRetries) await Future.delayed(const Duration(seconds: 2));
+      }
     }
   }
 
