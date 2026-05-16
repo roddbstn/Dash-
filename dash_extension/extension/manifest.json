@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Dash",
-    "version": "3.2",
+    "version": "3.3",
     "description": "모바일에서 작성한 상담 기록을 아동학대정보시스템에 1초 만에 주입합니다.",
     "permissions": [
         "storage",
