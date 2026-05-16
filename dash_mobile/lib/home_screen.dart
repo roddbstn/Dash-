@@ -676,7 +676,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     );
     if (!hasSyncedDrafts) return;
     _hasPromptedVaultRecovery = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      // 1단계: 백업된 PIN으로 Vault 자동 복구 시도 (앱 재설치 후 SharedPreferences에서 복원된 경우)
+      final pin = await StorageService.getPin();
+      if (pin != null) {
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId != null) {
+          final vaultMap = await VaultService.decryptVault(pin, userId);
+          if (vaultMap != null && mounted) {
+            for (final entry in vaultMap.entries) {
+              await StorageService.saveKeyToMap(entry.key, entry.value.toString());
+            }
+            debugPrint('✅ Vault auto-recovered silently using backed-up PIN');
+            _loadData();
+            return; // 자동 복구 성공 → 다이얼로그 불필요
+          }
+        }
+      }
+      // 2단계: 자동 복구 실패 시 수동 복구 다이얼로그 표시 (PIN을 모르는 경우)
       if (mounted) _showVaultRecoveryDialog();
     });
   }
@@ -701,7 +719,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '앱 재설치로 암호화 키가 초기화됐어요.\nPIN 번호를 입력하면 서버 Vault에서 키를 복구할 수 있어요.',
+                  '앱을 재설치하면 기기에 저장된 보안 데이터가 초기화돼요.\n기존 PIN 번호를 입력하면 내 DB 데이터를 그대로 복구할 수 있어요.',
                   style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
                 ),
                 const SizedBox(height: 16),
@@ -741,7 +759,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                         if (userId == null) { Navigator.pop(ctx); return; }
                         final vaultMap = await VaultService.decryptVault(pin, userId);
                         if (vaultMap == null) {
-                          setStateSB(() { isLoading = false; errorMsg = 'PIN이 틀렸거나 Vault가 없어요'; });
+                          setStateSB(() { isLoading = false; errorMsg = 'PIN이 맞지 않거나, 복구할 데이터가 없어요'; });
                           return;
                         }
                         for (final entry in vaultMap.entries) {
@@ -2319,15 +2337,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     final String? shareToken = d['share_token'];
     final String? encKey = shareToken != null ? _keyMap[shareToken] : null;
     final String recordId = d['id'].toString();
-    final String shareUrl = shareToken != null
-        ? '${ApiService.serverUrl}/?token=$shareToken${(encKey != null && encKey.isNotEmpty) ? '#key=$encKey' : ''}'
-        : '';
 
     return SwipeableSharedDraftCard(
       key: ValueKey('shared_$recordId'),
       caseName: caseName,
       authorName: authorName,
-      shareUrl: shareUrl,
+      dong: d['dong']?.toString(),
+      target: d['target']?.toString(),
+      method: d['method']?.toString(),
+      startTime: d['start_time']?.toString() ?? d['startTime']?.toString(),
+      endTime: d['end_time']?.toString() ?? d['endTime']?.toString(),
       isLast: isLast,
       onTap: () async {
         final dong = d['dong']?.toString() ?? '미지정';

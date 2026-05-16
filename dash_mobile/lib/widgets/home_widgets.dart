@@ -4,7 +4,6 @@ import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/api_service.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class PressableCaseCard extends StatefulWidget {
   final Map<String, dynamic> caseData;
@@ -187,75 +186,6 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
     super.dispose();
   }
 
-  // picked 값: 7/30/90 = 해당 일수, 0 = 무제한, null = 시트 닫힘(취소)
-  Future<void> _showShareExpirySheet(String token, String? key) async {
-    if (!mounted) return;
-    final recordId = widget.d['id']?.toString();
-    const options = [
-      {'label': '7일', 'days': 7},
-      {'label': '30일', 'days': 30},
-      {'label': '90일', 'days': 90},
-      {'label': '무제한', 'days': 0}, // 0 = sentinel for unlimited
-    ];
-
-    final picked = await showModalBottomSheet<int>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('공유 링크 유효 기간', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              const Text('기간이 지나면 링크가 자동으로 만료됩니다', style: TextStyle(fontSize: 13, color: Color(0xFF868E96))),
-              const SizedBox(height: 16),
-              ...options.map((o) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(o['label'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  trailing: const Icon(Icons.chevron_right, color: Color(0xFFADB5BD)),
-                  onTap: () => Navigator.pop(ctx, o['days'] as int),
-                );
-              }),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (!mounted) return;
-    if (picked == null) return; // 취소 (시트 닫힘)
-
-    // 서버에 만료일 설정 (0 = 무제한 → null로 변환)
-    if (recordId != null && recordId.isNotEmpty) {
-      await ApiService.setShareExpiry(recordId, picked == 0 ? null : picked);
-    }
-
-    // 링크 복사
-    final host = ApiService.serverUrl;
-    final keyParam = (key != null && key.isNotEmpty) ? '#key=$key' : '';
-    await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
-    if (mounted) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('클립보드에 복사되었습니다', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
-          backgroundColor: const Color(0xFF222222),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
   Future<void> _copyShareLink() async {
     String? token = widget.d['share_token']?.toString();
 
@@ -278,7 +208,22 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
     if (token != null && token.isNotEmpty) {
       // [Security] 키는 SecureStorage keyMap에서 조회, URL fragment(#)로 전달
       final String? key = await StorageService.getKeyFromMap(token);
-      await _showShareExpirySheet(token, key);
+      final host = ApiService.serverUrl;
+      final keyParam = (key != null && key.isNotEmpty) ? '#key=$key' : '';
+      await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('클립보드에 복사되었습니다', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+            backgroundColor: const Color(0xFF222222),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -623,7 +568,11 @@ class _PressableProfileMenuItemState extends State<PressableProfileMenuItem> {
 class SwipeableSharedDraftCard extends StatefulWidget {
   final String caseName;
   final String authorName;
-  final String shareUrl;
+  final String? dong;
+  final String? target;
+  final String? method;
+  final String? startTime;
+  final String? endTime;
   final Future<bool> Function() onDelete;
   final bool isLast;
   final VoidCallback? onTap;
@@ -632,7 +581,11 @@ class SwipeableSharedDraftCard extends StatefulWidget {
     super.key,
     required this.caseName,
     required this.authorName,
-    required this.shareUrl,
+    this.dong,
+    this.target,
+    this.method,
+    this.startTime,
+    this.endTime,
     required this.onDelete,
     this.isLast = true,
     this.onTap,
@@ -736,61 +689,80 @@ class _SwipeableSharedDraftCardState extends State<SwipeableSharedDraftCard>
                     onHorizontalDragEnd: _onHorizontalDragEnd,
                     onTap: widget.onTap,
                     child: Container(
-                      padding: const EdgeInsets.all(18),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.zero,
                         border: Border(),
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEEF2FF),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.folder_shared_rounded, color: AppColors.primary, size: 22),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Builder(builder: (context) {
+                        // 대상/방법 텍스트
+                        final String subLine1 = [
+                          if (widget.target != null && widget.target!.isNotEmpty) '대상: ${widget.target}',
+                          if (widget.method != null && widget.method!.isNotEmpty) widget.method!,
+                        ].join(' | ');
+
+                        // 제공일시 텍스트
+                        String subLine2 = '제공일시 미설정';
+                        final start = DateTime.tryParse(widget.startTime ?? '');
+                        final end = DateTime.tryParse(widget.endTime ?? '');
+                        if (start != null && end != null) {
+                          const days = ['월', '화', '수', '목', '금', '토', '일'];
+                          final startFmt = '${start.month}.${start.day} (${days[start.weekday - 1]}) ${DateFormat('HH:mm').format(start)}';
+                          final isSameDay = start.year == end.year && start.month == end.month && start.day == end.day;
+                          if (isSameDay) {
+                            subLine2 = '$startFmt~${DateFormat('HH:mm').format(end)}';
+                          } else {
+                            subLine2 = '$startFmt ~ ${end.month}.${end.day} (${days[end.weekday - 1]}) ${DateFormat('HH:mm').format(end)}';
+                          }
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Text(
-                                  '${widget.caseName} 아동',
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                Expanded(
+                                  child: Text.rich(
+                                    TextSpan(children: [
+                                      TextSpan(
+                                        text: '${widget.caseName} 아동',
+                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+                                      ),
+                                      if ((widget.dong?.isNotEmpty ?? false))
+                                        TextSpan(
+                                          text: '  ${widget.dong}',
+                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFFB0B8C1)),
+                                        ),
+                                    ]),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${widget.authorName} 상담원이 공유함',
-                                  style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1)),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEEF2FF),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${widget.authorName} 상담원',
+                                    style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
-                          if (widget.shareUrl.isNotEmpty)
-                            GestureDetector(
-                              onTap: () async {
-                                final uri = Uri.parse(widget.shareUrl);
-                                if (await canLaunchUrl(uri)) {
-                                  launchUrl(uri, mode: LaunchMode.externalApplication);
-                                }
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text(
-                                  '웹에서 보기',
-                                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                            if (subLine1.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(subLine1, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
+                            ],
+                            const SizedBox(height: 2),
+                            Text(subLine2, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
+                          ],
+                        );
+                      }),
                     ),
                   ),
                 ),

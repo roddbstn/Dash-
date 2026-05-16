@@ -1101,24 +1101,57 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
   const { userId, email } = req.query;
   console.log(`\n🚀 [EXTENSION FETCH] Fetching ready records (userId: ${userId || '-'}, email: ${email || '-'})...`);
   try {
-    let query = `
-      SELECT r.*, c.case_name, c.dong 
-      FROM service_drafts r 
-      JOIN cases c ON r.case_id = c.id 
-      WHERE r.status IN ('Synced', 'Reviewed')
-    `;
+    let query;
     const params = [];
 
     if (email) {
-      // 이메일 기반 매칭: Firebase UID와 Google OAuth ID가 달라도 같은 이메일이면 매칭됨
-      query += ` AND c.user_id IN (SELECT id FROM dash_users WHERE email = ?)`;
-      params.push(email);
+      // 이메일 기반: 내 DB + 공유받은 DB (reviewer_user_id 기준)
+      query = `
+        SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'owned' AS record_type
+        FROM service_drafts r
+        JOIN cases c ON r.case_id = c.id
+        LEFT JOIN dash_users u ON c.user_id = u.id
+        WHERE r.status IN ('Synced', 'Reviewed')
+          AND c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+        UNION
+        SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'shared' AS record_type
+        FROM service_drafts r
+        JOIN cases c ON r.case_id = c.id
+        LEFT JOIN dash_users u ON c.user_id = u.id
+        WHERE r.status IN ('Synced', 'Reviewed')
+          AND r.reviewer_user_id IN (SELECT id FROM dash_users WHERE email = ?)
+          AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
+        ORDER BY created_at DESC
+      `;
+      params.push(email, email, email);
     } else if (userId) {
-      query += ` AND c.user_id = ?`;
-      params.push(userId);
+      query = `
+        SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'owned' AS record_type
+        FROM service_drafts r
+        JOIN cases c ON r.case_id = c.id
+        LEFT JOIN dash_users u ON c.user_id = u.id
+        WHERE r.status IN ('Synced', 'Reviewed')
+          AND c.user_id = ?
+        UNION
+        SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'shared' AS record_type
+        FROM service_drafts r
+        JOIN cases c ON r.case_id = c.id
+        LEFT JOIN dash_users u ON c.user_id = u.id
+        WHERE r.status IN ('Synced', 'Reviewed')
+          AND r.reviewer_user_id = ?
+          AND c.user_id != ?
+        ORDER BY created_at DESC
+      `;
+      params.push(userId, userId, userId);
+    } else {
+      query = `
+        SELECT r.*, c.case_name, c.dong, NULL AS author_name, 'owned' AS record_type
+        FROM service_drafts r
+        JOIN cases c ON r.case_id = c.id
+        WHERE r.status IN ('Synced', 'Reviewed')
+        ORDER BY r.created_at DESC
+      `;
     }
-
-    query += ` ORDER BY r.created_at DESC`;
 
     const [rows] = await queryWithTimeout(query, params);
     console.log(`✅ Sent ${rows.length} records to extension`);
