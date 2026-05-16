@@ -130,6 +130,7 @@ const btnInject = document.getElementById('btn-inject');
 const btnBackToList = document.getElementById('btn-back-to-list');
 const userEmailEl = document.getElementById('user-email');
 const profilePicEl = document.getElementById('profile-pic');
+const profileNameEl = document.getElementById('profile-name');
 const statusBar = document.getElementById('status-bar');
 const recordsContainer = document.getElementById('records-container');
 const emptyState = document.getElementById('empty-state');
@@ -282,6 +283,10 @@ function showMainView() {
         profilePicEl.src = currentUser.photo;
         profilePicEl.title = currentUser.email || '';
         profilePicEl.classList.remove('hidden');
+    }
+    if (currentUser?.name) {
+        profileNameEl.textContent = `${currentUser.name}님`;
+        profileNameEl.classList.remove('hidden');
     }
 }
 

@@ -340,6 +340,18 @@ body {
     display: none;
 }
 
+.profile-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3D4350;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+.profile-name.hidden {
+    display: none;
+}
+
 /* ===== Record Card ===== */
 .record-card {
     background: var(--card);
