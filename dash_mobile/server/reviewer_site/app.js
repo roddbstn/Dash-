@@ -203,7 +203,9 @@ function updateUndoRedoButtons() {
 }
 
 function updateCTAState() {
-    const hasChanges = historyIndex > 0;
+    // historyIndex >= 0: 레코드가 로드된 시점부터 버튼 활성화
+    // (변경사항 없어도 리뷰어는 언제든 알림 가능)
+    const hasChanges = historyIndex >= 0;
     document.querySelectorAll('.notify-btn').forEach(btn => {
         btn.disabled = !hasChanges;
         btn.style.opacity = hasChanges ? '1' : '0.45';
