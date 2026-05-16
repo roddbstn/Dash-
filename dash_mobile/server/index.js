@@ -1121,7 +1121,7 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
         WHERE r.status IN ('Synced', 'Reviewed')
           AND r.reviewer_user_id IN (SELECT id FROM dash_users WHERE email = ?)
           AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
-        ORDER BY created_at DESC
+        ORDER BY start_time IS NULL ASC, start_time ASC
       `;
       params.push(email, email, email);
     } else if (userId) {
@@ -1140,7 +1140,7 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
         WHERE r.status IN ('Synced', 'Reviewed')
           AND r.reviewer_user_id = ?
           AND c.user_id != ?
-        ORDER BY created_at DESC
+        ORDER BY start_time IS NULL ASC, start_time ASC
       `;
       params.push(userId, userId, userId);
     } else {
@@ -1149,7 +1149,7 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
         FROM service_drafts r
         JOIN cases c ON r.case_id = c.id
         WHERE r.status IN ('Synced', 'Reviewed')
-        ORDER BY r.created_at DESC
+        ORDER BY r.start_time IS NULL ASC, r.start_time ASC
       `;
     }
 
