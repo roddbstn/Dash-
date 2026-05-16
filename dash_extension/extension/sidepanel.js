@@ -149,6 +149,8 @@ let pinInput = '';           // 현재 입력 중인 PIN
 let pinLocked = false;       // PIN 검증 중 잠금
 let vaultKeys = {};          // { share_token: encryptionKey } — 메모리에만 보관, 영구 저장 안 함
 let pinAuthenticated = false; // PIN 인증 성공 여부 (vault가 빈 {}이어도 인증된 상태 추적)
+let pinFailCount = 0;        // PIN 연속 실패 횟수
+let pinLockUntil = 0;        // 잠금 해제 시각 (Date.now() 기준)
 
 // ==============================================
 // 1. 인증 (간소화된 구글 로그인)
@@ -257,6 +259,29 @@ function showLoginError(msg) {
     el.style.display = 'block';
 }
 
+// 계정이 존재하지 않을 때 (삭제된 계정으로 접근 시)
+function showAccountDeletedError() {
+    performLogout();
+    let el = document.getElementById('login-error-msg');
+    if (!el) {
+        el = document.createElement('p');
+        el.id = 'login-error-msg';
+        el.style.cssText = 'margin-top:12px;font-size:12px;color:#DC2626;text-align:center;line-height:1.5;padding:0 8px;';
+        btnGoogleLogin.insertAdjacentElement('afterend', el);
+    }
+    el.textContent = '등록되지 않은 계정이에요. DASH 모바일 앱에서 가입 후 이용해주세요.';
+    el.style.display = 'block';
+}
+
+// API 응답 상태에 따른 공통 에러 처리
+function handleApiStatus(status) {
+    if (status === 401 || status === 403) {
+        showAccountDeletedError();
+        return true; // 처리됨
+    }
+    return false;
+}
+
 function hideLoginError() {
     const el = document.getElementById('login-error-msg');
     if (el) el.style.display = 'none';
@@ -352,6 +377,10 @@ async function checkVaultExists() {
     if (!currentUser?.uid) return false;
     try {
         const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
+        if (res.status === 401 || res.status === 403) {
+            showAccountDeletedError();
+            return false;
+        }
         return res.ok;
     } catch (e) {
         console.error('Vault check failed:', e);
@@ -491,6 +520,13 @@ function updatePinDots() {
 // PIN 키패드 이벤트 핸들링
 pinKeypad.addEventListener('click', async (e) => {
     const btn = e.target.closest('.pin-key');
+    // 잠금 시간 체크
+    if (pinLockUntil > Date.now()) {
+        const remaining = Math.ceil((pinLockUntil - Date.now()) / 1000);
+        pinError.textContent = `PIN 5회 실패. ${remaining}초 후 다시 시도해주세요.`;
+        pinError.classList.remove('hidden');
+        return;
+    }
     if (!btn || btn.disabled || pinLocked) return;
 
     const key = btn.dataset.key;
@@ -538,11 +574,30 @@ pinKeypad.addEventListener('click', async (e) => {
             }, 500);
         } else {
             // ❌ 실패: 빨간색 + 흔들기 → 초기화
+            pinFailCount++;
             const dots = pinDots.querySelectorAll('.pin-dot');
             dots.forEach(d => {
                 d.classList.remove('filled');
                 d.classList.add('error');
             });
+
+            if (pinFailCount >= 5) {
+                pinLockUntil = Date.now() + 30 * 1000;
+                pinFailCount = 0;
+                pinError.textContent = 'PIN 5회 실패. 30초 후 다시 시도해주세요.';
+                // 30초 후 에러 메시지 자동 업데이트
+                const lockInterval = setInterval(() => {
+                    const remaining = Math.ceil((pinLockUntil - Date.now()) / 1000);
+                    if (remaining <= 0) {
+                        clearInterval(lockInterval);
+                        pinError.classList.add('hidden');
+                    } else {
+                        pinError.textContent = `PIN 5회 실패. ${remaining}초 후 다시 시도해주세요.`;
+                    }
+                }, 1000);
+            } else {
+                pinError.textContent = `PIN이 맞지 않아요. (${pinFailCount}/5회)`;
+            }
             pinError.classList.remove('hidden');
 
             setTimeout(() => {
@@ -583,7 +638,10 @@ async function fetchRecords() {
         if (!userEmail) throw new Error('로그인이 필요합니다.');
 
         const res = await fetch(`${API_BASE}/records/ready?email=${encodeURIComponent(userEmail)}`, { headers: authHeaders() });
-        if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
+        if (!res.ok) {
+            if (handleApiStatus(res.status)) return;
+            throw new Error(`서버 오류: ${res.status}`);
+        }
 
         const rawRecords = await res.json();
 
@@ -661,7 +719,10 @@ async function fetchHistory() {
         }
 
         const res = await fetch(`${API_BASE}/records/history?email=${encodeURIComponent(email)}`, { headers: authHeaders() });
-        if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
+        if (!res.ok) {
+            if (handleApiStatus(res.status)) return;
+            throw new Error(`서버 오류: ${res.status}`);
+        }
         historyRecords = await res.json();
 
         // 복호화 (vaultKeys 또는 레거시 encryption_key 폴백)
