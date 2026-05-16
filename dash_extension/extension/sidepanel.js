@@ -328,8 +328,9 @@ async function checkPinAndProceed() {
     // 2. 서버에 Vault가 존재하는지 확인
     const hasVault = await checkVaultExists();
     if (!hasVault) {
-        // Vault 없음 = 모바일에서 아직 PIN 미설정 (첫 케이스 생성 전)
-        // → 기록도 없을 것이므로 빈 상태 mainView로 진입
+        // Vault 없음 = 모바일에서 아직 PIN 미설정
+        // → 복호화할 키가 없으므로 인증 완료 처리 (배너 미표시)
+        pinAuthenticated = true;
         showMainView();
         fetchRecords();
         fetchHistory();
