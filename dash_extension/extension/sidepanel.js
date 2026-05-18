@@ -1070,12 +1070,16 @@ function renderRecords() {
         // 서비스 내용 / 상담원 소견 드롭다운 ID
         const dropdownId = `dropdown-${record.id}`;
 
+        const authorTag = record.author_name
+            ? `<span class="counselor-tag">${record.author_name}</span>`
+            : '';
         card.innerHTML = `
             <div class="record-card-header">
                 <div class="record-card-header-left">
                     <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
                     <span class="record-dong">${record.dong || ''}</span>
                 </div>
+                ${authorTag}
             </div>
             <div class="record-info-list">
                 <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
