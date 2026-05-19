@@ -1406,6 +1406,7 @@ app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
         [uid]
       );
       await queryWithTimeout('DELETE FROM cases WHERE user_id = ?', [uid]);
+      await queryWithTimeout('DELETE FROM counselors WHERE user_id = ?', [uid]);
     }
 
     // dash_users 삭제 (notifications, vault은 ON DELETE CASCADE로 자동 삭제)
