@@ -204,13 +204,24 @@ function updateUndoRedoButtons() {
 
 function updateCTAState() {
     // historyIndex >= 0: 레코드가 로드된 시점부터 버튼 활성화
-    // (변경사항 없어도 리뷰어는 언제든 알림 가능)
     const hasChanges = historyIndex >= 0;
     document.querySelectorAll('.notify-btn').forEach(btn => {
         btn.disabled = !hasChanges;
         btn.style.opacity = hasChanges ? '1' : '0.45';
         btn.style.cursor = hasChanges ? 'pointer' : 'not-allowed';
         if (btn.id === 'btn-notify-mobile') {
+            btn.style.background = hasChanges ? '' : '#ADB5BD';
+        }
+    });
+    // 저장 버튼 활성화 (owner용)
+    const headerSave = document.getElementById('btn-owner-save');
+    const mobileSave = document.getElementById('btn-owner-save-mobile');
+    [headerSave, mobileSave].forEach(btn => {
+        if (!btn || btn.style.display === 'none') return;
+        btn.disabled = !hasChanges;
+        btn.style.opacity = hasChanges ? '1' : '0.45';
+        btn.style.cursor = hasChanges ? 'pointer' : 'not-allowed';
+        if (btn.id === 'btn-owner-save-mobile') {
             btn.style.background = hasChanges ? '' : '#ADB5BD';
         }
     });
@@ -227,9 +238,8 @@ function markNotifySent() {
     if (mobileBtn) mobileBtn.textContent = '저장 후 전송';
 }
 
-// ── 로컬 임시 저장 + 서버 자동 저장 (2초 debounce)
+// ── 로컬 임시 저장 (세션 복원용) — 서버 자동 저장 제거, 버튼 클릭 시만 저장
 let _typingTimer = null;
-let _autoSaveTimer = null;
 
 function _getEncKey(token) {
     const qp = new URLSearchParams(window.location.search);
@@ -262,29 +272,44 @@ function handleTyping() {
         // 세션 임시 저장 (새로고침 복원용)
         persistDraft(main, opinion);
     }, 500);
+}
 
-    // 서버 자동 저장 (2초 debounce)
-    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
-    _autoSaveTimer = setTimeout(async () => {
-        const token = new URLSearchParams(window.location.search).get('token');
-        if (!token) return;
+// ── 저장 버튼 클릭 시 서버에 명시적 저장 (소유자 전용)
+async function saveRecord() {
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (!token) return;
+    const serviceDescription = document.getElementById('main-editor').value;
+    const agentOpinion = document.getElementById('opinion-editor').value || '';
+    const body = { service_description: serviceDescription, agent_opinion: agentOpinion };
+    const encKey = _getEncKey(token);
+    if (encKey && window.currentRecord) {
         try {
-            const body = { service_description: main, agent_opinion: opinion };
-            const encKey = _getEncKey(token);
-            if (encKey && window.currentRecord) {
-                const updatedData = { ...window.currentRecord, serviceDescription: main, agentOpinion: opinion };
-                const aesKey = CryptoJS.enc.Utf8.parse(encKey.padEnd(32).substring(0, 32));
-                const iv = CryptoJS.lib.WordArray.random(16);
-                const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedData), aesKey, { iv });
-                body.encrypted_blob = iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
-            }
-            await fetch(`/api/records/share/${token}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-        } catch (_) { /* 자동 저장 실패는 조용히 무시 */ }
-    }, 2000);
+            const updatedData = { ...window.currentRecord, serviceDescription, agentOpinion };
+            const aesKey = CryptoJS.enc.Utf8.parse(encKey.padEnd(32).substring(0, 32));
+            const iv = CryptoJS.lib.WordArray.random(16);
+            const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedData), aesKey, { iv });
+            body.encrypted_blob = iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
+        } catch (e) { console.error('Encryption failed:', e); }
+    }
+    const headerBtn = document.getElementById('btn-owner-save');
+    const mobileBtn = document.getElementById('btn-owner-save-mobile');
+    [headerBtn, mobileBtn].forEach(btn => { if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; } });
+    try {
+        const res = await fetch(`/api/records/share/${token}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (res.ok) {
+            showToast('저장되었습니다.');
+        } else {
+            showToast('저장 실패. 다시 시도해주세요.');
+        }
+    } catch (_) {
+        showToast('저장 실패. 다시 시도해주세요.');
+    } finally {
+        [headerBtn, mobileBtn].forEach(btn => { if (btn) { btn.disabled = false; btn.textContent = '저장'; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; } });
+    }
 }
 
 
@@ -535,9 +560,13 @@ function loadRecord(token) {
             });
 }
 
-// ── 본인 DB: 수정 완료 알림 버튼만 숨김
+// ── 본인 DB: 알림 버튼 숨기고 저장 버튼 표시
 function setOwnerReadOnlyMode() {
     document.querySelectorAll('.notify-btn').forEach(btn => btn.style.display = 'none');
+    const headerSave = document.getElementById('btn-owner-save');
+    const mobileSave = document.getElementById('btn-owner-save-mobile');
+    if (headerSave) headerSave.style.display = '';
+    if (mobileSave) mobileSave.style.display = '';
 }
 
 // ── 토스트 알림 (간단한 UI 피드백)

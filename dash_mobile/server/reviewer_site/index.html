@@ -44,6 +44,7 @@
             <header class="main-header">
                 <div class="header-left"></div>
                 <div class="header-right">
+                    <button class="btn btn-action" id="btn-owner-save" onclick="saveRecord()" disabled style="display:none; opacity:0.45; cursor:not-allowed;">저장</button>
                     <button class="btn btn-action notify-btn" id="btn-notify-header" onclick="openNotifyModal()" disabled style="opacity:0.45; cursor:not-allowed;">수정 완료 알림</button>
                 </div>
             </header>
@@ -98,13 +99,14 @@
                             상담원 소견</h4>
                         <textarea id="opinion-editor" placeholder="상담원 소견을 입력하세요..."
                             oninput="handleTyping()" style="background:#fff; cursor:text; resize:none;"></textarea>
-                        <p style="margin-top: 10px; font-size: 12px; color: #abb3bb; font-weight: 500;">* '수정 완료 알림 보내기' 버튼을 눌러야 담당자에게 수정 내용이 전달돼요.</p>
+                        <p style="margin-top: 10px; font-size: 12px; color: #abb3bb; font-weight: 500;">* 저장 버튼을 눌러야 수정 내용이 반영돼요. 공유받은 상담원은 '수정 완료 알림 보내기'가 저장 역할을 해요.</p>
                     </div>
                 </div>
             </main>
 
             <!-- Bottom CTA Button (Mobile) -->
             <div class="mobile-cta-container">
+                <button class="btn btn-primary-full" id="btn-owner-save-mobile" onclick="saveRecord()" disabled style="display:none; opacity:0.45; cursor:not-allowed; background:#ADB5BD;">저장</button>
                 <button class="btn btn-primary-full notify-btn" id="btn-notify-mobile" onclick="openNotifyModal()" disabled style="opacity:0.45; cursor:not-allowed; background:#ADB5BD;">수정 완료 알림 보내기</button>
             </div>
         </div>
