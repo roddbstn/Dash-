@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:encrypt/encrypt.dart' as enc;
-import 'package:pointycastle/export.dart';
+import 'package:crypto/crypto.dart' as pkg_crypto;
 import 'package:dash_mobile/api_service.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/crash_service.dart';
@@ -11,13 +11,30 @@ import 'package:dash_mobile/analytics_service.dart';
 /// E2EE 키 Vault 동기화 서비스
 /// PIN + PBKDF2(100,000 iterations, SHA-256)로 암호화된 키 맵을 서버 Vault에 저장
 class VaultService {
-  /// PBKDF2로 PIN에서 32바이트 AES 키 파생
+  /// PBKDF2-HMAC-SHA256 (RFC 2898) — Web Crypto API와 동일한 출력 보장
+  /// PointyCastle의 PBKDF2 구현이 Web Crypto와 호환되지 않아 직접 구현
   static Uint8List _deriveKey(String pin, String saltB64) {
+    final password = Uint8List.fromList(utf8.encode(pin));
     final saltBytes = base64Decode(saltB64);
-    final params = Pbkdf2Parameters(saltBytes, 100000, 32);
-    final keyDerivator = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64));
-    keyDerivator.init(params);
-    return keyDerivator.process(Uint8List.fromList(utf8.encode(pin)));
+    final hmac = pkg_crypto.Hmac(pkg_crypto.sha256, password);
+
+    // Block 1: salt || INT_BE(1)
+    final saltBlock = Uint8List(saltBytes.length + 4);
+    saltBlock.setRange(0, saltBytes.length, saltBytes);
+    saltBlock[saltBytes.length + 3] = 1; // big-endian block index 1
+
+    // U_1 = HMAC(P, S || INT(1))
+    var u = Uint8List.fromList(hmac.convert(saltBlock).bytes);
+    final result = Uint8List.fromList(u);
+
+    // U_i = HMAC(P, U_{i-1}), result ^= U_i for i = 2..100000
+    for (int i = 1; i < 100000; i++) {
+      u = Uint8List.fromList(hmac.convert(u).bytes);
+      for (int j = 0; j < result.length; j++) {
+        result[j] ^= u[j];
+      }
+    }
+    return result;
   }
 
   /// 랜덤 16바이트 salt 생성 (base64 반환)

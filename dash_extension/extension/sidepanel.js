@@ -86,7 +86,10 @@ async function handleGoogleLogin(googleToken) {
     const idToken = await getFirebaseIdToken(googleToken);
     currentOAuthToken = idToken; // 이제부터 모든 API 요청에 Firebase ID Token 사용
 
-    const firebaseUid = userInfo.id;
+    // 3. Firebase ID Token(JWT)에서 실제 Firebase UID 추출
+    // userInfo.id는 Google 계정 숫자 ID이며, Firebase UID와 다름
+    // Firebase UID는 JWT payload의 sub(=user_id) 클레임에 포함됨
+    const firebaseUid = parseJwtPayload(idToken).sub;
 
     currentUser = {
         uid: firebaseUid,
@@ -100,6 +103,20 @@ async function handleGoogleLogin(googleToken) {
 
     await checkPinAndProceed();
 }
+
+// Firebase ID Token(JWT) payload 디코딩 유틸
+// JWT는 header.payload.signature 형식이며, payload는 base64url 인코딩
+function parseJwtPayload(token) {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+        atob(base64).split('').map(c =>
+            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        ).join('')
+    );
+    return JSON.parse(jsonPayload);
+}
+
 
 // ===== 상태 관리 =====
 let currentUser = null;   // { uid, email }
@@ -372,7 +389,7 @@ async function checkPinAndProceed() {
     showPinView();
 }
 
-// 서버에 Vault가 존재하는지 확인
+// 서버에 Vault가 존재하고 실제 암호화 데이터가 있는지 확인
 async function checkVaultExists() {
     if (!currentUser?.uid) return false;
     try {
@@ -381,7 +398,9 @@ async function checkVaultExists() {
             showAccountDeletedError();
             return false;
         }
-        return res.ok;
+        if (!res.ok) return false;
+        const data = await res.json();
+        return !!(data.encrypted_vault); // 빈 문자열이나 null이면 false → PIN 화면 생략
     } catch (e) {
         console.error('Vault check failed:', e);
         return false;
@@ -396,9 +415,12 @@ async function verifyPinWithVault(pin) {
         if (!res.ok) return null;
 
         const { encrypted_vault, salt } = await res.json();
+        console.log('[DEBUG] vault fetch OK, encrypted_vault len:', encrypted_vault?.length, 'salt len:', salt?.length);
         if (!encrypted_vault) return null;
 
-        return await attemptDecryptVault(pin, encrypted_vault, salt);
+        const result = await attemptDecryptVault(pin, encrypted_vault, salt);
+        console.log('[DEBUG] decrypt result:', result !== null ? 'SUCCESS' : 'FAIL');
+        return result;
     } catch (e) {
         console.error('PIN verification failed:', e);
         return null;
@@ -445,10 +467,15 @@ async function attemptDecryptVault(pin, encryptedVaultB64, salt) {
             const keyBytes = await deriveVaultKey(pin, salt);
             const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
             const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
-            return JSON.parse(new TextDecoder().decode(buf));
-        } catch {}
+            const decryptedText = new TextDecoder().decode(buf);
+            console.log('[DEBUG] PBKDF2 decrypt success, text:', decryptedText);
+            return JSON.parse(decryptedText);
+        } catch (e) {
+            console.error('[DEBUG] PBKDF2 decrypt failed detail:', e);
+        }
         return null; // 신규 Vault는 PBKDF2만 시도 — 실패 = PIN 불일치
     }
+
 
     // 2차 시도: 레거시 raw PIN pad (salt 없는 구버전 Vault)
     const keyBytes = new TextEncoder().encode(pin.padEnd(32).substring(0, 32));

@@ -12,6 +12,7 @@ import 'package:dash_mobile/consent_screen.dart';
 import 'package:dash_mobile/onboarding_screen.dart';
 import 'package:dash_mobile/firebase_options.dart';
 import 'package:dash_mobile/storage_service.dart';
+import 'package:dash_mobile/pin_setup_screen.dart';
 
 
 @pragma('vm:entry-point')
@@ -57,6 +58,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/onboarding': (_) => const OnboardingScreen(),
         '/home': (_) => const HomeScreen(),
+        '/pin_setup': (_) => const PinSetupScreen(),
       },
       builder: (context, child) {
         // 태블릿(shortestSide >= 600)은 모든 방향, 폰은 세로 고정
@@ -138,8 +140,9 @@ class _PostLoginRouter extends StatelessWidget {
     final consentDone = prefs.getBool('consent_v1_completed') ?? false;
     // 동의가 안 된 경우(최초 가입)만 동의 화면으로
     if (!consentDone) return 'consent';
-    // 동의 완료된 사용자는 재로그인이든 신규든 바로 홈으로
-    // (닉네임/PIN 설정은 ConsentScreen → NicknameScreen 플로우에서만 진행)
+    // PIN 초기화 후 재설정이 필요한 경우
+    final pinSetupRequired = prefs.getBool('pin_setup_required') ?? false;
+    if (pinSetupRequired) return 'pin_setup';
     return 'home';
   }
 
@@ -154,6 +157,8 @@ class _PostLoginRouter extends StatelessWidget {
         switch (snapshot.data) {
           case 'consent':
             return const ConsentScreen();
+          case 'pin_setup':
+            return const PinSetupScreen();
           default:
             return const HomeScreen();
         }

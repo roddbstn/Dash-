@@ -14,6 +14,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:dash_mobile/vault_service.dart';
+import 'package:dash_mobile/pin_setup_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileTab extends StatefulWidget {
   final String? userName;
@@ -849,20 +851,30 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _executePinReset() async {
-    // 1. Wipe local storage (clears PIN, cases, drafts, salt)
-    await StorageService.clearAllData();
+    // 1. 세션 데이터만 초기화 (동의·온보딩 플래그는 유지)
+    await StorageService.clearSessionData();
 
-    // 2. Wipe server vault memory specifically to prevent decrypting old data
+    // 2. PIN 재설정 필요 플래그 저장 (앱 재실행 시 PinSetupScreen으로 강제 이동)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('pin_setup_required', true);
+
+    // 3. 서버 vault 비우기
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      await ApiService.saveVault(user.uid, '', '');
-      // 3. 서버 레코드 전체 삭제 (syncActiveRecords([])는 빈 배열 가드로 스킵되므로 전용 API 사용)
       await ApiService.deleteAllRecords();
     }
 
     AnalyticsService.pinReset();
     widget.onResetComplete();
     widget.onShowToast('PIN 및 로컬 DB 데이터가 안전하게 완전히 삭제되었습니다.');
+
+    // 4. PIN 설정 화면으로 즉시 이동
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const PinSetupScreen()),
+        (route) => false,
+      );
+    }
   }
 
   Widget _buildNotificationToggleItem() {

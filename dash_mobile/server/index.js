@@ -1396,6 +1396,11 @@ app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
 
     // cases FK가 ON DELETE SET NULL이라 service_drafts·cases를 명시적으로 삭제
     for (const uid of targetIds) {
+      // 공유받은 DB에서 이 사용자의 reviewer 참조 제거 (탈퇴 후 재가입 시 재노출 방지)
+      await queryWithTimeout(
+        'UPDATE service_drafts SET reviewer_user_id = NULL WHERE reviewer_user_id = ?',
+        [uid]
+      );
       await queryWithTimeout(
         'DELETE sd FROM service_drafts sd JOIN cases c ON sd.case_id = c.id WHERE c.user_id = ?',
         [uid]

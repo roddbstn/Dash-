@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/vault_service.dart';
@@ -32,6 +33,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     final pin = _controller.text;
     try {
       await StorageService.savePin(pin);
+      // PIN 재설정 완료 플래그 삭제
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('pin_setup_required');
       await _syncPinToVault(pin);
     } catch (_) {}
     if (mounted) {
