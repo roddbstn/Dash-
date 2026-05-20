@@ -4,6 +4,8 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
 const cron = require('node-cron');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -59,6 +61,12 @@ const ALLOWED_EXTENSION_IDS = [
   ...(process.env.ALLOWED_EXTENSION_IDS || '').split(',').map(id => id.trim()).filter(Boolean),
 ];
 
+// ── 보안 헤더 (helmet) ────────────────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: false,       // SSE / 리뷰어 사이트 인라인 스크립트 호환
+  crossOriginEmbedderPolicy: false,   // Firebase SDK 로드 허용
+}));
+
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);                         // 모바일 앱 / Origin 없음
@@ -74,6 +82,29 @@ app.use(cors({
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'reviewer_site'))); // Serve static files
+
+// ── API Rate Limiting ──────────────────────────────────────────────────────────
+// 글로벌: 15분당 300회 (정상 사용 기준 넉넉히)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+  skip: (req) => req.path === '/health', // 헬스체크는 제외
+});
+app.use('/api', globalLimiter);
+
+// 인증 엔드포인트: 15분당 30회 (브루트포스 방어)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: '인증 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+});
+app.use('/api/users/login', authLimiter);
+app.use('/api/users/fcm_token', authLimiter);
 
 // ── 보안 설정 ────────────────────────────────────────────────────────────────
 // 허용할 이메일 도메인 목록 (쉼표 구분, 비어있으면 제한 없음)
@@ -289,10 +320,75 @@ app.get('/share', (req, res) => {
   res.redirect(301, '/');
 });
 
-// [공통] 서버 상태 확인
-app.get('/health', (req, res) => {
-  console.log('--- Health Check ---');
-  res.json({ status: 'ok', time: new Date() });
+// [공통] 서버 상태 확인 (UptimeRobot 등 외부 모니터링 대상)
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({
+      status: 'ok',
+      db: 'connected',
+      uptime: Math.floor(process.uptime()),
+      time: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('❌ [HEALTH] DB connection failed:', err.message);
+    res.status(503).json({
+      status: 'error',
+      db: 'disconnected',
+      time: new Date().toISOString(),
+    });
+  }
+});
+
+// [Admin] 주간 KPI 스냅샷 (ADMIN_SECRET 헤더 인증)
+app.get('/api/admin/kpi', async (req, res) => {
+  const secret = req.headers['x-admin-secret'];
+  if (!secret || secret !== process.env.ADMIN_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const [[totals]] = await pool.query(`
+      SELECT
+        COUNT(*) AS total_records,
+        SUM(status = 'Synced')    AS synced,
+        SUM(status = 'Reviewed')  AS reviewed,
+        SUM(status = 'Injected')  AS injected,
+        SUM(reviewer_user_id IS NOT NULL) AS shared,
+        SUM(encrypted_blob IS NOT NULL)   AS e2ee
+      FROM service_drafts
+    `);
+    const [[weekly]] = await pool.query(`
+      SELECT COUNT(*) AS new_this_week
+      FROM service_drafts
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    `);
+    const [[users]] = await pool.query(`
+      SELECT COUNT(*) AS total_users FROM dash_users
+    `);
+    const [[vaultUsers]] = await pool.query(`
+      SELECT COUNT(*) AS vault_users
+      FROM user_key_vault
+      WHERE encrypted_vault IS NOT NULL
+    `);
+    res.json({
+      snapshot_at: new Date().toISOString(),
+      users: { total: users.total_users, vault_activated: vaultUsers.vault_users },
+      records: {
+        total: totals.total_records,
+        new_this_week: weekly.new_this_week,
+        synced: totals.synced,
+        reviewed: totals.reviewed,
+        injected: totals.injected,
+        shared: totals.shared,
+        e2ee: totals.e2ee,
+        injection_rate: totals.total_records > 0
+          ? ((totals.injected / totals.total_records) * 100).toFixed(1) + '%'
+          : '0%',
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // [Mobile/Web] SSE Stream
