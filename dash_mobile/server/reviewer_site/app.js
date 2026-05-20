@@ -663,7 +663,9 @@ window.onload = () => {
         }
     }).catch((e) => {
         console.error('[auth] getRedirectResult error:', e.code, e.message);
-        if (e.code !== 'auth/no-auth-event') {
+        // popup-closed-by-user: 이전 세션의 팝업 잔여 상태 → 현재 사용자 액션과 무관하므로 무시
+        // no-auth-event: redirect 없이 페이지 로드 시 정상적으로 발생
+        if (e.code !== 'auth/no-auth-event' && e.code !== 'auth/popup-closed-by-user') {
             document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
         }
     }).finally(() => {
