@@ -62,19 +62,13 @@ async function signInWithGoogle() {
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
         const result = await firebase.auth().signInWithPopup(provider);
-        if (!_loginHandled) {
-            _loginHandled = true;
-            await handleReviewerLogin(result.user);
-        }
+        await handleReviewerLogin(result.user);
     } catch (e) {
-        if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
-            btn.disabled = false;
-            btn.textContent = 'Google 계정으로 로그인';
-        } else {
+        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
             errorEl.textContent = '오류: ' + (e.message || e.code);
-            btn.disabled = false;
-            btn.textContent = 'Google 계정으로 로그인';
         }
+        btn.disabled = false;
+        btn.textContent = 'Google 계정으로 로그인';
     }
 }
 
@@ -135,8 +129,6 @@ async function handleReviewerLogin(user) {
         btn.textContent = 'Google 계정으로 로그인';
     }
 }
-
-let _loginHandled = false; // 로그인 중복 처리 방지 (전역)
 
 let isInfoExpanded = false;
 let isEditMode = true; // 항상 편집 모드
@@ -649,25 +641,16 @@ window.onload = () => {
         return;
     }
 
-    // pending redirect 상태 소진 (이전 signInWithRedirect 잔여 상태 포함)
-    firebase.auth().getRedirectResult().then(async (result) => {
-        if (result && result.user && !_loginHandled) {
+    // 재방문 세션 복원 (이미 로그인된 경우 자동 처리)
+    let _loginHandled = false;
+    firebase.auth().onAuthStateChanged(async (user) => {
+        if (_loginHandled) return;
+        if (user) {
             _loginHandled = true;
-            await handleReviewerLogin(result.user);
+            await handleReviewerLogin(user);
+        } else {
+            document.getElementById('auth-modal').style.display = 'flex';
         }
-    }).catch((e) => {
-        if (e.code !== 'auth/no-auth-event') console.error('[auth] redirect error:', e.code);
-    }).finally(() => {
-        // 재방문 세션 복원
-        firebase.auth().onAuthStateChanged(async (user) => {
-            if (_loginHandled) return;
-            if (user) {
-                _loginHandled = true;
-                await handleReviewerLogin(user);
-            } else {
-                document.getElementById('auth-modal').style.display = 'flex';
-            }
-        });
     });
 };
 
