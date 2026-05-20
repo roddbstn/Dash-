@@ -654,28 +654,29 @@ window.onload = () => {
 
     let _loginHandled = false;
 
-    // 모바일 redirect 로그인 결과 처리 (signInWithRedirect 후 페이지 복귀 시)
+    // redirect 결과를 먼저 처리한 뒤 onAuthStateChanged 등록
+    // (순서 역전 시 onAuthStateChanged가 null로 먼저 발화 → 로그인 모달 오노출)
     firebase.auth().getRedirectResult().then(async (result) => {
         if (result && result.user && !_loginHandled) {
             _loginHandled = true;
             await handleReviewerLogin(result.user);
         }
     }).catch((e) => {
+        console.error('[auth] getRedirectResult error:', e.code, e.message);
         if (e.code !== 'auth/no-auth-event') {
             document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
-            document.getElementById('auth-modal').style.display = 'flex';
         }
-    });
-
-    // 재방문 세션 복원 (이미 로그인된 경우) + PC popup 로그인 후 onAuthStateChanged
-    firebase.auth().onAuthStateChanged(async (user) => {
-        if (_loginHandled) return;
-        if (user) {
-            _loginHandled = true;
-            await handleReviewerLogin(user);
-        } else {
-            document.getElementById('auth-modal').style.display = 'flex';
-        }
+    }).finally(() => {
+        // redirect 처리 완료 후 onAuthStateChanged 등록 (재방문 세션 복원 + PC popup)
+        firebase.auth().onAuthStateChanged(async (user) => {
+            if (_loginHandled) return;
+            if (user) {
+                _loginHandled = true;
+                await handleReviewerLogin(user);
+            } else {
+                document.getElementById('auth-modal').style.display = 'flex';
+            }
+        });
     });
 };
 
