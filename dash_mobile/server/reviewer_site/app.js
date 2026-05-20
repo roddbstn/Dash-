@@ -649,16 +649,13 @@ window.onload = () => {
     // 재방문 세션 복원 (이미 로그인된 경우 자동 처리)
     _loginHandled = false;
 
-    // 이전 signInWithRedirect 잔재 소거 — 처리하지 않으면 Firebase가
-    // 내부적으로 redirect를 완료하려고 페이지를 재로드해 무한 루프 발생
-    firebase.auth().getRedirectResult().then(async (redirectResult) => {
-        if (redirectResult && redirectResult.user && !_loginHandled) {
-            _loginHandled = true;
-            await handleReviewerLogin(redirectResult.user);
-        }
-    }).catch(() => {
-        // stale redirect 오류는 무시 — onAuthStateChanged가 정상 처리
-    });
+    // 이전 signInWithRedirect 배포가 남긴 stale 상태 직접 소거
+    // getRedirectResult()는 signInWithPopup과 충돌하므로 localStorage 직접 삭제
+    try {
+        Object.keys(localStorage)
+            .filter(k => k.includes('pendingRedirect') || k.includes('redirectUser'))
+            .forEach(k => localStorage.removeItem(k));
+    } catch (_) {}
 
     firebase.auth().onAuthStateChanged(async (user) => {
         if (_loginHandled) return;
