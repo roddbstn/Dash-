@@ -62,7 +62,10 @@ async function signInWithGoogle() {
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
         const result = await firebase.auth().signInWithPopup(provider);
-        await handleReviewerLogin(result.user);
+        if (!_loginHandled) {
+            _loginHandled = true;
+            await handleReviewerLogin(result.user);
+        }
     } catch (e) {
         if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
             errorEl.textContent = '오류: ' + (e.message || e.code);
@@ -129,6 +132,8 @@ async function handleReviewerLogin(user) {
         btn.textContent = 'Google 계정으로 로그인';
     }
 }
+
+let _loginHandled = false; // 전역 플래그: handleReviewerLogin 중복 호출 방지
 
 let isInfoExpanded = false;
 let isEditMode = true; // 항상 편집 모드
@@ -642,7 +647,19 @@ window.onload = () => {
     }
 
     // 재방문 세션 복원 (이미 로그인된 경우 자동 처리)
-    let _loginHandled = false;
+    _loginHandled = false;
+
+    // 이전 signInWithRedirect 잔재 소거 — 처리하지 않으면 Firebase가
+    // 내부적으로 redirect를 완료하려고 페이지를 재로드해 무한 루프 발생
+    firebase.auth().getRedirectResult().then(async (redirectResult) => {
+        if (redirectResult && redirectResult.user && !_loginHandled) {
+            _loginHandled = true;
+            await handleReviewerLogin(redirectResult.user);
+        }
+    }).catch(() => {
+        // stale redirect 오류는 무시 — onAuthStateChanged가 정상 처리
+    });
+
     firebase.auth().onAuthStateChanged(async (user) => {
         if (_loginHandled) return;
         if (user) {
