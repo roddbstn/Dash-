@@ -51,7 +51,7 @@ function hideUserProfile() {
     if (wrapper) wrapper.style.display = 'none';
 }
 
-// ── Google 로그인 (redirect 방식 — popup은 환경에 따라 불안정)
+// ── Google 로그인 (popup 방식)
 async function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
     const errorEl = document.getElementById('auth-error');
@@ -61,11 +61,18 @@ async function signInWithGoogle() {
 
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
-        await firebase.auth().signInWithRedirect(provider);
+        const result = await firebase.auth().signInWithPopup(provider);
+        await handleReviewerLogin(result.user);
     } catch (e) {
-        errorEl.textContent = '오류: ' + (e.message || e.code);
-        btn.disabled = false;
-        btn.textContent = 'Google 계정으로 로그인';
+        if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+            // 팝업 닫힘 — 조용히 버튼만 복원
+            btn.disabled = false;
+            btn.textContent = 'Google 계정으로 로그인';
+        } else {
+            errorEl.textContent = '오류: ' + (e.message || e.code);
+            btn.disabled = false;
+            btn.textContent = 'Google 계정으로 로그인';
+        }
     }
 }
 
@@ -640,29 +647,15 @@ window.onload = () => {
 
     let _loginHandled = false;
 
-    // redirect 결과 처리 → 완료 후 onAuthStateChanged 등록 (순서 보장)
-    firebase.auth().getRedirectResult().then(async (result) => {
-        if (result && result.user && !_loginHandled) {
+    // 재방문 세션 복원 (이미 로그인된 경우 자동 처리)
+    firebase.auth().onAuthStateChanged(async (user) => {
+        if (_loginHandled) return;
+        if (user) {
             _loginHandled = true;
-            await handleReviewerLogin(result.user);
+            await handleReviewerLogin(user);
+        } else {
+            document.getElementById('auth-modal').style.display = 'flex';
         }
-    }).catch((e) => {
-        // no-auth-event: redirect 없이 로드 시 정상 발생, 무시
-        if (e.code !== 'auth/no-auth-event') {
-            console.error('[auth] redirect error:', e.code);
-            document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
-        }
-    }).finally(() => {
-        // 기존 세션 복원용 (재방문 시 자동 로그인)
-        firebase.auth().onAuthStateChanged(async (user) => {
-            if (_loginHandled) return;
-            if (user) {
-                _loginHandled = true;
-                await handleReviewerLogin(user);
-            } else {
-                document.getElementById('auth-modal').style.display = 'flex';
-            }
-        });
     });
 };
 
