@@ -359,177 +359,188 @@ app.get('/api/admin/kpi', async (req, res) => {
   if (!secret || secret !== process.env.ADMIN_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  try {
-    // ── 유저 통계 ──────────────────────────────────────────────────
-    const [[userStats]] = await pool.query(`
+
+  // 개별 쿼리 실패 시 기본값 반환 (컬럼 마이그레이션 중 안전성 확보)
+  async function safe(fn, fallback) {
+    try { return await fn(); } catch (e) { console.warn('[KPI] query skipped:', e.message); return fallback; }
+  }
+
+  // ── 유저 기본 통계 ─────────────────────────────────────────────
+  const [[userBase]] = await pool.query(`SELECT COUNT(*) AS total_users FROM dash_users`);
+  const totalUsers = Number(userBase.total_users) || 0;
+
+  // ── DAU / WAU / MAU (last_login_at 컬럼 없으면 0) ────────────
+  const dauWauMau = await safe(async () => {
+    const [[r]] = await pool.query(`
       SELECT
-        COUNT(*)                                              AS total_users,
         SUM(last_login_at >= DATE_SUB(NOW(), INTERVAL 1 DAY))  AS dau,
         SUM(last_login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY))  AS wau,
         SUM(last_login_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS mau
       FROM dash_users
     `);
-    const [[vaultStats]] = await pool.query(`
-      SELECT COUNT(*) AS vault_activated FROM user_key_vault WHERE encrypted_vault IS NOT NULL
-    `);
+    return { dau: Number(r.dau) || 0, wau: Number(r.wau) || 0, mau: Number(r.mau) || 0 };
+  }, { dau: 0, wau: 0, mau: 0 });
 
-    // ── 사례 통계 ──────────────────────────────────────────────────
-    const [[caseStats]] = await pool.query(`
-      SELECT
-        COUNT(*)                                                   AS total_cases,
-        COUNT(DISTINCT user_id)                                    AS users_with_cases
-      FROM cases
-    `);
+  const [[vaultStats]] = await pool.query(
+    `SELECT COUNT(*) AS vault_activated FROM user_key_vault WHERE encrypted_vault IS NOT NULL`
+  );
 
-    // ── 기록(서비스 초안) 통계 ────────────────────────────────────
-    const [[recStats]] = await pool.query(`
-      SELECT
-        COUNT(*)                                    AS total_records,
-        SUM(status = 'Synced')                      AS synced,
-        SUM(status = 'Reviewed')                    AS reviewed,
-        SUM(status = 'Injected')                    AS injected,
-        SUM(share_token IS NOT NULL)                AS shared,
-        SUM(reviewer_user_id IS NOT NULL)           AS reviewer_linked,
-        SUM(encrypted_blob IS NOT NULL)             AS e2ee,
-        COUNT(DISTINCT c.user_id)                   AS users_with_records
-      FROM service_drafts sd
-      LEFT JOIN cases c ON sd.case_id = c.id
-    `);
-    const [[weeklyRec]] = await pool.query(`
-      SELECT COUNT(*) AS new_this_week FROM service_drafts
-      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-    `);
+  // ── 사례 통계 ──────────────────────────────────────────────────
+  const [[caseStats]] = await pool.query(`SELECT COUNT(*) AS total_cases FROM cases`);
 
-    // ── 유저별 평균 (사례/기록) ───────────────────────────────────
-    const [[perUserAvg]] = await pool.query(`
-      SELECT
-        ROUND(AVG(case_cnt), 2)   AS avg_cases_per_user,
-        ROUND(AVG(record_cnt), 2) AS avg_records_per_user
-      FROM (
-        SELECT
-          u.id,
-          COUNT(DISTINCT c.id)  AS case_cnt,
-          COUNT(DISTINCT sd.id) AS record_cnt
-        FROM dash_users u
-        LEFT JOIN cases c ON c.user_id = u.id
-        LEFT JOIN service_drafts sd ON sd.case_id = c.id
-        GROUP BY u.id
-      ) t
-    `);
+  // ── 기록 통계 ──────────────────────────────────────────────────
+  const [[recStats]] = await pool.query(`
+    SELECT
+      COUNT(*)                          AS total_records,
+      SUM(status = 'Synced')            AS synced,
+      SUM(status = 'Reviewed')          AS reviewed,
+      SUM(status = 'Injected')          AS injected,
+      SUM(share_token IS NOT NULL)      AS shared,
+      SUM(reviewer_user_id IS NOT NULL) AS reviewer_linked,
+      SUM(encrypted_blob IS NOT NULL)   AS e2ee
+    FROM service_drafts
+  `);
+  const [[weeklyRec]] = await pool.query(
+    `SELECT COUNT(*) AS new_this_week FROM service_drafts WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
+  );
 
-    // ── 유저별 평균 기록당 공유 비율 ─────────────────────────────
-    const [[sharePerDb]] = await pool.query(`
-      SELECT ROUND(AVG(share_ratio), 3) AS avg_share_ratio_per_user
-      FROM (
-        SELECT
-          u.id,
-          CASE WHEN COUNT(sd.id) = 0 THEN 0
-               ELSE SUM(sd.share_token IS NOT NULL) / COUNT(sd.id)
-          END AS share_ratio
-        FROM dash_users u
-        LEFT JOIN cases c ON c.user_id = u.id
-        LEFT JOIN service_drafts sd ON sd.case_id = c.id
-        GROUP BY u.id
-      ) t
-    `);
-
-    // ── 유저 리스트 (닉네임, 사례수, 기록수, 마지막접속, 누적접속) ─
-    const [userList] = await pool.query(`
-      SELECT
-        u.id,
-        COALESCE(u.name, '이름 없음')  AS name,
-        u.email,
-        u.last_login_at,
-        COALESCE(u.login_count, 0)    AS login_count,
-        u.created_at,
-        COUNT(DISTINCT c.id)          AS case_count,
-        COUNT(DISTINCT sd.id)         AS record_count
+  // ── 유저별 평균 ────────────────────────────────────────────────
+  const [[perUserAvg]] = await pool.query(`
+    SELECT
+      ROUND(AVG(case_cnt), 2)   AS avg_cases_per_user,
+      ROUND(AVG(record_cnt), 2) AS avg_records_per_user
+    FROM (
+      SELECT u.id,
+        COUNT(DISTINCT c.id)  AS case_cnt,
+        COUNT(DISTINCT sd.id) AS record_cnt
       FROM dash_users u
       LEFT JOIN cases c ON c.user_id = u.id
       LEFT JOIN service_drafts sd ON sd.case_id = c.id
       GROUP BY u.id
+    ) t
+  `);
+
+  // ── 공유 비율 ──────────────────────────────────────────────────
+  const [[sharePerDb]] = await pool.query(`
+    SELECT ROUND(AVG(share_ratio), 3) AS avg_share_ratio_per_user
+    FROM (
+      SELECT u.id,
+        CASE WHEN COUNT(sd.id) = 0 THEN 0
+             ELSE SUM(sd.share_token IS NOT NULL) / COUNT(sd.id)
+        END AS share_ratio
+      FROM dash_users u
+      LEFT JOIN cases c ON c.user_id = u.id
+      LEFT JOIN service_drafts sd ON sd.case_id = c.id
+      GROUP BY u.id
+    ) t
+  `);
+
+  // ── 유저 리스트 (last_login_at / login_count 없으면 NULL 안전 처리) ─
+  const userList = await safe(async () => {
+    const [rows] = await pool.query(`
+      SELECT
+        u.id,
+        COALESCE(u.name, '이름 없음') AS name,
+        u.email,
+        u.last_login_at,
+        COALESCE(u.login_count, 0)   AS login_count,
+        u.created_at,
+        COUNT(DISTINCT c.id)         AS case_count,
+        COUNT(DISTINCT sd.id)        AS record_count
+      FROM dash_users u
+      LEFT JOIN cases c ON c.user_id = u.id
+      LEFT JOIN service_drafts sd ON sd.case_id = c.id
+      GROUP BY u.id, u.name, u.email, u.last_login_at, u.login_count, u.created_at
       ORDER BY u.last_login_at DESC
     `);
-
-    // ── 월별 기록 생성 추이 (최근 12개월) ────────────────────────
-    const [monthlyRecords] = await pool.query(`
+    return rows;
+  }, await safe(async () => {
+    // fallback: last_login_at/login_count 컬럼 없는 경우
+    const [rows] = await pool.query(`
       SELECT
-        DATE_FORMAT(created_at, '%Y-%m') AS month,
-        COUNT(*)                         AS count
-      FROM service_drafts
-      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-      GROUP BY month
-      ORDER BY month ASC
+        u.id,
+        COALESCE(u.name, '이름 없음') AS name,
+        u.email,
+        NULL AS last_login_at,
+        0    AS login_count,
+        u.created_at,
+        COUNT(DISTINCT c.id)  AS case_count,
+        COUNT(DISTINCT sd.id) AS record_count
+      FROM dash_users u
+      LEFT JOIN cases c ON c.user_id = u.id
+      LEFT JOIN service_drafts sd ON sd.case_id = c.id
+      GROUP BY u.id, u.name, u.email, u.created_at
+      ORDER BY u.created_at DESC
     `);
+    return rows;
+  }, []));
 
-    // ── 월별 신규 가입자 ──────────────────────────────────────────
-    const [monthlyUsers] = await pool.query(`
-      SELECT
-        DATE_FORMAT(created_at, '%Y-%m') AS month,
-        COUNT(*)                         AS count
-      FROM dash_users
-      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-      GROUP BY month
-      ORDER BY month ASC
-    `);
+  // ── 시계열 ─────────────────────────────────────────────────────
+  const [monthlyRecords] = await pool.query(`
+    SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS count
+    FROM service_drafts
+    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+    GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+    ORDER BY month ASC
+  `);
+  const [monthlyUsers] = await pool.query(`
+    SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS count
+    FROM dash_users
+    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+    GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+    ORDER BY month ASC
+  `);
+  const [weeklyActivity] = await pool.query(`
+    SELECT
+      DATE_FORMAT(DATE_SUB(sd.created_at, INTERVAL WEEKDAY(sd.created_at) DAY), '%Y-%m-%d') AS week_start,
+      COUNT(*) AS records,
+      COUNT(DISTINCT c.user_id) AS active_users
+    FROM service_drafts sd
+    LEFT JOIN cases c ON sd.case_id = c.id
+    WHERE sd.created_at >= DATE_SUB(NOW(), INTERVAL 12 WEEK)
+    GROUP BY DATE_FORMAT(DATE_SUB(sd.created_at, INTERVAL WEEKDAY(sd.created_at) DAY), '%Y-%m-%d')
+    ORDER BY week_start ASC
+  `);
 
-    // ── 주별 활동 (최근 12주, 기록 기준 WAU proxy) ────────────────
-    const [weeklyActivity] = await pool.query(`
-      SELECT
-        DATE_FORMAT(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY), '%Y-%m-%d') AS week_start,
-        COUNT(*)                                                                          AS records,
-        COUNT(DISTINCT c.user_id)                                                         AS active_users
-      FROM service_drafts sd
-      LEFT JOIN cases c ON sd.case_id = c.id
-      WHERE sd.created_at >= DATE_SUB(NOW(), INTERVAL 12 WEEK)
-      GROUP BY week_start
-      ORDER BY week_start ASC
-    `);
+  const total = Number(recStats.total_records) || 1;
+  const totalCases = Number(caseStats.total_cases) || 1;
 
-    const total = recStats.total_records || 1;
-    const totalUsers = userStats.total_users || 1;
-
-    res.json({
-      snapshot_at: new Date().toISOString(),
-      users: {
-        total: userStats.total_users,
-        vault_activated: vaultStats.vault_activated,
-        vault_rate: userStats.total_users > 0
-          ? ((vaultStats.vault_activated / userStats.total_users) * 100).toFixed(1) + '%'
-          : '0%',
-        dau: userStats.dau || 0,
-        wau: userStats.wau || 0,
-        mau: userStats.mau || 0,
-      },
-      cases: {
-        total: caseStats.total_cases,
-        avg_per_user: perUserAvg.avg_cases_per_user || 0,
-      },
-      records: {
-        total: recStats.total_records,
-        new_this_week: weeklyRec.new_this_week,
-        avg_per_user: perUserAvg.avg_records_per_user || 0,
-        avg_per_case: caseStats.total_cases > 0
-          ? (recStats.total_records / caseStats.total_cases).toFixed(2)
-          : 0,
-        synced: recStats.synced,
-        reviewed: recStats.reviewed,
-        injected: recStats.injected,
-        shared: recStats.shared,
-        reviewer_linked: recStats.reviewer_linked,
-        e2ee: recStats.e2ee,
-        injection_rate: ((recStats.injected / total) * 100).toFixed(1) + '%',
-        share_rate: ((recStats.shared / total) * 100).toFixed(1) + '%',
-        avg_share_ratio_per_user: sharePerDb.avg_share_ratio_per_user || 0,
-      },
-      user_list: userList,
-      monthly_records: monthlyRecords,
-      monthly_users: monthlyUsers,
-      weekly_activity: weeklyActivity,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.json({
+    snapshot_at: new Date().toISOString(),
+    users: {
+      total: totalUsers,
+      vault_activated: Number(vaultStats.vault_activated) || 0,
+      vault_rate: totalUsers > 0
+        ? ((Number(vaultStats.vault_activated) / totalUsers) * 100).toFixed(1) + '%'
+        : '0%',
+      dau: dauWauMau.dau,
+      wau: dauWauMau.wau,
+      mau: dauWauMau.mau,
+    },
+    cases: {
+      total: Number(caseStats.total_cases) || 0,
+      avg_per_user: perUserAvg.avg_cases_per_user || 0,
+    },
+    records: {
+      total: Number(recStats.total_records) || 0,
+      new_this_week: Number(weeklyRec.new_this_week) || 0,
+      avg_per_user: perUserAvg.avg_records_per_user || 0,
+      avg_per_case: ((Number(recStats.total_records) || 0) / totalCases).toFixed(2),
+      synced: Number(recStats.synced) || 0,
+      reviewed: Number(recStats.reviewed) || 0,
+      injected: Number(recStats.injected) || 0,
+      shared: Number(recStats.shared) || 0,
+      reviewer_linked: Number(recStats.reviewer_linked) || 0,
+      e2ee: Number(recStats.e2ee) || 0,
+      injection_rate: ((Number(recStats.injected) / total) * 100).toFixed(1) + '%',
+      share_rate: ((Number(recStats.shared) / total) * 100).toFixed(1) + '%',
+      avg_share_ratio_per_user: sharePerDb.avg_share_ratio_per_user || 0,
+    },
+    user_list: userList,
+    monthly_records: monthlyRecords,
+    monthly_users: monthlyUsers,
+    weekly_activity: weeklyActivity,
+  });
 });
 
 // [Mobile/Web] SSE Stream

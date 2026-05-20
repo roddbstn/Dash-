@@ -385,10 +385,12 @@ async function fetchKpi(manual = false) {
       btn.classList.remove('spinning');
       return;
     }
-    _data = await res.json();
+    const json = await res.json();
+    if (json.error) { console.error('[KPI]', json.error); btn.classList.remove('spinning'); return; }
+    _data = json;
     document.getElementById('auth-overlay').classList.add('hidden');
     renderOverview(_data);
-    renderUserTable(_data.user_list);
+    renderUserTable(_data.user_list || []);
     if (document.getElementById('tab-activity').classList.contains('active')) {
       renderCharts(_data);
     }
