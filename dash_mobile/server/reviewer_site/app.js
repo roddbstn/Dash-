@@ -654,31 +654,15 @@ window.onload = () => {
 
     let _loginHandled = false;
 
-    // redirect 결과를 먼저 처리한 뒤 onAuthStateChanged 등록
-    // (순서 역전 시 onAuthStateChanged가 null로 먼저 발화 → 로그인 모달 오노출)
-    firebase.auth().getRedirectResult().then(async (result) => {
-        if (result && result.user && !_loginHandled) {
+    // onAuthStateChanged: 세션 복원 + popup/redirect 로그인 결과 통합 처리
+    firebase.auth().onAuthStateChanged(async (user) => {
+        if (_loginHandled) return;
+        if (user) {
             _loginHandled = true;
-            await handleReviewerLogin(result.user);
+            await handleReviewerLogin(user);
+        } else {
+            document.getElementById('auth-modal').style.display = 'flex';
         }
-    }).catch((e) => {
-        console.error('[auth] getRedirectResult error:', e.code, e.message);
-        // popup-closed-by-user: 이전 세션의 팝업 잔여 상태 → 현재 사용자 액션과 무관하므로 무시
-        // no-auth-event: redirect 없이 페이지 로드 시 정상적으로 발생
-        if (e.code !== 'auth/no-auth-event' && e.code !== 'auth/popup-closed-by-user') {
-            document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
-        }
-    }).finally(() => {
-        // redirect 처리 완료 후 onAuthStateChanged 등록 (재방문 세션 복원 + PC popup)
-        firebase.auth().onAuthStateChanged(async (user) => {
-            if (_loginHandled) return;
-            if (user) {
-                _loginHandled = true;
-                await handleReviewerLogin(user);
-            } else {
-                document.getElementById('auth-modal').style.display = 'flex';
-            }
-        });
     });
 };
 
