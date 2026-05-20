@@ -67,9 +67,7 @@ async function signInWithGoogle() {
             await handleReviewerLogin(result.user);
         }
     } catch (e) {
-        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-            errorEl.textContent = '오류: ' + (e.message || e.code);
-        }
+        errorEl.textContent = '오류: ' + (e.code || e.message || JSON.stringify(e));
         btn.disabled = false;
         btn.textContent = 'Google 계정으로 로그인';
     }
