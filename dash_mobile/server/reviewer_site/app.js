@@ -51,7 +51,7 @@ function hideUserProfile() {
     if (wrapper) wrapper.style.display = 'none';
 }
 
-// ── Google 로그인 (popup 방식 — Firebase Hosting 불필요)
+// ── Google 로그인 (PC: popup / 모바일: redirect)
 async function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
     const errorEl = document.getElementById('auth-error');
@@ -59,14 +59,27 @@ async function signInWithGoogle() {
     btn.textContent = '로그인 중...';
     errorEl.textContent = '';
 
-    try {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        const result = await firebase.auth().signInWithPopup(provider);
-        await handleReviewerLogin(result.user);
-    } catch (e) {
-        errorEl.textContent = '오류: ' + (e.message || e.code);
-        btn.disabled = false;
-        btn.textContent = 'Google 계정으로 로그인';
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+        // 모바일: redirect 방식 (popup이 즉시 닫히는 문제 방지)
+        try {
+            await firebase.auth().signInWithRedirect(provider);
+        } catch (e) {
+            errorEl.textContent = '오류: ' + (e.message || e.code);
+            btn.disabled = false;
+            btn.textContent = 'Google 계정으로 로그인';
+        }
+    } else {
+        try {
+            const result = await firebase.auth().signInWithPopup(provider);
+            await handleReviewerLogin(result.user);
+        } catch (e) {
+            errorEl.textContent = '오류: ' + (e.message || e.code);
+            btn.disabled = false;
+            btn.textContent = 'Google 계정으로 로그인';
+        }
     }
 }
 
@@ -639,9 +652,22 @@ window.onload = () => {
         return;
     }
 
-    // popup 방식: onAuthStateChanged만으로 세션 복원 처리
-    // (팝업 로그인은 signInWithGoogle()에서 직접 처리, 여기서는 재방문 세션만)
     let _loginHandled = false;
+
+    // 모바일 redirect 로그인 결과 처리 (signInWithRedirect 후 페이지 복귀 시)
+    firebase.auth().getRedirectResult().then(async (result) => {
+        if (result && result.user && !_loginHandled) {
+            _loginHandled = true;
+            await handleReviewerLogin(result.user);
+        }
+    }).catch((e) => {
+        if (e.code !== 'auth/no-auth-event') {
+            document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
+            document.getElementById('auth-modal').style.display = 'flex';
+        }
+    });
+
+    // 재방문 세션 복원 (이미 로그인된 경우) + PC popup 로그인 후 onAuthStateChanged
     firebase.auth().onAuthStateChanged(async (user) => {
         if (_loginHandled) return;
         if (user) {
