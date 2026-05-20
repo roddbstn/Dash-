@@ -311,6 +311,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'reviewer_site', 'index.html'));
 });
 
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'reviewer_site', 'admin.html'));
+});
+
 // 앱에서 /share?token=... 로 오는 요청을 /?token=... 으로 리다이렉트
 app.get('/share', (req, res) => {
   const token = req.query.token;

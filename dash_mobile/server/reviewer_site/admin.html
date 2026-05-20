@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dash Admin · KPI Dashboard</title>
+  <style>
+    :root {
+      --primary: #3182f6;
+      --primary-light: #e8f3ff;
+      --bg: #f2f4f6;
+      --surface: #ffffff;
+      --text-main: #191f28;
+      --text-sub: #4e5968;
+      --text-hint: #abb3bb;
+      --border: #e5e8eb;
+      --danger: #f04452;
+      --success: #00c073;
+      --warning: #ff9500;
+      --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    /* ── Auth overlay ─────────────────────────────────── */
+    #auth-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center; z-index: 9999;
+    }
+    #auth-overlay.hidden { display: none; }
+    .auth-card {
+      background: var(--surface); border-radius: 16px; padding: 40px;
+      width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .auth-card h2 { font-size: 20px; font-weight: 700; }
+    .auth-card p { font-size: 14px; color: var(--text-sub); }
+    .auth-card input {
+      width: 100%; padding: 12px 16px; border: 1px solid var(--border);
+      border-radius: 10px; font-size: 15px; outline: none;
+    }
+    .auth-card input:focus { border-color: var(--primary); }
+    .auth-card button {
+      width: 100%; padding: 14px; background: var(--primary); color: #fff;
+      border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    .auth-card button:hover { background: #1b64da; }
+    #auth-error { color: var(--danger); font-size: 13px; display: none; }
+
+    /* ── Header ───────────────────────────────────────── */
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo-mark {
+      width: 32px; height: 32px; background: var(--primary); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 800; font-size: 16px;
+    }
+    header h1 { font-size: 17px; font-weight: 700; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    #health-badge {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 100px; font-size: 13px; font-weight: 600;
+      background: var(--primary-light); color: var(--primary);
+    }
+    #health-badge.error { background: #fff0f0; color: var(--danger); }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+    #last-updated { font-size: 12px; color: var(--text-hint); }
+    #refresh-btn {
+      padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--surface); font-size: 13px; color: var(--text-sub);
+      cursor: pointer; display: flex; align-items: center; gap: 6px;
+    }
+    #refresh-btn:hover { background: var(--bg); }
+    #refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Main ─────────────────────────────────────────── */
+    main { max-width: 960px; margin: 0 auto; padding: 32px 24px; display: flex; flex-direction: column; gap: 28px; }
+
+    /* ── Section title ────────────────────────────────── */
+    .section-title {
+      font-size: 13px; font-weight: 600; color: var(--text-hint);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px;
+    }
+
+    /* ── KPI cards grid ───────────────────────────────── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .card {
+      background: var(--surface); border-radius: 14px; padding: 20px 22px;
+      box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px;
+    }
+    .card-label { font-size: 13px; color: var(--text-sub); }
+    .card-value { font-size: 32px; font-weight: 800; line-height: 1; }
+    .card-sub { font-size: 12px; color: var(--text-hint); }
+    .card.accent { background: var(--primary); color: #fff; }
+    .card.accent .card-label, .card.accent .card-sub { color: rgba(255,255,255,0.75); }
+    .card.success .card-value { color: var(--success); }
+    .card.warning .card-value { color: var(--warning); }
+    .card.danger .card-value { color: var(--danger); }
+
+    /* ── Record status bar ────────────────────────────── */
+    .status-section { background: var(--surface); border-radius: 14px; padding: 22px 24px; box-shadow: var(--shadow); }
+    .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .status-label { font-size: 13px; color: var(--text-sub); width: 100px; flex-shrink: 0; }
+    .bar-track { flex: 1; background: var(--bg); border-radius: 100px; height: 10px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 100px; transition: width 0.6s ease; }
+    .bar-fill.synced { background: #74b9ff; }
+    .bar-fill.reviewed { background: var(--primary); }
+    .bar-fill.injected { background: var(--success); }
+    .bar-fill.e2ee { background: #a29bfe; }
+    .bar-count { font-size: 13px; font-weight: 600; color: var(--text-main); width: 36px; text-align: right; }
+
+    /* ── Countdown ────────────────────────────────────── */
+    #countdown-bar {
+      height: 3px; background: var(--primary-light);
+      position: fixed; top: 0; left: 0; transition: width linear;
+      z-index: 200;
+    }
+
+    /* ── Skeleton ─────────────────────────────────────── */
+    .skeleton { background: linear-gradient(90deg, #e5e8eb 25%, #f2f4f6 50%, #e5e8eb 75%); background-size: 200%; animation: shimmer 1.4s infinite; border-radius: 8px; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    .sk-val { width: 80px; height: 36px; }
+    .sk-label { width: 120px; height: 14px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- Auth overlay -->
+<div id="auth-overlay">
+  <div class="auth-card">
+    <div>
+      <h2>🔐 Admin 로그인</h2>
+      <p style="margin-top:6px">ADMIN_SECRET을 입력하세요.</p>
+    </div>
+    <input type="password" id="secret-input" placeholder="Admin Secret" autocomplete="off" />
+    <span id="auth-error">Secret이 맞지 않습니다. 다시 시도하세요.</span>
+    <button onclick="tryAuth()">확인</button>
+  </div>
+</div>
+
+<!-- Top progress bar -->
+<div id="countdown-bar" style="width:100%"></div>
+
+<!-- Header -->
+<header>
+  <div class="header-left">
+    <div class="logo-mark">D</div>
+    <h1>KPI Dashboard</h1>
+  </div>
+  <div class="header-right">
+    <div id="health-badge"><span class="dot"></span><span id="health-text">확인 중…</span></div>
+    <span id="last-updated">—</span>
+    <button id="refresh-btn" onclick="fetchKpi(true)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      새로고침
+    </button>
+  </div>
+</header>
+
+<!-- Main -->
+<main>
+  <!-- Users -->
+  <section>
+    <div class="section-title">유저</div>
+    <div class="cards">
+      <div class="card accent">
+        <div class="card-label">전체 유저</div>
+        <div class="card-value" id="val-total-users">—</div>
+        <div class="card-sub">가입자 기준</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Vault 활성화</div>
+        <div class="card-value" id="val-vault-users">—</div>
+        <div class="card-sub" id="val-vault-rate">PIN 설정 완료</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Records -->
+  <section>
+    <div class="section-title">기록</div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-label">총 기록 수</div>
+        <div class="card-value" id="val-total-records">—</div>
+        <div class="card-sub">전체 누적</div>
+      </div>
+      <div class="card">
+        <div class="card-label">이번 주 신규</div>
+        <div class="card-value success" id="val-new-week">—</div>
+        <div class="card-sub">최근 7일</div>
+      </div>
+      <div class="card accent">
+        <div class="card-label">Injection율</div>
+        <div class="card-value" id="val-injection-rate">—</div>
+        <div class="card-sub">injected / total</div>
+      </div>
+      <div class="card">
+        <div class="card-label">E2EE 적용</div>
+        <div class="card-value" id="val-e2ee">—</div>
+        <div class="card-sub">암호화 기록</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Status breakdown -->
+  <section>
+    <div class="section-title">기록 상태 분포</div>
+    <div class="status-section">
+      <div class="status-row">
+        <div class="status-label">Synced</div>
+        <div class="bar-track"><div class="bar-fill synced" id="bar-synced" style="width:0%"></div></div>
+        <div class="bar-count" id="cnt-synced">—</div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Reviewed</div>
+        <div class="bar-track"><div class="bar-fill reviewed" id="bar-reviewed" style="width:0%"></div></div>
+        <div class="bar-count" id="cnt-reviewed">—</div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Injected</div>
+        <div class="bar-track"><div class="bar-fill injected" id="bar-injected" style="width:0%"></div></div>
+        <div class="bar-count" id="cnt-injected">—</div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">E2EE</div>
+        <div class="bar-track"><div class="bar-fill e2ee" id="bar-e2ee" style="width:0%"></div></div>
+        <div class="bar-count" id="cnt-e2ee">—</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const REFRESH_INTERVAL = 30; // seconds
+let _secret = sessionStorage.getItem('dash_admin_secret') || '';
+let _countdown = null;
+let _countdownValue = REFRESH_INTERVAL;
+
+// ── Auth ────────────────────────────────────────────────────────────
+function tryAuth() {
+  const input = document.getElementById('secret-input').value.trim();
+  if (!input) return;
+  sessionStorage.setItem('dash_admin_secret', input);
+  _secret = input;
+  fetchKpi(true);
+}
+document.getElementById('secret-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') tryAuth();
+});
+
+// ── Fetch ────────────────────────────────────────────────────────────
+async function fetchKpi(manual = false) {
+  if (!_secret) return;
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+
+  try {
+    const res = await fetch('/api/admin/kpi', {
+      headers: { 'x-admin-secret': _secret }
+    });
+
+    if (res.status === 401) {
+      sessionStorage.removeItem('dash_admin_secret');
+      _secret = '';
+      document.getElementById('auth-error').style.display = 'block';
+      document.getElementById('auth-overlay').classList.remove('hidden');
+      btn.classList.remove('spinning');
+      return;
+    }
+
+    const data = await res.json();
+    document.getElementById('auth-overlay').classList.add('hidden');
+    renderKpi(data);
+
+    // Health check
+    fetchHealth();
+
+    // Reset countdown
+    resetCountdown();
+
+    // Update timestamp
+    const now = new Date();
+    document.getElementById('last-updated').textContent =
+      `업데이트 ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  } catch (err) {
+    console.error(err);
+  }
+  btn.classList.remove('spinning');
+}
+
+async function fetchHealth() {
+  try {
+    const res = await fetch('/health');
+    const data = await res.json();
+    const badge = document.getElementById('health-badge');
+    const text = document.getElementById('health-text');
+    if (data.db === 'connected') {
+      badge.className = 'health-badge';
+      badge.style.background = '#e6faf2';
+      badge.style.color = '#00a855';
+      text.textContent = 'DB 정상';
+    } else {
+      badge.className = 'health-badge error';
+      badge.style.background = '#fff0f0';
+      badge.style.color = 'var(--danger)';
+      text.textContent = 'DB 오류';
+    }
+  } catch {
+    document.getElementById('health-text').textContent = '서버 응답 없음';
+  }
+}
+
+// ── Render ───────────────────────────────────────────────────────────
+function renderKpi(d) {
+  const u = d.users;
+  const r = d.records;
+  const total = r.total || 1;
+
+  // Users
+  set('val-total-users', u.total);
+  set('val-vault-users', u.vault_activated);
+  set('val-vault-rate', `${u.total > 0 ? Math.round(u.vault_activated / u.total * 100) : 0}% Vault 활성`);
+
+  // Records
+  set('val-total-records', r.total);
+  set('val-new-week', r.new_this_week);
+  set('val-injection-rate', r.injection_rate);
+  set('val-e2ee', r.e2ee);
+
+  // Status bars
+  bar('synced',   r.synced,   total);
+  bar('reviewed', r.reviewed, total);
+  bar('injected', r.injected, total);
+  bar('e2ee',     r.e2ee,     total);
+}
+
+function set(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val ?? '—';
+}
+
+function bar(name, count, total) {
+  const pct = total > 0 ? Math.min(100, Math.round(count / total * 100)) : 0;
+  const barEl = document.getElementById('bar-' + name);
+  const cntEl = document.getElementById('cnt-' + name);
+  if (barEl) barEl.style.width = pct + '%';
+  if (cntEl) cntEl.textContent = count ?? '—';
+}
+
+// ── Countdown bar ────────────────────────────────────────────────────
+function resetCountdown() {
+  clearInterval(_countdown);
+  _countdownValue = REFRESH_INTERVAL;
+  const bar = document.getElementById('countdown-bar');
+
+  _countdown = setInterval(() => {
+    _countdownValue--;
+    const pct = (_countdownValue / REFRESH_INTERVAL) * 100;
+    bar.style.width = pct + '%';
+    if (_countdownValue <= 0) {
+      clearInterval(_countdown);
+      fetchKpi();
+    }
+  }, 1000);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+if (_secret) {
+  fetchKpi(true);
+} else {
+  document.getElementById('auth-overlay').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
