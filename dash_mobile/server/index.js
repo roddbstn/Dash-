@@ -10,6 +10,9 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Railway 등 리버스 프록시 환경에서 X-Forwarded-For 헤더 신뢰 (rate-limit IP 식별용)
+app.set('trust proxy', 1);
+
 // 치명적 에러 발생 시 로그를 남기고 안전하게 처리
 process.on('uncaughtException', (err) => {
   console.error('💥 Uncaught Exception:', err);
@@ -300,6 +303,12 @@ pool.query("ALTER TABLE service_drafts ADD COLUMN share_expires_at DATETIME DEFA
     }
   });
 
+// Phase 4: 유저 활동 추적 컬럼 추가 (KPI 대시보드용)
+pool.query("ALTER TABLE dash_users ADD COLUMN last_login_at DATETIME DEFAULT NULL")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] last_login_at 추가 실패:', err.message); });
+pool.query("ALTER TABLE dash_users ADD COLUMN login_count INT DEFAULT 0")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] login_count 추가 실패:', err.message); });
+
 // Phase 3-B: Vault 접근 Rate Limiting (메모리 기반, 서버 재시작 시 초기화)
 const vaultAttempts = new Map(); // uid → { count, windowStart }
 const VAULT_MAX_REQUESTS = 10;  // 10분당 최대 10회
@@ -344,51 +353,179 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// [Admin] 주간 KPI 스냅샷 (ADMIN_SECRET 헤더 인증)
+// [Admin] 종합 KPI 대시보드 (ADMIN_SECRET 헤더 인증)
 app.get('/api/admin/kpi', async (req, res) => {
   const secret = req.headers['x-admin-secret'];
   if (!secret || secret !== process.env.ADMIN_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
-    const [[totals]] = await pool.query(`
+    // ── 유저 통계 ──────────────────────────────────────────────────
+    const [[userStats]] = await pool.query(`
       SELECT
-        COUNT(*) AS total_records,
-        SUM(status = 'Synced')    AS synced,
-        SUM(status = 'Reviewed')  AS reviewed,
-        SUM(status = 'Injected')  AS injected,
-        SUM(reviewer_user_id IS NOT NULL) AS shared,
-        SUM(encrypted_blob IS NOT NULL)   AS e2ee
-      FROM service_drafts
+        COUNT(*)                                              AS total_users,
+        SUM(last_login_at >= DATE_SUB(NOW(), INTERVAL 1 DAY))  AS dau,
+        SUM(last_login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY))  AS wau,
+        SUM(last_login_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS mau
+      FROM dash_users
     `);
-    const [[weekly]] = await pool.query(`
-      SELECT COUNT(*) AS new_this_week
-      FROM service_drafts
+    const [[vaultStats]] = await pool.query(`
+      SELECT COUNT(*) AS vault_activated FROM user_key_vault WHERE encrypted_vault IS NOT NULL
+    `);
+
+    // ── 사례 통계 ──────────────────────────────────────────────────
+    const [[caseStats]] = await pool.query(`
+      SELECT
+        COUNT(*)                                                   AS total_cases,
+        COUNT(DISTINCT user_id)                                    AS users_with_cases
+      FROM cases
+    `);
+
+    // ── 기록(서비스 초안) 통계 ────────────────────────────────────
+    const [[recStats]] = await pool.query(`
+      SELECT
+        COUNT(*)                                    AS total_records,
+        SUM(status = 'Synced')                      AS synced,
+        SUM(status = 'Reviewed')                    AS reviewed,
+        SUM(status = 'Injected')                    AS injected,
+        SUM(share_token IS NOT NULL)                AS shared,
+        SUM(reviewer_user_id IS NOT NULL)           AS reviewer_linked,
+        SUM(encrypted_blob IS NOT NULL)             AS e2ee,
+        COUNT(DISTINCT c.user_id)                   AS users_with_records
+      FROM service_drafts sd
+      LEFT JOIN cases c ON sd.case_id = c.id
+    `);
+    const [[weeklyRec]] = await pool.query(`
+      SELECT COUNT(*) AS new_this_week FROM service_drafts
       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
     `);
-    const [[users]] = await pool.query(`
-      SELECT COUNT(*) AS total_users FROM dash_users
+
+    // ── 유저별 평균 (사례/기록) ───────────────────────────────────
+    const [[perUserAvg]] = await pool.query(`
+      SELECT
+        ROUND(AVG(case_cnt), 2)   AS avg_cases_per_user,
+        ROUND(AVG(record_cnt), 2) AS avg_records_per_user
+      FROM (
+        SELECT
+          u.id,
+          COUNT(DISTINCT c.id)  AS case_cnt,
+          COUNT(DISTINCT sd.id) AS record_cnt
+        FROM dash_users u
+        LEFT JOIN cases c ON c.user_id = u.id
+        LEFT JOIN service_drafts sd ON sd.case_id = c.id
+        GROUP BY u.id
+      ) t
     `);
-    const [[vaultUsers]] = await pool.query(`
-      SELECT COUNT(*) AS vault_users
-      FROM user_key_vault
-      WHERE encrypted_vault IS NOT NULL
+
+    // ── 유저별 평균 기록당 공유 비율 ─────────────────────────────
+    const [[sharePerDb]] = await pool.query(`
+      SELECT ROUND(AVG(share_ratio), 3) AS avg_share_ratio_per_user
+      FROM (
+        SELECT
+          u.id,
+          CASE WHEN COUNT(sd.id) = 0 THEN 0
+               ELSE SUM(sd.share_token IS NOT NULL) / COUNT(sd.id)
+          END AS share_ratio
+        FROM dash_users u
+        LEFT JOIN cases c ON c.user_id = u.id
+        LEFT JOIN service_drafts sd ON sd.case_id = c.id
+        GROUP BY u.id
+      ) t
     `);
+
+    // ── 유저 리스트 (닉네임, 사례수, 기록수, 마지막접속, 누적접속) ─
+    const [userList] = await pool.query(`
+      SELECT
+        u.id,
+        COALESCE(u.name, '이름 없음')  AS name,
+        u.email,
+        u.last_login_at,
+        COALESCE(u.login_count, 0)    AS login_count,
+        u.created_at,
+        COUNT(DISTINCT c.id)          AS case_count,
+        COUNT(DISTINCT sd.id)         AS record_count
+      FROM dash_users u
+      LEFT JOIN cases c ON c.user_id = u.id
+      LEFT JOIN service_drafts sd ON sd.case_id = c.id
+      GROUP BY u.id
+      ORDER BY u.last_login_at DESC
+    `);
+
+    // ── 월별 기록 생성 추이 (최근 12개월) ────────────────────────
+    const [monthlyRecords] = await pool.query(`
+      SELECT
+        DATE_FORMAT(created_at, '%Y-%m') AS month,
+        COUNT(*)                         AS count
+      FROM service_drafts
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+      GROUP BY month
+      ORDER BY month ASC
+    `);
+
+    // ── 월별 신규 가입자 ──────────────────────────────────────────
+    const [monthlyUsers] = await pool.query(`
+      SELECT
+        DATE_FORMAT(created_at, '%Y-%m') AS month,
+        COUNT(*)                         AS count
+      FROM dash_users
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+      GROUP BY month
+      ORDER BY month ASC
+    `);
+
+    // ── 주별 활동 (최근 12주, 기록 기준 WAU proxy) ────────────────
+    const [weeklyActivity] = await pool.query(`
+      SELECT
+        DATE_FORMAT(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY), '%Y-%m-%d') AS week_start,
+        COUNT(*)                                                                          AS records,
+        COUNT(DISTINCT c.user_id)                                                         AS active_users
+      FROM service_drafts sd
+      LEFT JOIN cases c ON sd.case_id = c.id
+      WHERE sd.created_at >= DATE_SUB(NOW(), INTERVAL 12 WEEK)
+      GROUP BY week_start
+      ORDER BY week_start ASC
+    `);
+
+    const total = recStats.total_records || 1;
+    const totalUsers = userStats.total_users || 1;
+
     res.json({
       snapshot_at: new Date().toISOString(),
-      users: { total: users.total_users, vault_activated: vaultUsers.vault_users },
-      records: {
-        total: totals.total_records,
-        new_this_week: weekly.new_this_week,
-        synced: totals.synced,
-        reviewed: totals.reviewed,
-        injected: totals.injected,
-        shared: totals.shared,
-        e2ee: totals.e2ee,
-        injection_rate: totals.total_records > 0
-          ? ((totals.injected / totals.total_records) * 100).toFixed(1) + '%'
+      users: {
+        total: userStats.total_users,
+        vault_activated: vaultStats.vault_activated,
+        vault_rate: userStats.total_users > 0
+          ? ((vaultStats.vault_activated / userStats.total_users) * 100).toFixed(1) + '%'
           : '0%',
+        dau: userStats.dau || 0,
+        wau: userStats.wau || 0,
+        mau: userStats.mau || 0,
       },
+      cases: {
+        total: caseStats.total_cases,
+        avg_per_user: perUserAvg.avg_cases_per_user || 0,
+      },
+      records: {
+        total: recStats.total_records,
+        new_this_week: weeklyRec.new_this_week,
+        avg_per_user: perUserAvg.avg_records_per_user || 0,
+        avg_per_case: caseStats.total_cases > 0
+          ? (recStats.total_records / caseStats.total_cases).toFixed(2)
+          : 0,
+        synced: recStats.synced,
+        reviewed: recStats.reviewed,
+        injected: recStats.injected,
+        shared: recStats.shared,
+        reviewer_linked: recStats.reviewer_linked,
+        e2ee: recStats.e2ee,
+        injection_rate: ((recStats.injected / total) * 100).toFixed(1) + '%',
+        share_rate: ((recStats.shared / total) * 100).toFixed(1) + '%',
+        avg_share_ratio_per_user: sharePerDb.avg_share_ratio_per_user || 0,
+      },
+      user_list: userList,
+      monthly_records: monthlyRecords,
+      monthly_users: monthlyUsers,
+      weekly_activity: weeklyActivity,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -465,9 +602,9 @@ app.post('/api/users/fcm_token', verifyFirebaseAuth, async (req, res) => {
   try {
     const resolvedEmail = email || `user_${id.substring(0, 8)}@gmail.com`;
     await queryWithTimeout(
-      `INSERT INTO dash_users (id, email, fcm_token, organization_id) 
-       VALUES (?, ?, ?, 'DEFAULT_ORG') 
-       ON DUPLICATE KEY UPDATE fcm_token = VALUES(fcm_token)`,
+      `INSERT INTO dash_users (id, email, fcm_token, organization_id, last_login_at, login_count)
+       VALUES (?, ?, ?, 'DEFAULT_ORG', NOW(), 1)
+       ON DUPLICATE KEY UPDATE fcm_token = VALUES(fcm_token), last_login_at = NOW(), login_count = login_count + 1`,
       [id, resolvedEmail, token]
     );
     res.json({ message: 'FCM token saved' });
