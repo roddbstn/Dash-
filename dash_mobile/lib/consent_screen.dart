@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/privacy_policy_screen.dart';
@@ -54,6 +55,11 @@ class _ConsentScreenState extends State<ConsentScreen> {
   Future<void> _proceed() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('consent_v1_completed', true);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await prefs.setString('consent_user_uid', uid);
+      await prefs.setBool('consent_done_$uid', true); // 유저별 키 (계정 전환 시에도 유지)
+    }
     await prefs.setBool('consent_marketing', _consentMarketing);
     AnalyticsService.consentComplete(marketingAgreed: _consentMarketing);
     if (mounted) {
@@ -90,13 +96,6 @@ class _ConsentScreenState extends State<ConsentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── 전체 동의 카드 ──
-                  _AllAgreeCard(
-                    allChecked: _allChecked,
-                    onChanged: _toggleAll,
-                  ),
-                  const SizedBox(height: 28),
-
                   // ── 섹션 1: 필수 동의 ──
                   _sectionLabel('필수 동의'),
                   const SizedBox(height: 10),
@@ -271,7 +270,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
             ),
           ),
 
-          // ── 하단 버튼 ──
+          // ── 하단 고정 영역 (전체동의 + CTA) ──
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -288,6 +287,12 @@ class _ConsentScreenState extends State<ConsentScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // 전체 동의 카드 (스티키)
+                _AllAgreeCard(
+                  allChecked: _allChecked,
+                  onChanged: _toggleAll,
+                ),
+                const SizedBox(height: 12),
                 if (!_allRequired)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
