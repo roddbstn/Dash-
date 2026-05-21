@@ -1246,12 +1246,14 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
       );
       // 공유 접근자 이력 기록 (최초 접근 시각 보존, 이름 최신화)
       const viewerName = userRows[0].name || userRows[0].email || email || '알 수 없음';
-      await queryWithTimeout(
+      console.log(`📝 [SHARE_VIEWERS INSERT] token=${token} reviewerDbId=${reviewerDbId} viewerName=${viewerName}`);
+      const [insertResult] = await queryWithTimeout(
         `INSERT INTO share_viewers (share_token, user_id, name)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE name = ?`,
         [token, reviewerDbId, viewerName, viewerName]
       );
+      console.log(`📝 [SHARE_VIEWERS RESULT] affectedRows=${insertResult.affectedRows} insertId=${insertResult.insertId}`);
     }
 
     // 세션 인증 완료 처리 (기존 share 엔드포인트가 authAttempts로 검증하므로 동일하게 기록)
@@ -1411,23 +1413,37 @@ app.put('/api/records/share/:token', async (req, res) => {
   }
 });
 
-// [Web] 3.1-B. 공유 참여자 목록 조회 (Firebase 인증 기반 — 세션 불필요)
-app.get('/api/records/share/:token/participants', verifyFirebaseAuth, async (req, res) => {
+// [Web] 3.1-B. 공유 참여자 목록 조회 (세션 인증 우선, Firebase 폴백)
+app.get('/api/records/share/:token/participants', async (req, res) => {
   const { token } = req.params;
-  const { uid, email } = req.firebaseUser;
-  try {
-    // 접근 권한 확인 (owner 또는 share_viewer)
-    const [access] = await queryWithTimeout(
-      `SELECT 1 FROM service_drafts sd
-       JOIN cases c ON sd.case_id = c.id
-       WHERE sd.share_token = ?
-         AND (c.user_id = ? OR c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
-              OR EXISTS (SELECT 1 FROM share_viewers sv WHERE sv.share_token = sd.share_token AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)))
-       LIMIT 1`,
-      [token, uid, email, email]
-    );
-    if (!access.length) return res.status(403).json({ error: 'Forbidden' });
 
+  // 세션 인증 확인 (기존 방식)
+  const session = authAttempts.get(token);
+  const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
+
+  if (!isVerified) {
+    // Firebase 인증 폴백
+    const authHeader = req.headers.authorization || '';
+    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!bearerToken) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const decoded = await admin.auth().verifyIdToken(bearerToken);
+      const { uid, email } = decoded;
+      const [access] = await queryWithTimeout(
+        `SELECT 1 FROM service_drafts sd JOIN cases c ON sd.case_id = c.id
+         WHERE sd.share_token = ?
+           AND (c.user_id = ? OR c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+                OR EXISTS (SELECT 1 FROM share_viewers sv WHERE sv.share_token = sd.share_token AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)))
+         LIMIT 1`,
+        [token, uid, email, email]
+      );
+      if (!access.length) return res.status(403).json({ error: 'Forbidden' });
+    } catch (e) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
+  try {
     const [rows] = await queryWithTimeout(
       `SELECT u.name AS owner_name
        FROM service_drafts sd
@@ -1440,6 +1456,7 @@ app.get('/api/records/share/:token/participants', verifyFirebaseAuth, async (req
       `SELECT name FROM share_viewers WHERE share_token = ? ORDER BY first_accessed_at ASC`,
       [token]
     );
+    console.log(`📋 [PARTICIPANTS] token=${token} viewers=${JSON.stringify(viewers.map(v=>v.name))}`);
     res.json({ owner_name: rows[0]?.owner_name || '', viewers: viewers.map(v => v.name) });
   } catch (err) {
     res.status(500).json({ error: err.message });

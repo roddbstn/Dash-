@@ -852,15 +852,15 @@ function _esc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ── 참여자 목록 새로고침 (히스토리 패널 열릴 때 호출)
+// ── 참여자 목록 새로고침 (세션 기반 — Firebase 만료 시 토큰 폴백)
 async function refreshParticipants(token) {
     try {
+        const headers = {};
         const user = firebase.auth().currentUser;
-        if (!user) return;
-        const idToken = await user.getIdToken();
-        const r = await fetch(`${window.location.origin}/api/records/share/${token}/participants`, {
-            headers: { 'Authorization': 'Bearer ' + idToken }
-        });
+        if (user) {
+            try { headers['Authorization'] = 'Bearer ' + await user.getIdToken(); } catch(_) {}
+        }
+        const r = await fetch(`${window.location.origin}/api/records/share/${token}/participants`, { headers });
         if (!r.ok) return;
         const data = await r.json();
         renderParticipants(data.owner_name, data.viewers || []);
@@ -1016,6 +1016,14 @@ window.onload = () => {
             }
         } else {
             document.getElementById('auth-modal').style.display = 'flex';
+        }
+    });
+
+    // 탭 포커스 복귀 시 참여자 목록 자동 갱신
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            const t = new URLSearchParams(window.location.search).get('token');
+            if (t) refreshParticipants(t);
         }
     });
 };
