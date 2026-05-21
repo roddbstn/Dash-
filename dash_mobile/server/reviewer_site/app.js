@@ -680,7 +680,9 @@ function openHistoryDetail(idx) {
     const entries = window._historyEntries || [];
     const e = entries[idx];
     if (!e) return;
-    const prev = entries[idx + 1] || null; // 바로 이전 버전 (없으면 최초)
+    // _before 컬럼 우선 사용 (저장 직전 상태), 없으면 이전 항목 스냅샷으로 폴백
+    const hasBefore = e.service_description_before !== null && e.service_description_before !== undefined;
+    const prev = hasBefore ? e : (entries[idx + 1] || null);
 
     const timeStr = new Date(e.created_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
@@ -712,8 +714,12 @@ function openHistoryDetail(idx) {
 
     const bodyHtml = isEncrypted
         ? '<div class="history-empty" style="padding:20px 0;">🔒 암호화된 내용은 복호화 키가 있는 기기에서만 확인 가능합니다.</div>'
-        : diffSection('서비스 내용', prev ? (prev.service_description_snapshot || '') : '', e.service_description_snapshot || '')
-        + diffSection('상담원 의견', prev ? (prev.agent_opinion_snapshot || '') : '', e.agent_opinion_snapshot || '');
+        : diffSection('서비스 내용',
+              hasBefore ? (e.service_description_before || '') : (prev ? (prev.service_description_snapshot || '') : ''),
+              e.service_description_snapshot || '')
+        + diffSection('상담원 의견',
+              hasBefore ? (e.agent_opinion_before || '') : (prev ? (prev.agent_opinion_snapshot || '') : ''),
+              e.agent_opinion_snapshot || '');
 
     const modal = document.createElement('div');
     modal.className = 'history-detail-modal';

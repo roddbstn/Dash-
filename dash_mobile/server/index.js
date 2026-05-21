@@ -272,6 +272,8 @@ pool.query(`
     editor_user_id VARCHAR(255),
     editor_name VARCHAR(100),
     action ENUM('reviewed','saved','synced') DEFAULT 'saved',
+    service_description_before TEXT,
+    agent_opinion_before TEXT,
     service_description_snapshot TEXT,
     agent_opinion_snapshot TEXT,
     encrypted_blob_snapshot TEXT,
@@ -280,6 +282,12 @@ pool.query(`
     INDEX idx_reh_created (created_at)
   )
 `).catch(err => console.error('[migration] record_edit_history 테이블 생성 실패:', err.message));
+
+// record_edit_history _before 컬럼 마이그레이션 (기존 테이블에 추가)
+pool.query(`ALTER TABLE record_edit_history ADD COLUMN service_description_before TEXT AFTER action`)
+  .catch(() => {}); // 이미 존재하면 무시
+pool.query(`ALTER TABLE record_edit_history ADD COLUMN agent_opinion_before TEXT AFTER service_description_before`)
+  .catch(() => {});
 
 // share_viewers 테이블 생성 (공유 링크 접근자 이력)
 pool.query(`
@@ -1099,11 +1107,19 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
         [user_id, case_name, token, message]
       );
 
-      // 수정 히스토리 기록
+      // 수정 히스토리 기록 (저장 전 상태 함께 저장)
       queryWithTimeout(
-        `INSERT INTO record_edit_history (share_token, editor_user_id, editor_name, action, service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
-         VALUES (?, (SELECT reviewer_user_id FROM service_drafts WHERE share_token = ? LIMIT 1), ?, 'reviewed', ?, ?, ?)`,
-        [token, token, reviewer_name, service_description || '', agent_opinion || '', encrypted_blob || null]
+        `INSERT INTO record_edit_history
+           (share_token, editor_user_id, editor_name, action,
+            service_description_before, agent_opinion_before,
+            service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
+         SELECT ?, reviewer_user_id, ?, 'reviewed',
+                service_description, agent_opinion,
+                ?, ?, ?
+         FROM service_drafts WHERE share_token = ? LIMIT 1`,
+        [token, reviewer_name,
+         service_description || '', agent_opinion || '', encrypted_blob || null,
+         token]
       ).catch(err => console.error('[history] 기록 실패:', err.message));
 
       console.log(`✅ Record reviewed & Notified (Token: ${token})`);
@@ -1352,14 +1368,20 @@ app.put('/api/records/share/:token', async (req, res) => {
 
     const [result] = await queryWithTimeout(query, params);
     if (result.affectedRows > 0) {
-      // 수정 히스토리 기록 (저장 액션)
+      // 수정 히스토리 기록 (저장 전 상태 함께 저장)
       const session = authAttempts.get(token);
       if (session?.uid) {
         queryWithTimeout(
-          `INSERT INTO record_edit_history (share_token, editor_user_id, editor_name, action, service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
-           SELECT ?, ?, COALESCE(NULLIF(name,''), email), 'saved', ?, ?, ?
-           FROM dash_users WHERE id = ?`,
-          [token, session.uid, service_description || '', agent_opinion || '', encrypted_blob || null, session.uid]
+          `INSERT INTO record_edit_history
+             (share_token, editor_user_id, editor_name, action,
+              service_description_before, agent_opinion_before,
+              service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
+           SELECT ?, ?, COALESCE(NULLIF(u.name,''), u.email), 'saved',
+                  sd.service_description, sd.agent_opinion,
+                  ?, ?, ?
+           FROM dash_users u, service_drafts sd
+           WHERE u.id = ? AND sd.share_token = ?`,
+          [token, session.uid, service_description || '', agent_opinion || '', encrypted_blob || null, session.uid, token]
         ).catch(err => console.error('[history] 저장 기록 실패:', err.message));
       }
       // ⚠️ 옵션 2: 리뷰어의 중간 저장은 로컬 임시 저장 개념.
@@ -1382,7 +1404,9 @@ app.get('/api/records/history/:token', async (req, res) => {
 
   try {
     const [rows] = await queryWithTimeout(
-      `SELECT id, editor_name, action, service_description_snapshot, agent_opinion_snapshot,
+      `SELECT id, editor_name, action,
+              service_description_before, agent_opinion_before,
+              service_description_snapshot, agent_opinion_snapshot,
               encrypted_blob_snapshot, created_at
        FROM record_edit_history
        WHERE share_token = ?
