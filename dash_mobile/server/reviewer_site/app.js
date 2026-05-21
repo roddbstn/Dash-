@@ -52,31 +52,48 @@ function hideUserProfile() {
 }
 
 // ── Google 로그인 (GIS + signInWithCredential)
-async function signInWithGoogle() {
+function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
     const errorEl = document.getElementById('auth-error');
     btn.disabled = true;
     btn.textContent = '로그인 중...';
     errorEl.textContent = '';
 
-    // Firebase signInWithPopup — GIS/FedCM 완전 무관, 계정 추가 포함
-    try {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        provider.addScope('email');
-        provider.addScope('profile');
-        provider.setCustomParameters({ prompt: 'select_account' });
-        const result = await firebase.auth().signInWithPopup(provider);
-        if (!_loginHandled) {
-            _loginHandled = true;
-            await handleReviewerLogin(result.user);
-        }
-    } catch (e) {
-        _loginHandled = false;
-        console.error('[signInWithGoogle error]', e.code, e.message, e);
-        errorEl.textContent = '오류: ' + (e.code || e.message || String(e));
+    // GIS OAuth2 Token 방식 — FedCM/Firebase popup 완전 무관
+    // requestAccessToken() → 전통 OAuth2 팝업, 계정 추가 포함
+    if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+        errorEl.textContent = '오류: Google 라이브러리가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.';
         btn.disabled = false;
         btn.textContent = 'Google 계정으로 로그인';
+        return;
     }
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        callback: async (response) => {
+            if (response.error) {
+                errorEl.textContent = '오류: ' + response.error;
+                btn.disabled = false;
+                btn.textContent = 'Google 계정으로 로그인';
+                return;
+            }
+            try {
+                const credential = firebase.auth.GoogleAuthProvider.credential(null, response.access_token);
+                const result = await firebase.auth().signInWithCredential(credential);
+                if (!_loginHandled) {
+                    _loginHandled = true;
+                    await handleReviewerLogin(result.user);
+                }
+            } catch (e) {
+                _loginHandled = false;
+                errorEl.textContent = '오류: ' + (e.message || e.code);
+                btn.disabled = false;
+                btn.textContent = 'Google 계정으로 로그인';
+            }
+        },
+    });
+    tokenClient.requestAccessToken();
 }
 
 function showAuthModal() {
