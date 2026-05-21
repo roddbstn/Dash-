@@ -1254,6 +1254,12 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
         [token, reviewerDbId, viewerName, viewerName]
       );
       console.log(`📝 [SHARE_VIEWERS RESULT] affectedRows=${insertResult.affectedRows} insertId=${insertResult.insertId}`);
+      // 실제 DB 확인
+      const [verifyRows] = await queryWithTimeout(
+        `SELECT user_id, name FROM share_viewers WHERE share_token = ?`,
+        [token]
+      );
+      console.log(`📋 [SHARE_VIEWERS DB] token=${token} rows=${JSON.stringify(verifyRows)}`);
     }
 
     // 세션 인증 완료 처리 (기존 share 엔드포인트가 authAttempts로 검증하므로 동일하게 기록)
