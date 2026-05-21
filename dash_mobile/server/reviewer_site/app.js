@@ -59,47 +59,62 @@ function signInWithGoogle() {
     btn.textContent = '로그인 중...';
     errorEl.textContent = '';
 
-    // GIS OAuth2 Token 방식 — FedCM/Firebase popup 완전 무관
-    // requestAccessToken() → 전통 OAuth2 팝업, 계정 추가 포함
-    if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-        errorEl.textContent = '오류: Google 라이브러리가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.';
+    // 직접 Google OAuth 팝업 — GIS/FedCM/storagerelay 완전 무관
+    const REDIRECT_URI = window.location.origin + '/oauth_callback.html';
+    const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+        client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
+        redirect_uri: REDIRECT_URI,
+        response_type: 'token',
+        scope: 'openid email profile',
+        prompt: 'select_account',
+    }).toString();
+
+    const popup = window.open(authUrl, 'google_login', 'width=500,height=600,scrollbars=yes,resizable=yes');
+    if (!popup) {
+        errorEl.textContent = '팝업이 차단됐습니다. 주소창에서 팝업 허용 후 다시 시도해주세요.';
         btn.disabled = false;
         btn.textContent = 'Google 계정으로 로그인';
         return;
     }
-    const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
-        scope: 'openid email profile',
-        prompt: 'select_account',
-        error_callback: (err) => {
-            console.error('[GIS OAuth2 error]', err);
-            errorEl.textContent = '오류: ' + (err.type || JSON.stringify(err));
+
+    let handled = false;
+    function onOAuthMessage(event) {
+        if (event.origin !== window.location.origin) return;
+        if (!event.data || event.data.type !== 'google_oauth_result') return;
+        handled = true;
+        clearInterval(pollTimer);
+        window.removeEventListener('message', onOAuthMessage);
+
+        if (event.data.error) {
+            errorEl.textContent = '오류: ' + event.data.error;
             btn.disabled = false;
             btn.textContent = 'Google 계정으로 로그인';
-        },
-        callback: async (response) => {
-            if (response.error) {
-                errorEl.textContent = '오류: ' + response.error;
-                btn.disabled = false;
-                btn.textContent = 'Google 계정으로 로그인';
-                return;
+            return;
+        }
+        const credential = firebase.auth.GoogleAuthProvider.credential(null, event.data.access_token);
+        firebase.auth().signInWithCredential(credential).then(async (result) => {
+            if (!_loginHandled) {
+                _loginHandled = true;
+                await handleReviewerLogin(result.user);
             }
-            try {
-                const credential = firebase.auth.GoogleAuthProvider.credential(null, response.access_token);
-                const result = await firebase.auth().signInWithCredential(credential);
-                if (!_loginHandled) {
-                    _loginHandled = true;
-                    await handleReviewerLogin(result.user);
-                }
-            } catch (e) {
-                _loginHandled = false;
-                errorEl.textContent = '오류: ' + (e.message || e.code);
-                btn.disabled = false;
-                btn.textContent = 'Google 계정으로 로그인';
-            }
-        },
-    });
-    tokenClient.requestAccessToken();
+        }).catch((e) => {
+            _loginHandled = false;
+            errorEl.textContent = '오류: ' + (e.message || e.code);
+            btn.disabled = false;
+            btn.textContent = 'Google 계정으로 로그인';
+        });
+    }
+    window.addEventListener('message', onOAuthMessage);
+
+    // 유저가 팝업을 직접 닫은 경우 버튼 복원
+    const pollTimer = setInterval(() => {
+        if (popup.closed && !handled) {
+            clearInterval(pollTimer);
+            window.removeEventListener('message', onOAuthMessage);
+            btn.disabled = false;
+            btn.textContent = 'Google 계정으로 로그인';
+        }
+    }, 500);
 }
 
 function showAuthModal() {
