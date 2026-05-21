@@ -69,6 +69,9 @@ function signInWithGoogle() {
         prompt: 'select_account',
     }).toString();
 
+    // 새 탭으로 열릴 경우를 대비해 복귀 URL 저장
+    sessionStorage.setItem('oauth_return_url', window.location.href);
+
     const popup = window.open(authUrl, 'google_login', 'width=500,height=600,scrollbars=yes,resizable=yes');
     if (!popup) {
         errorEl.textContent = '팝업이 차단됐습니다. 주소창에서 팝업 허용 후 다시 시도해주세요.';
@@ -680,6 +683,30 @@ window.onload = () => {
         const mobileBtn = document.getElementById('btn-notify-mobile');
         if (headerBtn) headerBtn.textContent = '저장 후 전송';
         if (mobileBtn) mobileBtn.textContent = '저장 후 전송';
+    }
+
+    // 새 탭 OAuth 복귀 처리 — oauth_callback.html이 sessionStorage에 저장한 토큰 처리
+    const pendingToken = sessionStorage.getItem('pending_oauth_token');
+    const pendingError = sessionStorage.getItem('pending_oauth_error');
+    if (pendingToken) {
+        sessionStorage.removeItem('pending_oauth_token');
+        document.getElementById('auth-modal').style.display = 'flex';
+        const credential = firebase.auth.GoogleAuthProvider.credential(null, pendingToken);
+        firebase.auth().signInWithCredential(credential).then(async (result) => {
+            if (!_loginHandled) {
+                _loginHandled = true;
+                await handleReviewerLogin(result.user);
+            }
+        }).catch((e) => {
+            document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
+        });
+        return;
+    }
+    if (pendingError) {
+        sessionStorage.removeItem('pending_oauth_error');
+        document.getElementById('auth-modal').style.display = 'flex';
+        document.getElementById('auth-error').textContent = '오류: ' + pendingError;
+        return;
     }
 
     // 인앱 브라우저 감지 — 구글 로그인 불가 안내

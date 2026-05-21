@@ -1,21 +1,32 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>OAuth Callback</title></head>
+<head><meta charset="UTF-8"><title>로그인 중...</title></head>
 <body>
 <script>
 (function () {
-    var params = new URLSearchParams(window.location.hash.substring(1));
-    var accessToken = params.get('access_token');
-    var error = params.get('error');
-    if (window.opener) {
+    var hash = new URLSearchParams(window.location.hash.substring(1));
+    var accessToken = hash.get('access_token');
+    var error = hash.get('error');
+
+    // 팝업으로 열린 경우 — postMessage로 전달 후 닫기
+    if (window.opener && !window.opener.closed) {
         window.opener.postMessage(
-            accessToken
-                ? { type: 'google_oauth_result', access_token: accessToken }
-                : { type: 'google_oauth_result', error: error || 'unknown' },
+            { type: 'google_oauth_result', access_token: accessToken || null, error: error || null },
             window.location.origin
         );
+        window.close();
+        return;
     }
-    window.close();
+
+    // 새 탭으로 열린 경우 — sessionStorage에 저장 후 원래 페이지로 복귀
+    var returnUrl = sessionStorage.getItem('oauth_return_url') || '/';
+    sessionStorage.removeItem('oauth_return_url');
+    if (accessToken) {
+        sessionStorage.setItem('pending_oauth_token', accessToken);
+    } else {
+        sessionStorage.setItem('pending_oauth_error', error || 'unknown');
+    }
+    window.location.replace(returnUrl);
 })();
 </script>
 </body>
