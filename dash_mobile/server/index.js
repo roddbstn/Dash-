@@ -264,6 +264,23 @@ async function ensureUserExists(uid, email, name) {
 
 // reviewer_user_id 컬럼이 없으면 자동 추가 (마이그레이션)
 // MySQL 8.0은 IF NOT EXISTS 미지원 → ER_DUP_FIELDNAME(중복)만 무시
+// record_edit_history 테이블 생성 (수정 히스토리)
+pool.query(`
+  CREATE TABLE IF NOT EXISTS record_edit_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    share_token VARCHAR(255) NOT NULL,
+    editor_user_id VARCHAR(255),
+    editor_name VARCHAR(100),
+    action ENUM('reviewed','saved','synced') DEFAULT 'saved',
+    service_description_snapshot TEXT,
+    agent_opinion_snapshot TEXT,
+    encrypted_blob_snapshot TEXT,
+    created_at DATETIME DEFAULT NOW(),
+    INDEX idx_reh_token (share_token),
+    INDEX idx_reh_created (created_at)
+  )
+`).catch(err => console.error('[migration] record_edit_history 테이블 생성 실패:', err.message));
+
 // share_viewers 테이블 생성 (공유 링크 접근자 이력)
 pool.query(`
   CREATE TABLE IF NOT EXISTS share_viewers (
@@ -1082,6 +1099,13 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
         [user_id, case_name, token, message]
       );
 
+      // 수정 히스토리 기록
+      queryWithTimeout(
+        `INSERT INTO record_edit_history (share_token, editor_user_id, editor_name, action, service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
+         VALUES (?, (SELECT reviewer_user_id FROM service_drafts WHERE share_token = ? LIMIT 1), ?, 'reviewed', ?, ?, ?)`,
+        [token, token, reviewer_name, service_description || '', agent_opinion || '', encrypted_blob || null]
+      ).catch(err => console.error('[history] 기록 실패:', err.message));
+
       console.log(`✅ Record reviewed & Notified (Token: ${token})`);
       res.json({ message: 'Reviewed' });
       
@@ -1318,12 +1342,44 @@ app.put('/api/records/share/:token', async (req, res) => {
 
     const [result] = await queryWithTimeout(query, params);
     if (result.affectedRows > 0) {
+      // 수정 히스토리 기록 (저장 액션)
+      const session = authAttempts.get(token);
+      if (session?.uid) {
+        queryWithTimeout(
+          `INSERT INTO record_edit_history (share_token, editor_user_id, editor_name, action, service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
+           SELECT ?, ?, COALESCE(NULLIF(name,''), email), 'saved', ?, ?, ?
+           FROM dash_users WHERE id = ?`,
+          [token, session.uid, service_description || '', agent_opinion || '', encrypted_blob || null, session.uid]
+        ).catch(err => console.error('[history] 저장 기록 실패:', err.message));
+      }
       // ⚠️ 옵션 2: 리뷰어의 중간 저장은 로컬 임시 저장 개념.
       // 원 생성자에게 SSE 알림을 보내지 않음 — 버튼 클릭(/reviewed) 시에만 반영됨.
       res.json({ message: 'Saved' });
     } else {
       res.status(404).json({ error: 'Not found' });
     }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// [Web/Mobile] 3.2. 수정 히스토리 조회
+app.get('/api/records/history/:token', async (req, res) => {
+  const { token } = req.params;
+  const session = authAttempts.get(token);
+  const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
+  if (!isVerified) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const [rows] = await queryWithTimeout(
+      `SELECT id, editor_name, action, service_description_snapshot, agent_opinion_snapshot,
+              encrypted_blob_snapshot, created_at
+       FROM record_edit_history
+       WHERE share_token = ?
+       ORDER BY created_at DESC`,
+      [token]
+    );
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -614,6 +614,115 @@ function loadRecord(token) {
             });
 }
 
+// ── 수정 히스토리 패널
+function toggleHistoryPanel() {
+    const panel = document.getElementById('history-panel');
+    if (panel.classList.contains('open')) {
+        closeHistoryPanel();
+    } else {
+        openHistoryPanel();
+    }
+}
+function openHistoryPanel() {
+    const panel = document.getElementById('history-panel');
+    const overlay = document.getElementById('history-panel-overlay');
+    const btn = document.getElementById('btn-history-toggle');
+    panel.classList.add('open');
+    overlay.style.display = 'block';
+    if (btn) btn.classList.add('active');
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (token) loadHistory(token);
+}
+function closeHistoryPanel() {
+    const panel = document.getElementById('history-panel');
+    const overlay = document.getElementById('history-panel-overlay');
+    const btn = document.getElementById('btn-history-toggle');
+    panel.classList.remove('open');
+    overlay.style.display = 'none';
+    if (btn) btn.classList.remove('active');
+}
+function loadHistory(token) {
+    const list = document.getElementById('history-list');
+    list.innerHTML = '<div class="history-empty">불러오는 중...</div>';
+    fetch(`${window.location.origin}/api/records/history/${token}`)
+        .then(r => r.json())
+        .then(entries => {
+            if (!entries.length) {
+                list.innerHTML = '<div class="history-empty">아직 수정 기록이 없습니다.</div>';
+                return;
+            }
+            list.innerHTML = entries.map((e, i) => {
+                const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
+                const actionClass = e.action === 'reviewed' ? 'reviewed' : 'saved';
+                const timeStr = _relativeTime(e.created_at);
+                const preview = (e.service_description_snapshot || '').slice(0, 80) || (e.encrypted_blob_snapshot ? '🔒 암호화된 내용' : '내용 없음');
+                return `<div class="history-entry" onclick="openHistoryDetail(${i})">
+                    <div class="history-entry-top">
+                        <span class="history-action-badge ${actionClass}">${actionLabel}</span>
+                        <span class="history-entry-time">${timeStr}</span>
+                    </div>
+                    <div class="history-editor">수정인: <span>${e.editor_name || '알 수 없음'}</span></div>
+                    <div class="history-preview">${_esc(preview)}${preview.length >= 80 ? '…' : ''}</div>
+                </div>`;
+            }).join('');
+            window._historyEntries = entries;
+        })
+        .catch(() => {
+            list.innerHTML = '<div class="history-empty">불러오기 실패</div>';
+        });
+}
+function openHistoryDetail(idx) {
+    const e = (window._historyEntries || [])[idx];
+    if (!e) return;
+    const timeStr = new Date(e.created_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
+    const serviceDesc = e.service_description_snapshot || '';
+    const agentOpinion = e.agent_opinion_snapshot || '';
+    const isEncrypted = !serviceDesc && !!e.encrypted_blob_snapshot;
+
+    const modal = document.createElement('div');
+    modal.className = 'history-detail-modal';
+    modal.innerHTML = `
+        <div class="history-detail-box">
+            <div class="history-detail-header">
+                <div>
+                    <div style="font-size:14px;font-weight:700;color:#212529;margin-bottom:3px;">${_esc(e.editor_name || '알 수 없음')} · ${actionLabel}</div>
+                    <div class="history-detail-meta">${timeStr}</div>
+                </div>
+                <button class="history-detail-close" onclick="this.closest('.history-detail-modal').remove()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="history-detail-body">
+                ${isEncrypted ? '<div class="history-empty" style="padding:20px 0;">🔒 암호화된 내용은 복호화 키가 있는 기기에서만 확인 가능합니다.</div>' : `
+                <div class="history-detail-section">
+                    <label>서비스 내용</label>
+                    <p>${_esc(serviceDesc) || '(없음)'}</p>
+                </div>
+                <div class="history-detail-section">
+                    <label>상담원 의견</label>
+                    <p>${_esc(agentOpinion) || '(없음)'}</p>
+                </div>`}
+            </div>
+        </div>`;
+    modal.addEventListener('click', (ev) => { if (ev.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+}
+function _relativeTime(dateStr) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return '방금 전';
+    if (m < 60) return `${m}분 전`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}시간 전`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d}일 전`;
+    return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+function _esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 // ── 공유 참여자 태그 렌더링
 const _VIEWER_COLORS = ['#10B981','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899'];
 function renderParticipants(ownerName, viewers) {
