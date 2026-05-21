@@ -613,6 +613,9 @@ function loadRecord(token) {
                 }
                 renderParticipants(data.user_name, data.share_viewers || []);
                 updateUI(data);
+                // 참여자 목록을 별도 엔드포인트로 한 번 더 갱신 (타이밍 문제 방어)
+                const _tok = new URLSearchParams(window.location.search).get('token');
+                if (_tok) refreshParticipants(_tok);
             })
             .catch(err => {
                 console.log("Error fetching data (likely deleted):", err);
