@@ -18,6 +18,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/widgets/home_widgets.dart';
 import 'package:dash_mobile/screens/notification_tab.dart';
+import 'package:dash_mobile/vault_recovery_screen.dart';
 import 'package:dash_mobile/screens/profile_tab.dart';
 import 'package:dash_mobile/screens/db_history_tab.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -202,10 +203,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       });
     }
 
-    // 서버에서 상담원 복구 (로컬이 비어있을 때)
-    if (counselors.length <= 1 && userId != null) {
+    // 매번 서버에서 상담원 목록 동기화 (계정 전환 후 다른 유저 상담원 노출 방지)
+    if (userId != null) {
       final serverCounselors = await ApiService.fetchCounselors(userId);
-      if (serverCounselors != null && serverCounselors.length > 1) {
+      if (serverCounselors != null && serverCounselors.isNotEmpty) {
         counselors = serverCounselors.map<Map<String, dynamic>>((c) => {
           'id': c['id'],
           'name': c['name'],
@@ -216,12 +217,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       }
     }
 
-    // 사례 목록이 비어있으면 (재로그인 후 등) 서버에서 복구
-    if (cases.isEmpty) {
+    // 매번 서버에서 사례 목록을 가져와 동기화 (계정 전환 후 다른 유저 사례 노출 방지)
+    {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId != null) {
         final serverCases = await ApiService.fetchCases(userId);
-        if (serverCases != null && serverCases.isNotEmpty) {
+        if (serverCases != null) {
+          // 서버 사례를 기준으로 덮어씀 (서버가 user_id로 필터링해 반환)
           cases = serverCases
               .map<Map<String, dynamic>>(
                 (c) => {
@@ -640,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       }
     });
 
-    // 6. 알림 클릭으로 앱이 열렸을 때 처리
+    // 6. 알림 클릭으로 앱이 열렸을 때 처리 (백그라운드)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('🚀 Notification opened app: ${message.data}');
       final targetUserId = message.data['target_user_id'];
@@ -651,6 +653,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
       }
       _handleFcmNavigation(message.data);
     });
+
+    // 7. 앱이 완전히 종료된 상태에서 알림 클릭으로 열렸을 때 처리 (terminated)
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      final targetUserId = initialMessage.data['target_user_id'];
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      if (targetUserId == null || targetUserId == currentUid) {
+        _handleFcmNavigation(initialMessage.data);
+      } else {
+        debugPrint('⚠️ Terminated notification for different account ($targetUserId), current: $currentUid');
+      }
+    }
   }
 
   void _handleFcmNavigation(Map<String, dynamic> data) {
@@ -702,89 +716,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
           }
         }
       }
-      // 2단계: 자동 복구 실패 시 수동 복구 다이얼로그 표시 (PIN을 모르는 경우)
-      if (mounted) _showVaultRecoveryDialog();
+      // 2단계: 자동 복구 실패 시 수동 복구 화면으로 슬라이드업 전환
+      if (mounted) _navigateToVaultRecovery();
     });
   }
 
-  void _showVaultRecoveryDialog() {
-    final controller = TextEditingController();
-    bool isLoading = false;
-    String? errorMsg;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return StatefulBuilder(builder: (context, setStateSB) {
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('암호화 키 복구', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '앱을 재설치하면 기기에 저장된 보안 데이터가 초기화돼요.\n기존 PIN 번호를 입력하면 내 DB 데이터를 그대로 복구할 수 있어요.',
-                  style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  maxLength: 4,
-                  obscureText: true,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    counterText: '',
-                    hintText: 'PIN 4자리',
-                    errorText: errorMsg,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('나중에', style: TextStyle(color: AppColors.textSub)),
-              ),
-              TextButton(
-                onPressed: isLoading
-                    ? null
-                    : () async {
-                        final pin = controller.text;
-                        if (pin.length != 4) return;
-                        setStateSB(() { isLoading = true; errorMsg = null; });
-                        final userId = FirebaseAuth.instance.currentUser?.uid;
-                        if (userId == null) { Navigator.pop(ctx); return; }
-                        final vaultMap = await VaultService.decryptVault(pin, userId);
-                        if (vaultMap == null) {
-                          setStateSB(() { isLoading = false; errorMsg = 'PIN이 맞지 않거나, 복구할 데이터가 없어요'; });
-                          return;
-                        }
-                        for (final entry in vaultMap.entries) {
-                          await StorageService.saveKeyToMap(entry.key, entry.value.toString());
-                        }
-                        await StorageService.savePin(pin);
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        _loadData();
-                      },
-                child: isLoading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('복구하기', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
-              ),
-            ],
+  void _navigateToVaultRecovery() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            VaultRecoveryScreen(onRecovered: _loadData),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+            child: child,
           );
-        });
-      },
+        },
+        transitionDuration: const Duration(milliseconds: 350),
+      ),
     );
   }
 
@@ -2360,7 +2312,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
         final dong = d['dong']?.toString() ?? '미지정';
         final localDrafts = await StorageService.getDrafts();
 
-        // 이미 로컬에 같은 share_token 드래프트가 있으면 재사용
+        // 서버 최신 내용 추출 (항상 서버 데이터 기준으로 갱신)
+        String freshDescription = d['service_description'] ?? d['serviceDescription'] ?? '';
+        String freshOpinion = d['agent_opinion'] ?? d['agentOpinion'] ?? '';
+
         Map<String, dynamic>? localDraft;
         if (shareToken != null) {
           localDraft = localDrafts.cast<Map<String, dynamic>?>().firstWhere(
@@ -2369,15 +2324,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
           );
         }
 
-        // 없으면 서버 레코드 데이터로 로컬 드래프트 생성
-        if (localDraft == null) {
+        if (localDraft != null) {
+          // 기존 로컬 드래프트가 있으면 서버 최신 내용으로 덮어쓰기
+          // (리뷰어가 웹에서 수정한 내용이 앱에 반영되지 않는 문제 방지)
+          localDraft = {
+            ...localDraft,
+            'serviceDescription': freshDescription,
+            'agentOpinion': freshOpinion,
+          };
+          final idx = localDrafts.indexWhere(
+            (l) => l['share_token']?.toString() == shareToken,
+          );
+          if (idx != -1) {
+            localDrafts[idx] = localDraft;
+            await StorageService.saveDrafts(List<dynamic>.from(localDrafts));
+          }
+        } else {
+          // 로컬 드래프트 없으면 서버 데이터로 신규 생성
           final newId = DateTime.now().millisecondsSinceEpoch;
           localDraft = {
             'id': newId,
             'caseName': caseName,
             'dong': dong,
             'status': 'Draft',
-            'isShared': true, // 나의 DB 목록에 중복 노출 방지용
+            'isShared': true,
             'share_token': shareToken,
             'encryption_key': encKey,
             'target': d['target'] ?? '피해아동',
@@ -2389,8 +2359,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             'location': d['location'] ?? '기관내',
             'travelTime': (d['travel_time'] ?? d['travelTime'] ?? '30').toString(),
             'serviceCount': (d['service_count'] ?? d['serviceCount'] ?? '1').toString(),
-            'serviceDescription': d['service_description'] ?? d['serviceDescription'] ?? '',
-            'agentOpinion': d['agent_opinion'] ?? d['agentOpinion'] ?? '',
+            'serviceDescription': freshDescription,
+            'agentOpinion': freshOpinion,
             'startTime': d['start_time'] ?? d['startTime'],
             'endTime': d['end_time'] ?? d['endTime'],
           };

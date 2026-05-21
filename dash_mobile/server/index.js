@@ -612,6 +612,11 @@ app.post('/api/users/fcm_token', verifyFirebaseAuth, async (req, res) => {
   console.log(`\n📱 [FCM TOKEN] User: ${id}, Token: ${token.substring(0, 10)}..., Email: ${email}`);
   try {
     const resolvedEmail = email || `user_${id.substring(0, 8)}@gmail.com`;
+    // 같은 기기에서 다른 계정으로 로그인 시 이전 계정의 FCM 토큰을 제거 (토큰 전용성 보장)
+    await queryWithTimeout(
+      `UPDATE dash_users SET fcm_token = NULL WHERE fcm_token = ? AND id != ?`,
+      [token, id]
+    );
     await queryWithTimeout(
       `INSERT INTO dash_users (id, email, fcm_token, organization_id, last_login_at, login_count)
        VALUES (?, ?, ?, 'DEFAULT_ORG', NOW(), 1)

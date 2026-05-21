@@ -511,17 +511,19 @@ function loadRecord(token) {
     if (qKey) {
         encKey = qKey;
     } else {
-        // 2) 이전 방식 호환: URL fragment #key 또는 #KEY
-        const hash = window.location.hash.substring(1);
-        if (hash) {
-            const parts = hash.split('key=');
-            encKey = parts.length > 1 ? parts[1] : parts[0];
+        // 2) URL fragment #key= 파싱 (URLSearchParams 방식)
+        const hashStr = window.location.hash.substring(1);
+        console.log('[loadRecord] hash raw:', JSON.stringify(window.location.hash), 'hashStr:', JSON.stringify(hashStr));
+        if (hashStr) {
+            const hashParams = new URLSearchParams(hashStr);
+            encKey = hashParams.get('key') || '';
         }
     }
     // 3) 오너 로그인 시 서버에서 받아 세션에 저장된 키 (URL에 키가 없는 경우)
     if (!encKey) {
         encKey = sessionStorage.getItem('dash_key_' + token) || "";
     }
+    console.log('[loadRecord] token:', token, 'encKey:', JSON.stringify(encKey));
 
     fetch(`${window.location.origin}/api/records/share/${token}`)
         .then(res => {
