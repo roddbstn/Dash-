@@ -1360,8 +1360,9 @@ app.get('/api/records/share/:token', async (req, res) => {
       [token]
     );
 
-    console.log(`✅ Data fetched for ${rows[0].case_name}`);
-    res.json({ ...rows[0], share_viewers: viewers.map(v => v.name) });
+    const shareViewerNames = viewers.map(v => v.name);
+    console.log(`✅ Data fetched for ${rows[0].case_name} | share_viewers=${JSON.stringify(shareViewerNames)}`);
+    res.json({ ...rows[0], share_viewers: shareViewerNames });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
