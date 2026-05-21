@@ -1411,6 +1411,41 @@ app.put('/api/records/share/:token', async (req, res) => {
   }
 });
 
+// [Web] 3.1-B. 공유 참여자 목록 조회 (Firebase 인증 기반 — 세션 불필요)
+app.get('/api/records/share/:token/participants', verifyFirebaseAuth, async (req, res) => {
+  const { token } = req.params;
+  const { uid, email } = req.firebaseUser;
+  try {
+    // 접근 권한 확인 (owner 또는 share_viewer)
+    const [access] = await queryWithTimeout(
+      `SELECT 1 FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       WHERE sd.share_token = ?
+         AND (c.user_id = ? OR c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+              OR EXISTS (SELECT 1 FROM share_viewers sv WHERE sv.share_token = sd.share_token AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)))
+       LIMIT 1`,
+      [token, uid, email, email]
+    );
+    if (!access.length) return res.status(403).json({ error: 'Forbidden' });
+
+    const [rows] = await queryWithTimeout(
+      `SELECT u.name AS owner_name
+       FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       LEFT JOIN dash_users u ON c.user_id = u.id
+       WHERE sd.share_token = ? LIMIT 1`,
+      [token]
+    );
+    const [viewers] = await queryWithTimeout(
+      `SELECT name FROM share_viewers WHERE share_token = ? ORDER BY first_accessed_at ASC`,
+      [token]
+    );
+    res.json({ owner_name: rows[0]?.owner_name || '', viewers: viewers.map(v => v.name) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // [Web/Mobile] 3.2. 수정 히스토리 조회
 app.get('/api/records/history/:token', async (req, res) => {
   const { token } = req.params;

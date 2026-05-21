@@ -639,7 +639,10 @@ function openHistoryPanel() {
     overlay.style.display = 'block';
     if (btn) btn.classList.add('active');
     const token = new URLSearchParams(window.location.search).get('token');
-    if (token) loadHistory(token);
+    if (token) {
+        loadHistory(token);
+        refreshParticipants(token);
+    }
 }
 function closeHistoryPanel() {
     const panel = document.getElementById('history-panel');
@@ -847,6 +850,21 @@ function _relativeTime(dateStr) {
 }
 function _esc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── 참여자 목록 새로고침 (히스토리 패널 열릴 때 호출)
+async function refreshParticipants(token) {
+    try {
+        const user = firebase.auth().currentUser;
+        if (!user) return;
+        const idToken = await user.getIdToken();
+        const r = await fetch(`${window.location.origin}/api/records/share/${token}/participants`, {
+            headers: { 'Authorization': 'Bearer ' + idToken }
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        renderParticipants(data.owner_name, data.viewers || []);
+    } catch (_) {}
 }
 
 // ── 공유 참여자 태그 렌더링
