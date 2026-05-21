@@ -615,6 +615,48 @@ body {
     display: none;
 }
 
+/* 모바일 전용: 참여자 + 히스토리 버튼 바 */
+.mobile-meta-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #F2F4F6;
+    margin-bottom: 12px;
+}
+.mobile-participants {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+}
+.mobile-participants .participant-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.mobile-history-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    background: #F8F9FA;
+    border: 1px solid #E9ECEF;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #495057;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.mobile-history-btn:active { background: #E9ECEF; }
+
 .btn-primary-full {
     background-color: var(--primary) !important;
     color: #ffffff !important;

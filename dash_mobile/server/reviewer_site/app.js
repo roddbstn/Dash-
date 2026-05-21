@@ -876,8 +876,7 @@ function _editorColor(name) {
     return _VIEWER_COLORS[Math.abs(h) % _VIEWER_COLORS.length];
 }
 function renderParticipants(ownerName, viewers) {
-    const el = document.getElementById('share-participants');
-    if (!el) return;
+    // 공통 HTML 조각 생성
     let html = `<div class="participant-group">
         <span class="participant-label">DB 생성자</span>
         <span class="participant-tag" style="background:#6366F1;">${ownerName || '알 수 없음'}</span>
@@ -889,8 +888,12 @@ function renderParticipants(ownerName, viewers) {
         });
         html += `</div>`;
     }
-    el.innerHTML = html;
-    el.style.display = 'flex';
+    // PC 헤더 영역
+    const el = document.getElementById('share-participants');
+    if (el) { el.innerHTML = html; el.style.display = 'flex'; }
+    // 모바일 하단 CTA 영역
+    const mobileEl = document.getElementById('mobile-participants');
+    if (mobileEl) { mobileEl.innerHTML = html; }
 }
 
 // ── 본인 DB: 알림 버튼 숨기고 저장 버튼 표시
