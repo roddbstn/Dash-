@@ -68,27 +68,36 @@ function signInWithGoogle() {
         return;
     }
 
-    // renderButton으로 생성된 GIS 버튼 클릭 → 계정 추가 포함 전체 Google 계정 선택 팝업
-    const hiddenBtn = document.querySelector('#gsi-btn-hidden div[role=button]');
-    if (hiddenBtn) {
-        hiddenBtn.click();
-        // 팝업이 닫히거나 취소되면 버튼 복원 (콜백이 오지 않을 경우 대비)
-        setTimeout(() => {
-            if (btn.disabled) {
+    // OAuth2 Token 방식 — FedCM 완전 무관, 전통 OAuth 팝업
+    // prompt: 'select_account' → 계정 추가 포함 전체 Google 계정 선택 팝업
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        callback: async (response) => {
+            if (response.error) {
+                errorEl.textContent = '오류: ' + response.error;
+                btn.disabled = false;
+                btn.textContent = 'Google 계정으로 로그인';
+                return;
+            }
+            try {
+                // access_token으로 Firebase 인증 (id_token 없이도 가능)
+                const credential = firebase.auth.GoogleAuthProvider.credential(null, response.access_token);
+                const result = await firebase.auth().signInWithCredential(credential);
+                if (!_loginHandled) {
+                    _loginHandled = true;
+                    await handleReviewerLogin(result.user);
+                }
+            } catch (e) {
+                _loginHandled = false;
+                errorEl.textContent = '오류: ' + (e.message || e.code);
                 btn.disabled = false;
                 btn.textContent = 'Google 계정으로 로그인';
             }
-        }, 30000);
-    } else {
-        // GIS 버튼 미렌더 시 폴백: One Tap
-        google.accounts.id.prompt((notification) => {
-            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                errorEl.textContent = '오류: Google 로그인 창이 차단됐습니다. 팝업 허용 후 다시 시도해주세요.';
-                btn.disabled = false;
-                btn.textContent = 'Google 계정으로 로그인';
-            }
-        });
-    }
+        },
+    });
+    tokenClient.requestToken();
 }
 
 function showAuthModal() {
