@@ -1159,11 +1159,11 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
     );
     const isOwner = ownerRows.length > 0 && ownerRows[0].owner_uid === uid;
 
-    // 최초 접근 시 reviewer_user_id 연결 (이미 연결된 경우 덮어쓰지 않음, 본인이면 연결 불필요)
+    // Google 로그인 성공한 사람이 실제 리뷰어 → 항상 최신 reviewer_user_id로 업데이트 (본인이면 연결 불필요)
     if (!isOwner) {
-      const reviewerDbId = userRows[0].id; // 이메일 폴백으로 찾은 경우 DB id 사용
+      const reviewerDbId = userRows[0].id;
       await queryWithTimeout(
-        'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ? AND reviewer_user_id IS NULL',
+        'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ?',
         [reviewerDbId, token]
       );
     }
