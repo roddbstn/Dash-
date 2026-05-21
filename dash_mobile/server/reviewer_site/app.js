@@ -646,10 +646,15 @@ function closeHistoryPanel() {
     overlay.style.display = 'none';
     if (btn) btn.classList.remove('active');
 }
-function loadHistory(token) {
+async function loadHistory(token) {
     const list = document.getElementById('history-list');
     list.innerHTML = '<div class="history-empty">불러오는 중...</div>';
-    fetch(`${window.location.origin}/api/records/history/${token}`)
+    const headers = {};
+    try {
+        const user = firebase.auth().currentUser;
+        if (user) headers['Authorization'] = 'Bearer ' + await user.getIdToken();
+    } catch (_) {}
+    fetch(`${window.location.origin}/api/records/history/${token}`, { headers })
         .then(r => r.json())
         .then(entries => {
             if (!entries.length) {

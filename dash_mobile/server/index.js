@@ -343,6 +343,10 @@ pool.query("ALTER TABLE service_drafts ADD COLUMN share_expires_at DATETIME DEFA
     }
   });
 
+// 기입자 이름 컬럼 추가
+pool.query("ALTER TABLE service_drafts ADD COLUMN injected_by_name VARCHAR(100) DEFAULT NULL")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] injected_by_name 추가 실패:', err.message); });
+
 // Phase 4: 유저 활동 추적 컬럼 추가 (KPI 대시보드용)
 pool.query("ALTER TABLE dash_users ADD COLUMN last_login_at DATETIME DEFAULT NULL")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] last_login_at 추가 실패:', err.message); });
@@ -1402,7 +1406,29 @@ app.get('/api/records/history/:token', async (req, res) => {
   const { token } = req.params;
   const session = authAttempts.get(token);
   const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
-  if (!isVerified) return res.status(401).json({ error: 'Unauthorized' });
+
+  if (!isVerified) {
+    // 세션 만료 시 Firebase 토큰으로 폴백 — 토큰 소유자가 owner 또는 share_viewer인지 확인
+    const authHeader = req.headers.authorization || '';
+    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!bearerToken) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const decoded = await admin.auth().verifyIdToken(bearerToken);
+      const { uid, email } = decoded;
+      const [access] = await queryWithTimeout(
+        `SELECT 1 FROM service_drafts sd
+         JOIN cases c ON sd.case_id = c.id
+         WHERE sd.share_token = ?
+           AND (c.user_id = ? OR c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+                OR EXISTS (SELECT 1 FROM share_viewers sv WHERE sv.share_token = sd.share_token AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)))
+         LIMIT 1`,
+        [token, uid, email, email]
+      );
+      if (!access.length) return res.status(403).json({ error: 'Forbidden' });
+    } catch (e) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+  }
 
   try {
     const [rows] = await queryWithTimeout(
@@ -1431,7 +1457,7 @@ app.put('/api/records/:id/review', async (req, res) => {
     'service_description', 'agent_opinion', 'provision_type', 'method',
     'service_type', 'service_category', 'service_name', 'location',
     'start_time', 'end_time', 'service_count', 'travel_time', 'target',
-    'encrypted_blob',
+    'encrypted_blob', 'injected_by_name',
   ];
   const isInjected = updateData.status === 'Injected';
   try {

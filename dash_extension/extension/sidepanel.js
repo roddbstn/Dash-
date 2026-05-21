@@ -846,6 +846,7 @@ function renderHistory() {
                     <span class="record-status-badge badge-injected">${(() => { const d = record.updated_at ? new Date(record.updated_at.replace(' ', 'T') + 'Z') : null; const t = d && !isNaN(d) ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} ` : ''; return t + '기입 완료'; })()}</span>
                 </div>
                 <div class="record-info-list">
+                    <div class="record-info-row"><span class="info-label">기입자</span><span class="info-value">${record.injected_by_name || record.author_name || '-'}</span></div>
                     <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
                     <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' :: ' + record.service_name : (record.service_name || '-')}</span></div>
                     <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
@@ -1336,7 +1337,7 @@ btnInject.addEventListener('click', async () => {
             await fetch(`${API_BASE}/records/${record.id}/review`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                body: JSON.stringify({ status: 'Injected' })
+                body: JSON.stringify({ status: 'Injected', injected_by_name: currentUser?.name || '' })
             });
         } catch (e) {
             console.error('상태 업데이트 실패:', e);

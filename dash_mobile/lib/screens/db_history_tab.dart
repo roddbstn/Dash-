@@ -159,6 +159,7 @@ class _HistoryCardState extends State<_HistoryCard> {
         : (serviceName.isNotEmpty ? serviceName : '-');
     final rawServiceType = d['service_type'] ?? d['serviceType'] ?? '';
     final serviceTypeDisplay = rawServiceType == '아보전' ? '아보전서비스' : (rawServiceType.isNotEmpty ? rawServiceType : '-');
+    final injectedByName = d['injected_by_name'] ?? d['injectedByName'] ?? d['author_name'] ?? '';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -207,6 +208,7 @@ class _HistoryCardState extends State<_HistoryCard> {
                   ),
                   const SizedBox(height: 12),
                   // 요약 정보
+                  _InfoRow(label: '기입자', value: injectedByName.isNotEmpty ? injectedByName : '-'),
                   _InfoRow(label: '제공일시', value: _dateTimeStr),
                   _InfoRow(label: '제공서비스', value: serviceFullName),
                   _InfoRow(label: '제공방법', value: d['method'] ?? '-'),
