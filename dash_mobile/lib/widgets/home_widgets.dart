@@ -351,7 +351,7 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                       onTap: widget.onTap,
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 100),
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                         decoration: BoxDecoration(
                           color: _isCardPressed ? const Color(0xFFF2F4F6) : Colors.white,
                           borderRadius: BorderRadius.zero,
@@ -455,7 +455,7 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
-                                    const SizedBox(height: 3),
+                                    const SizedBox(height: 6),
                                     Text(subLine1, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 12, fontWeight: FontWeight.w400), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 2),
                                     Text(subLine2, style: const TextStyle(color: Color(0xFF8B95A1), fontSize: 12, fontWeight: FontWeight.w400), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -717,18 +717,19 @@ class _SwipeableSharedDraftCardState extends State<SwipeableSharedDraftCard>
                           }
                         }
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: Text.rich(
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text.rich(
                                     TextSpan(children: [
                                       TextSpan(
                                         text: '${widget.caseName} 아동',
-                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF222222), letterSpacing: -0.4),
                                       ),
                                       if ((widget.dong?.isNotEmpty ?? false))
                                         TextSpan(
@@ -739,27 +740,27 @@ class _SwipeableSharedDraftCardState extends State<SwipeableSharedDraftCard>
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEEF2FF),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '${widget.authorName} 상담원',
-                                    style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                              ],
+                                  if (subLine1.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(subLine1, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
+                                  ],
+                                  const SizedBox(height: 2),
+                                  Text(subLine2, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
+                                ],
+                              ),
                             ),
-                            if (subLine1.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(subLine1, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
-                            ],
-                            const SizedBox(height: 2),
-                            Text(subLine2, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEEF2FF),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '담당: ${widget.authorName}',
+                                style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
+                              ),
+                            ),
                           ],
                         );
                       }),
