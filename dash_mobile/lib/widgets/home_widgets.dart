@@ -206,10 +206,10 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
     }
 
     if (token != null && token.isNotEmpty) {
-      // [Security] 키는 SecureStorage keyMap에서 조회, URL fragment(#)로 전달
+      // [Security] 키는 SecureStorage keyMap에서 조회, ?key= query param으로 전달 (fragment는 메시징앱에서 제거됨)
       final String? key = await StorageService.getKeyFromMap(token);
       final host = ApiService.serverUrl;
-      final keyParam = (key != null && key.isNotEmpty) ? '#key=$key' : '';
+      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
       await Clipboard.setData(ClipboardData(text: '$host/?token=$token$keyParam'));
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();

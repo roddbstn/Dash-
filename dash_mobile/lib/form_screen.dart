@@ -651,9 +651,9 @@ class _FormScreenState extends State<FormScreen> {
     }
     final String host = ApiService.baseUrl.replaceAll('/api', '');
     if (token != null && token.isNotEmpty) {
-      // [Security] 키는 SecureStorage keyMap에서 조회, URL fragment(#)로 전달
+      // [Security] 키는 SecureStorage keyMap에서 조회, ?key= query param으로 전달 (fragment는 메시징앱에서 제거됨)
       final String? key = await StorageService.getKeyFromMap(token);
-      final keyParam = (key != null && key.isNotEmpty) ? '#key=$key' : '';
+      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
       Clipboard.setData(ClipboardData(text: "$host/?token=$token$keyParam"));
       AnalyticsService.linkCopied();
       _showToast('링크가 복사되었습니다.');
