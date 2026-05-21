@@ -60,7 +60,9 @@ const ALLOWED_ORIGINS = [
 
 // 허용할 Chrome 확장 ID 목록 (환경변수로 추가 가능)
 const ALLOWED_EXTENSION_IDS = [
-  'iamgpaookjndjpcigifbfdmmbfijcane', // Dash 확장프로그램 (프로덕션)
+  'dpncpmegjlgknkagcfjdaccbgmjncdef', // Dash 확장프로그램 (웹 스토어 프로덕션)
+  'nmdfmegmehnkacdeekekchjfcijpbmcp', // Dash 확장프로그램 (개발자 모드 테스트)
+  'iamgpaookjndjpcigifbfdmmbfijcane', // Dash 확장프로그램 (구 ID)
   ...(process.env.ALLOWED_EXTENSION_IDS || '').split(',').map(id => id.trim()).filter(Boolean),
 ];
 
