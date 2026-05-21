@@ -194,11 +194,13 @@ body {
 }
 .history-editor {
     font-size: 12px;
-    color: #495057;
+    color: #ADB5BD;
     font-weight: 500;
     margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
-.history-editor span { color: #ADB5BD; font-weight: 400; }
 .history-preview {
     font-size: 12px;
     color: #868E96;

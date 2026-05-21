@@ -1204,12 +1204,12 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
 
     // 모바일 앱 가입 회원인지 확인 (UID 직접 조회 → 이메일 폴백)
     let [userRows] = await queryWithTimeout(
-      `SELECT id FROM dash_users WHERE id = ?`,
+      `SELECT id, name, email FROM dash_users WHERE id = ?`,
       [uid]
     );
     if (userRows.length === 0 && email) {
       [userRows] = await queryWithTimeout(
-        `SELECT id FROM dash_users WHERE email = ?`,
+        `SELECT id, name, email FROM dash_users WHERE email = ?`,
         [email]
       );
     }
@@ -1245,11 +1245,12 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
         [reviewerDbId, token]
       );
       // 공유 접근자 이력 기록 (최초 접근 시각 보존, 이름 최신화)
+      const viewerName = userRows[0].name || userRows[0].email || email || '알 수 없음';
       await queryWithTimeout(
         `INSERT INTO share_viewers (share_token, user_id, name)
-         SELECT ?, id, COALESCE(NULLIF(name,''), email) FROM dash_users WHERE id = ?
-         ON DUPLICATE KEY UPDATE name = VALUES(name)`,
-        [token, reviewerDbId]
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE name = ?`,
+        [token, reviewerDbId, viewerName, viewerName]
       );
     }
 

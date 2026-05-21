@@ -670,6 +670,7 @@ async function loadHistory(token) {
                 const timeStr = _relativeTime(e.created_at);
                 const previewHtml = _buildPreviewDiff(
                     e.service_description_before, e.service_description_snapshot,
+                    e.agent_opinion_before, e.agent_opinion_snapshot,
                     e.encrypted_blob_snapshot
                 );
                 return `<div class="history-entry" onclick="openHistoryDetail(${i})">
@@ -677,7 +678,7 @@ async function loadHistory(token) {
                         <span class="history-action-badge ${actionClass}">${actionLabel}</span>
                         <span class="history-entry-time">${timeStr}</span>
                     </div>
-                    <div class="history-editor">수정인: <span>${e.editor_name || '알 수 없음'}</span></div>
+                    <div class="history-editor">수정인: <span class="participant-tag" style="background:${_editorColor(e.editor_name)};font-size:11px;padding:2px 8px;">${_esc(e.editor_name || '알 수 없음')}</span></div>
                     <div class="history-preview">${previewHtml}</div>
                 </div>`;
             }).join('');
@@ -745,7 +746,7 @@ function openHistoryDetail(idx) {
             <div class="history-detail-header">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <span class="history-action-badge ${actionClass}" style="font-size:12px;padding:4px 10px;">${actionLabel}</span>
-                    <span style="font-size:14px;font-weight:700;color:#212529;">${_esc(e.editor_name || '알 수 없음')}</span>
+                    <span class="participant-tag" style="background:${_editorColor(e.editor_name)};font-size:12px;">${_esc(e.editor_name || '알 수 없음')}</span>
                     <span class="history-detail-meta">${timeStr}</span>
                 </div>
                 <button class="history-detail-close" onclick="this.closest('.history-detail-modal').remove()">
@@ -797,28 +798,41 @@ function _toUtcDate(dateStr) {
     return new Date(dateStr.replace(' ', 'T') + (dateStr.includes('Z') || dateStr.includes('+') ? '' : 'Z'));
 }
 // 히스토리 목록 미리보기: diff 인라인 표시 + 삭제/추가 글자 수
-function _buildPreviewDiff(before, after, encryptedBlob) {
-    if (encryptedBlob && !before && !after) return '🔒 암호화된 내용';
-    const b = before || '';
-    const a = after || '';
-    if (!b && !a) return '<span style="color:#ADB5BD;">내용 없음</span>';
-    if (b === a) return _esc(a.slice(0, 60)) + (a.length > 60 ? '…' : '');
-    const ops = _textDiff(b, a);
-    const delChars = ops.filter(o => o.t === '-').reduce((n, o) => n + o.v.length, 0);
-    const addChars = ops.filter(o => o.t === '+').reduce((n, o) => n + o.v.length, 0);
-    // 인라인 diff HTML (최대 100자 분량만 노출)
-    let charCount = 0;
-    const diffHtml = ops.map(o => {
-        if (charCount > 100) return '';
-        charCount += o.v.length;
-        if (o.t === '=') return _esc(o.v);
-        if (o.t === '-') return `<del class="diff-del">${_esc(o.v)}</del>`;
-        return `<ins class="diff-ins">${_esc(o.v)}</ins>`;
-    }).join('') + (charCount > 100 ? '…' : '');
-    const badges = [];
-    if (delChars > 0) badges.push(`<span class="diff-count del-count">-${delChars}자</span>`);
-    if (addChars > 0) badges.push(`<span class="diff-count add-count">+${addChars}자</span>`);
-    return `<span>${diffHtml}</span>${badges.length ? ' ' + badges.join('') : ''}`;
+// descBefore/descAfter: 서비스 내용, opBefore/opAfter: 상담원 의견
+function _buildPreviewDiff(descBefore, descAfter, opBefore, opAfter, encryptedBlob) {
+    if (encryptedBlob && !descBefore && !descAfter && !opBefore && !opAfter) return '🔒 암호화된 내용';
+    // 변경된 필드를 찾아 표시 (서비스 내용 우선, 없으면 상담원 의견)
+    function _buildFieldDiff(before, after) {
+        const b = before || '';
+        const a = after || '';
+        if (!b && !a) return null; // 내용 없음
+        if (b === a) return null;  // 변경 없음
+        const ops = _textDiff(b, a);
+        if (!ops) return null;
+        const delChars = ops.filter(o => o.t === '-').reduce((n, o) => n + o.v.length, 0);
+        const addChars = ops.filter(o => o.t === '+').reduce((n, o) => n + o.v.length, 0);
+        if (delChars === 0 && addChars === 0) return null;
+        let charCount = 0;
+        const diffHtml = ops.map(o => {
+            if (charCount > 100) return '';
+            charCount += o.v.length;
+            if (o.t === '=') return _esc(o.v);
+            if (o.t === '-') return `<del class="diff-del">${_esc(o.v)}</del>`;
+            return `<ins class="diff-ins">${_esc(o.v)}</ins>`;
+        }).join('') + (charCount > 100 ? '…' : '');
+        const badges = [];
+        if (delChars > 0) badges.push(`<span class="diff-count del-count">-${delChars}자</span>`);
+        if (addChars > 0) badges.push(`<span class="diff-count add-count">+${addChars}자</span>`);
+        return `<span>${diffHtml}</span>${badges.length ? ' ' + badges.join('') : ''}`;
+    }
+    const descDiff = _buildFieldDiff(descBefore, descAfter);
+    const opDiff = _buildFieldDiff(opBefore, opAfter);
+    if (descDiff && opDiff) return descDiff + '<br>' + opDiff;
+    if (descDiff) return descDiff;
+    if (opDiff) return opDiff;
+    // 변경 없음 — 최신 내용 미리보기
+    const preview = (descAfter || opAfter || '').slice(0, 60);
+    return _esc(preview) + (preview.length === 60 ? '…' : '') || '<span style="color:#ADB5BD;">내용 없음</span>';
 }
 function _relativeTime(dateStr) {
     const diff = Date.now() - _toUtcDate(dateStr).getTime();
@@ -837,6 +851,12 @@ function _esc(str) {
 
 // ── 공유 참여자 태그 렌더링
 const _VIEWER_COLORS = ['#10B981','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899'];
+function _editorColor(name) {
+    if (!name) return '#ADB5BD';
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+    return _VIEWER_COLORS[Math.abs(h) % _VIEWER_COLORS.length];
+}
 function renderParticipants(ownerName, viewers) {
     const el = document.getElementById('share-participants');
     if (!el) return;
