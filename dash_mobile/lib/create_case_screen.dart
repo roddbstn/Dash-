@@ -470,6 +470,8 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 hintText: '유천동',
                 hintStyle: const TextStyle(color: Color(0xFFC4C9D0), fontSize: 13),
                 counterText: '',
+                filled: true,
+                fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
