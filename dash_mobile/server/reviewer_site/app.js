@@ -459,6 +459,9 @@ async function confirmNotify() {
         closeModal();
         // 성공 토스트
         showToast('담당자에게 수정 완료 알림을 보냈어요.');
+        // 히스토리 패널이 열려 있으면 즉시 갱신
+        const histPanel = document.getElementById('history-panel');
+        if (histPanel && histPanel.classList.contains('open')) loadHistory(token);
     } catch (err) {
         alert('처리 중 오류가 발생했습니다.');
         console.error(err);
