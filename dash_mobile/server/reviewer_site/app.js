@@ -61,43 +61,25 @@ function signInWithGoogle() {
     btn.textContent = '로그인 중...';
     errorEl.textContent = '';
 
-    if (typeof google === 'undefined' || !google.accounts) {
-        errorEl.textContent = '오류: Google 로그인 라이브러리를 불러오지 못했습니다.';
+    // Firebase signInWithPopup — GIS/FedCM 완전 무관, 계정 추가 포함
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.addScope('email');
+        provider.addScope('profile');
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await firebase.auth().signInWithPopup(provider);
+        if (!_loginHandled) {
+            _loginHandled = true;
+            await handleReviewerLogin(result.user);
+        }
+    } catch (e) {
+        _loginHandled = false;
+        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+            errorEl.textContent = '오류: ' + (e.message || e.code);
+        }
         btn.disabled = false;
         btn.textContent = 'Google 계정으로 로그인';
-        return;
     }
-
-    // OAuth2 Token 방식 — FedCM 완전 무관, 전통 OAuth 팝업
-    // prompt: 'select_account' → 계정 추가 포함 전체 Google 계정 선택 팝업
-    const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
-        scope: 'openid email profile',
-        prompt: 'select_account',
-        callback: async (response) => {
-            if (response.error) {
-                errorEl.textContent = '오류: ' + response.error;
-                btn.disabled = false;
-                btn.textContent = 'Google 계정으로 로그인';
-                return;
-            }
-            try {
-                // access_token으로 Firebase 인증 (id_token 없이도 가능)
-                const credential = firebase.auth.GoogleAuthProvider.credential(null, response.access_token);
-                const result = await firebase.auth().signInWithCredential(credential);
-                if (!_loginHandled) {
-                    _loginHandled = true;
-                    await handleReviewerLogin(result.user);
-                }
-            } catch (e) {
-                _loginHandled = false;
-                errorEl.textContent = '오류: ' + (e.message || e.code);
-                btn.disabled = false;
-                btn.textContent = 'Google 계정으로 로그인';
-            }
-        },
-    });
-    tokenClient.requestToken();
 }
 
 function showAuthModal() {
@@ -160,23 +142,6 @@ async function handleReviewerLogin(user) {
 
 let _loginHandled = false; // 전역 플래그: handleReviewerLogin 중복 호출 방지
 
-// GIS id_token 콜백 — signInWithCredential은 Firebase REST API 직접 호출 (iframe 무관)
-async function _onGoogleCredential(response) {
-    if (_loginHandled) return;
-    const btn = document.getElementById('btn-google-login');
-    const errorEl = document.getElementById('auth-error');
-    try {
-        const credential = firebase.auth.GoogleAuthProvider.credential(response.credential);
-        const result = await firebase.auth().signInWithCredential(credential);
-        if (!_loginHandled) {
-            _loginHandled = true;
-            await handleReviewerLogin(result.user);
-        }
-    } catch (e) {
-        if (errorEl) errorEl.textContent = '오류: ' + (e.message || e.code);
-        if (btn) { btn.disabled = false; btn.textContent = 'Google 계정으로 로그인'; }
-    }
-}
 
 let isInfoExpanded = false;
 let isEditMode = true; // 항상 편집 모드
@@ -687,25 +652,6 @@ window.onload = () => {
         document.getElementById('auth-modal').style.display = 'none';
         document.getElementById('inapp-modal').style.display = 'flex';
         return;
-    }
-
-    // GIS 초기화 — renderButton 방식으로 전체 계정 선택 팝업 활성화 (계정 추가 포함)
-    if (typeof google !== 'undefined' && google.accounts) {
-        google.accounts.id.initialize({
-            client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
-            callback: _onGoogleCredential,
-            auto_select: false,
-            cancel_on_tap_outside: false,
-        });
-        // hidden 컨테이너에 GIS 버튼 렌더 → 커스텀 버튼 클릭 시 트리거
-        const hiddenContainer = document.getElementById('gsi-btn-hidden');
-        if (hiddenContainer) {
-            google.accounts.id.renderButton(hiddenContainer, {
-                type: 'standard',
-                size: 'large',
-                text: 'signin_with',
-            });
-        }
     }
 
     // 재방문 세션 복원 (signInWithCredential 후 Firebase가 세션 캐시에 저장한 경우)
