@@ -67,20 +67,28 @@ function signInWithGoogle() {
         btn.textContent = 'Google 계정으로 로그인';
         return;
     }
-    google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // One Tap이 표시되지 않으면 OAuth 동의 창 직접 호출
-            google.accounts.oauth2.initCodeClient({
-                client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
-                scope: 'email profile',
-                ux_mode: 'popup',
-                callback: () => {},
-            });
-            errorEl.textContent = '오류: Google 로그인 창이 차단됐습니다. 팝업 허용 후 다시 시도해주세요.';
-            btn.disabled = false;
-            btn.textContent = 'Google 계정으로 로그인';
-        }
-    });
+
+    // renderButton으로 생성된 GIS 버튼 클릭 → 계정 추가 포함 전체 Google 계정 선택 팝업
+    const hiddenBtn = document.querySelector('#gsi-btn-hidden div[role=button]');
+    if (hiddenBtn) {
+        hiddenBtn.click();
+        // 팝업이 닫히거나 취소되면 버튼 복원 (콜백이 오지 않을 경우 대비)
+        setTimeout(() => {
+            if (btn.disabled) {
+                btn.disabled = false;
+                btn.textContent = 'Google 계정으로 로그인';
+            }
+        }, 30000);
+    } else {
+        // GIS 버튼 미렌더 시 폴백: One Tap
+        google.accounts.id.prompt((notification) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                errorEl.textContent = '오류: Google 로그인 창이 차단됐습니다. 팝업 허용 후 다시 시도해주세요.';
+                btn.disabled = false;
+                btn.textContent = 'Google 계정으로 로그인';
+            }
+        });
+    }
 }
 
 function showAuthModal() {
@@ -672,7 +680,7 @@ window.onload = () => {
         return;
     }
 
-    // GIS 초기화 — 페이지 로드 시 One Tap 자동 표시 없이 준비만
+    // GIS 초기화 — renderButton 방식으로 전체 계정 선택 팝업 활성화 (계정 추가 포함)
     if (typeof google !== 'undefined' && google.accounts) {
         google.accounts.id.initialize({
             client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
@@ -680,6 +688,15 @@ window.onload = () => {
             auto_select: false,
             cancel_on_tap_outside: false,
         });
+        // hidden 컨테이너에 GIS 버튼 렌더 → 커스텀 버튼 클릭 시 트리거
+        const hiddenContainer = document.getElementById('gsi-btn-hidden');
+        if (hiddenContainer) {
+            google.accounts.id.renderButton(hiddenContainer, {
+                type: 'standard',
+                size: 'large',
+                text: 'signin_with',
+            });
+        }
     }
 
     // 재방문 세션 복원 (signInWithCredential 후 Firebase가 세션 캐시에 저장한 경우)
