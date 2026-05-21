@@ -71,6 +71,12 @@ function signInWithGoogle() {
         client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
         scope: 'openid email profile',
         prompt: 'select_account',
+        error_callback: (err) => {
+            console.error('[GIS OAuth2 error]', err);
+            errorEl.textContent = '오류: ' + (err.type || JSON.stringify(err));
+            btn.disabled = false;
+            btn.textContent = 'Google 계정으로 로그인';
+        },
         callback: async (response) => {
             if (response.error) {
                 errorEl.textContent = '오류: ' + response.error;
