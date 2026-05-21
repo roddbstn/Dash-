@@ -858,7 +858,7 @@ async function refreshParticipants(token) {
         const headers = {};
         const user = firebase.auth().currentUser;
         if (user) {
-            try { headers['Authorization'] = 'Bearer ' + await user.getIdToken(); } catch(_) {}
+            try { headers['Authorization'] = 'Bearer ' + await user.getIdToken(true); } catch(_) {}
         }
         const r = await fetch(`${window.location.origin}/api/records/share/${token}/participants`, { headers });
         if (!r.ok) return;
@@ -1019,11 +1019,17 @@ window.onload = () => {
         }
     });
 
-    // 탭 포커스 복귀 시 참여자 목록 자동 갱신
+    // 탭 포커스 복귀 시 참여자 목록 자동 갱신 (30초 디바운스)
+    let _participantsRefreshTimer = null;
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            const t = new URLSearchParams(window.location.search).get('token');
-            if (t) refreshParticipants(t);
+            clearTimeout(_participantsRefreshTimer);
+            _participantsRefreshTimer = setTimeout(() => {
+                const t = new URLSearchParams(window.location.search).get('token');
+                if (t) refreshParticipants(t);
+            }, 30000); // 30초 후 1회만 실행
+        } else {
+            clearTimeout(_participantsRefreshTimer);
         }
     });
 };
