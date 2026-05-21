@@ -72,9 +72,8 @@ async function signInWithGoogle() {
         }
     } catch (e) {
         _loginHandled = false;
-        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-            errorEl.textContent = '오류: ' + (e.message || e.code);
-        }
+        console.error('[signInWithGoogle error]', e.code, e.message, e);
+        errorEl.textContent = '오류: ' + (e.code || e.message || String(e));
         btn.disabled = false;
         btn.textContent = 'Google 계정으로 로그인';
     }
