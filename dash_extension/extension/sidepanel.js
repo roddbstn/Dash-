@@ -183,8 +183,8 @@ btnGoogleLogin.addEventListener('click', async () => {
     if (contentsSpan) contentsSpan.textContent = '로그인 중...';
 
     try {
-        // launchWebAuthFlow로 Firebase Web client ID 기준 액세스 토큰 획득
-        const token = await getGoogleAccessToken(true);
+        // getAuthToken: Chrome 프로필 계정을 직접 사용 — 팝업 없음
+        const token = await getGoogleTokenViaAuthToken();
         await handleGoogleLogin(token);
     } catch (error) {
         console.error('Google 로그인 실패:', error);
@@ -1098,7 +1098,7 @@ function renderRecords() {
         const dropdownId = `dropdown-${record.id}`;
 
         const authorTag = record.author_name
-            ? `<span class="counselor-tag">${record.author_name}</span>`
+            ? `<span class="counselor-tag">담당: ${record.author_name}</span>`
             : '';
         card.innerHTML = `
             <div class="record-card-header">
