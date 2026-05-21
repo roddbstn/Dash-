@@ -80,8 +80,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       // (일부 phone 기기에서 authStateChanges가 즉시 트리거되지 않는 경우 대응)
       if (mounted) {
         final p = await SharedPreferences.getInstance();
-        final consentDone = p.getBool('consent_v1_completed') ?? false;
-        if (consentDone) {
+        final currentUid = FirebaseAuth.instance.currentUser?.uid;
+        final perUserConsent = currentUid != null
+            ? (p.getBool('consent_done_$currentUid') ?? false)
+            : false;
+        final legacyConsent = (p.getBool('consent_v1_completed') ?? false) &&
+            currentUid != null &&
+            currentUid == p.getString('consent_user_uid');
+        final consentValid = perUserConsent || legacyConsent;
+        if (consentValid) {
           // 동의 완료된 사용자 → 재로그인이든 신규든 홈으로 바로
           // (닉네임/PIN 설정은 ConsentScreen → NicknameScreen 플로우에서만 진행)
           if (mounted) {
@@ -292,8 +299,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       '건너뛰기',
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFFADB5BD),
+                        fontWeight: FontWeight.w300,
+                        color: Color(0xFF222222),
                         letterSpacing: -0.2,
                       ),
                     ),
