@@ -1079,7 +1079,15 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
     const { case_name, user_id, email: user_email, reviewer_name } = infoResult[0];
 
     const { encrypted_blob } = req.body;
-    
+
+    // ✅ UPDATE 전에 현재(이전) 값 읽기 — 히스토리 before 컬럼용
+    const [beforeRows] = await queryWithTimeout(
+      'SELECT service_description, agent_opinion FROM service_drafts WHERE share_token = ? LIMIT 1',
+      [token]
+    );
+    const descBefore = beforeRows[0]?.service_description || '';
+    const opinionBefore = beforeRows[0]?.agent_opinion || '';
+
     let updateQuery = `UPDATE service_drafts SET status = 'Reviewed', service_description = ?, agent_opinion = ?, updated_at = NOW()`;
     let queryParams = [service_description || '', agent_opinion || ''];
 
@@ -1093,7 +1101,7 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
         queryParams = [encrypted_blob];
       }
     }
-    
+
     updateQuery += ` WHERE share_token = ?`;
     queryParams.push(token);
 
@@ -1113,17 +1121,18 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
         [user_id, case_name, token, message]
       );
 
-      // 수정 히스토리 기록 (저장 전 상태 함께 저장)
+      // ✅ 수정 히스토리 기록 (UPDATE 전에 읽은 before 값 사용)
       queryWithTimeout(
         `INSERT INTO record_edit_history
            (share_token, editor_user_id, editor_name, action,
             service_description_before, agent_opinion_before,
             service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
-         SELECT ?, reviewer_user_id, ?, 'reviewed',
-                service_description, agent_opinion,
+         SELECT share_token, reviewer_user_id, ?, 'reviewed',
+                ?, ?,
                 ?, ?, ?
          FROM service_drafts WHERE share_token = ? LIMIT 1`,
-        [token, reviewer_name,
+        [reviewer_name,
+         descBefore, opinionBefore,
          service_description || '', agent_opinion || '', encrypted_blob || null,
          token]
       ).catch(err => console.error('[history] 기록 실패:', err.message));

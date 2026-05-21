@@ -306,6 +306,18 @@ body {
     font-size: 11px; color: #ADB5BD;
     margin-top: 4px; text-align: center;
 }
+/* 글자 수 뱃지 */
+.diff-count {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 2px;
+    vertical-align: middle;
+}
+.diff-count.del-count { color: #DC2626; background: #FEE2E2; }
+.diff-count.add-count { color: #2563EB; background: #DBEAFE; }
 
 @media (max-width: 768px) {
     .history-panel { width: 100%; border-left: none; }

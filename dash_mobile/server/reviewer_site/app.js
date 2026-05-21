@@ -668,14 +668,17 @@ async function loadHistory(token) {
                 const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
                 const actionClass = e.action === 'reviewed' ? 'reviewed' : 'saved';
                 const timeStr = _relativeTime(e.created_at);
-                const preview = (e.service_description_snapshot || '').slice(0, 80) || (e.encrypted_blob_snapshot ? '🔒 암호화된 내용' : '내용 없음');
+                const previewHtml = _buildPreviewDiff(
+                    e.service_description_before, e.service_description_snapshot,
+                    e.encrypted_blob_snapshot
+                );
                 return `<div class="history-entry" onclick="openHistoryDetail(${i})">
                     <div class="history-entry-top">
                         <span class="history-action-badge ${actionClass}">${actionLabel}</span>
                         <span class="history-entry-time">${timeStr}</span>
                     </div>
                     <div class="history-editor">수정인: <span>${e.editor_name || '알 수 없음'}</span></div>
-                    <div class="history-preview">${_esc(preview)}${preview.length >= 80 ? '…' : ''}</div>
+                    <div class="history-preview">${previewHtml}</div>
                 </div>`;
             }).join('');
             window._historyEntries = entries;
@@ -692,7 +695,7 @@ function openHistoryDetail(idx) {
     const hasBefore = e.service_description_before !== null && e.service_description_before !== undefined;
     const prev = hasBefore ? e : (entries[idx + 1] || null);
 
-    const timeStr = new Date(e.created_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const timeStr = _toUtcDate(e.created_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
     const actionClass = e.action === 'reviewed' ? 'reviewed' : 'saved';
     const isEncrypted = !e.service_description_snapshot && !!e.encrypted_blob_snapshot;
@@ -702,9 +705,15 @@ function openHistoryDetail(idx) {
         const beforeHtml = ops ? _renderBefore(ops) : _esc(before);
         const afterHtml  = ops ? _renderAfter(ops)  : _esc(after);
         const hasChange = ops ? ops.some(o => o.t !== '=') : before !== after;
+        const delChars = ops ? ops.filter(o => o.t === '-').reduce((n, o) => n + o.v.length, 0) : 0;
+        const addChars = ops ? ops.filter(o => o.t === '+').reduce((n, o) => n + o.v.length, 0) : 0;
+        const countBadges = hasChange ? [
+            delChars > 0 ? `<span class="diff-count del-count">-${delChars}자</span>` : '',
+            addChars > 0 ? `<span class="diff-count add-count">+${addChars}자</span>` : '',
+        ].filter(Boolean).join('') : '';
         return `
         <div class="history-diff-section">
-            <div class="history-diff-label">${label}</div>
+            <div class="history-diff-label">${label}${countBadges ? ' ' + countBadges : ''}</div>
             <div class="history-diff-row${!hasChange ? ' no-change' : ''}">
                 <div class="history-diff-col">
                     <div class="history-diff-col-label before-label">이전</div>
@@ -782,8 +791,37 @@ function _renderAfter(ops) {
         return '';
     }).join('');
 }
+function _toUtcDate(dateStr) {
+    // MySQL datetime는 UTC로 저장됨 — 'Z' 추가로 브라우저가 UTC로 파싱하게 함
+    if (!dateStr) return new Date(0);
+    return new Date(dateStr.replace(' ', 'T') + (dateStr.includes('Z') || dateStr.includes('+') ? '' : 'Z'));
+}
+// 히스토리 목록 미리보기: diff 인라인 표시 + 삭제/추가 글자 수
+function _buildPreviewDiff(before, after, encryptedBlob) {
+    if (encryptedBlob && !before && !after) return '🔒 암호화된 내용';
+    const b = before || '';
+    const a = after || '';
+    if (!b && !a) return '<span style="color:#ADB5BD;">내용 없음</span>';
+    if (b === a) return _esc(a.slice(0, 60)) + (a.length > 60 ? '…' : '');
+    const ops = _textDiff(b, a);
+    const delChars = ops.filter(o => o.t === '-').reduce((n, o) => n + o.v.length, 0);
+    const addChars = ops.filter(o => o.t === '+').reduce((n, o) => n + o.v.length, 0);
+    // 인라인 diff HTML (최대 100자 분량만 노출)
+    let charCount = 0;
+    const diffHtml = ops.map(o => {
+        if (charCount > 100) return '';
+        charCount += o.v.length;
+        if (o.t === '=') return _esc(o.v);
+        if (o.t === '-') return `<del class="diff-del">${_esc(o.v)}</del>`;
+        return `<ins class="diff-ins">${_esc(o.v)}</ins>`;
+    }).join('') + (charCount > 100 ? '…' : '');
+    const badges = [];
+    if (delChars > 0) badges.push(`<span class="diff-count del-count">-${delChars}자</span>`);
+    if (addChars > 0) badges.push(`<span class="diff-count add-count">+${addChars}자</span>`);
+    return `<span>${diffHtml}</span>${badges.length ? ' ' + badges.join('') : ''}`;
+}
 function _relativeTime(dateStr) {
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const diff = Date.now() - _toUtcDate(dateStr).getTime();
     const m = Math.floor(diff / 60000);
     if (m < 1) return '방금 전';
     if (m < 60) return `${m}분 전`;
@@ -791,7 +829,7 @@ function _relativeTime(dateStr) {
     if (h < 24) return `${h}시간 전`;
     const d = Math.floor(h / 24);
     if (d < 30) return `${d}일 전`;
-    return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    return _toUtcDate(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 function _esc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
