@@ -51,7 +51,9 @@ function hideUserProfile() {
     if (wrapper) wrapper.style.display = 'none';
 }
 
-// ── Google 로그인 (redirect 방식 — 서드파티 쿠키 차단 환경 대응)
+// ── Google 로그인 (GIS + signInWithCredential)
+// signInWithPopup/Redirect는 firebaseapp.com iframe에 의존 → 서드파티 쿠키 차단 시 실패
+// GIS는 별도 메커니즘으로 id_token 반환 → signInWithCredential은 Firebase REST API 직접 호출
 function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
     const errorEl = document.getElementById('auth-error');
@@ -59,9 +61,26 @@ function signInWithGoogle() {
     btn.textContent = '로그인 중...';
     errorEl.textContent = '';
 
-    const provider = new firebase.auth.GoogleAuthProvider();
-    firebase.auth().signInWithRedirect(provider);
-    // 페이지가 Google로 이동 — 이후 코드 실행 안 됨
+    if (typeof google === 'undefined' || !google.accounts) {
+        errorEl.textContent = '오류: Google 로그인 라이브러리를 불러오지 못했습니다.';
+        btn.disabled = false;
+        btn.textContent = 'Google 계정으로 로그인';
+        return;
+    }
+    google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // One Tap이 표시되지 않으면 OAuth 동의 창 직접 호출
+            google.accounts.oauth2.initCodeClient({
+                client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
+                scope: 'email profile',
+                ux_mode: 'popup',
+                callback: () => {},
+            });
+            errorEl.textContent = '오류: Google 로그인 창이 차단됐습니다. 팝업 허용 후 다시 시도해주세요.';
+            btn.disabled = false;
+            btn.textContent = 'Google 계정으로 로그인';
+        }
+    });
 }
 
 function showAuthModal() {
@@ -123,6 +142,24 @@ async function handleReviewerLogin(user) {
 }
 
 let _loginHandled = false; // 전역 플래그: handleReviewerLogin 중복 호출 방지
+
+// GIS id_token 콜백 — signInWithCredential은 Firebase REST API 직접 호출 (iframe 무관)
+async function _onGoogleCredential(response) {
+    if (_loginHandled) return;
+    const btn = document.getElementById('btn-google-login');
+    const errorEl = document.getElementById('auth-error');
+    try {
+        const credential = firebase.auth.GoogleAuthProvider.credential(response.credential);
+        const result = await firebase.auth().signInWithCredential(credential);
+        if (!_loginHandled) {
+            _loginHandled = true;
+            await handleReviewerLogin(result.user);
+        }
+    } catch (e) {
+        if (errorEl) errorEl.textContent = '오류: ' + (e.message || e.code);
+        if (btn) { btn.disabled = false; btn.textContent = 'Google 계정으로 로그인'; }
+    }
+}
 
 let isInfoExpanded = false;
 let isEditMode = true; // 항상 편집 모드
@@ -635,37 +672,24 @@ window.onload = () => {
         return;
     }
 
-    // 재방문 세션 복원 및 redirect 결과 처리
-    _loginHandled = false;
-
-    // getRedirectResult()를 먼저 완료한 뒤 onAuthStateChanged 등록
-    // (병렬 실행 시 null 상태가 먼저 찍혀 auth 모달이 깜빡이는 문제 방지)
-    const registerAuthListener = () => {
-        firebase.auth().onAuthStateChanged(async (user) => {
-            if (_loginHandled) return;
-            if (user) {
-                _loginHandled = true;
-                try {
-                    await handleReviewerLogin(user);
-                } catch (e) {
-                    _loginHandled = false;
-                    document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
-                    document.getElementById('auth-modal').style.display = 'flex';
-                    const btn = document.getElementById('btn-google-login');
-                    if (btn) { btn.disabled = false; btn.textContent = 'Google 계정으로 로그인'; }
-                }
-            } else {
-                document.getElementById('auth-modal').style.display = 'flex';
-            }
+    // GIS 초기화 — 페이지 로드 시 One Tap 자동 표시 없이 준비만
+    if (typeof google !== 'undefined' && google.accounts) {
+        google.accounts.id.initialize({
+            client_id: '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com',
+            callback: _onGoogleCredential,
+            auto_select: false,
+            cancel_on_tap_outside: false,
         });
-    };
+    }
 
-    firebase.auth().getRedirectResult().then(async (result) => {
-        if (result && result.user) {
-            // Google redirect 완료 후 복귀
+    // 재방문 세션 복원 (signInWithCredential 후 Firebase가 세션 캐시에 저장한 경우)
+    _loginHandled = false;
+    firebase.auth().onAuthStateChanged(async (user) => {
+        if (_loginHandled) return;
+        if (user) {
             _loginHandled = true;
             try {
-                await handleReviewerLogin(result.user);
+                await handleReviewerLogin(user);
             } catch (e) {
                 _loginHandled = false;
                 document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
@@ -674,12 +698,8 @@ window.onload = () => {
                 if (btn) { btn.disabled = false; btn.textContent = 'Google 계정으로 로그인'; }
             }
         } else {
-            // redirect 결과 없음 — 일반 세션 복원
-            registerAuthListener();
+            document.getElementById('auth-modal').style.display = 'flex';
         }
-    }).catch(() => {
-        // getRedirectResult 오류 — 일반 흐름으로 처리
-        registerAuthListener();
     });
 };
 
