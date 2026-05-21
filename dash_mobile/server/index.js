@@ -1612,66 +1612,39 @@ app.get('/api/records/history', verifyFirebaseAuth, async (req, res) => {
 });
 
 // [Mobile] 6. 특정 사용자의 모든 상담 기록 가져오기 (앱 동기화용)
-// userId가 DB에 존재하면 → 해당 userId만으로 조회 (타 계정 데이터 유출 방지)
-// userId가 DB에 없으면 → 이메일 폴백 (Chrome OAuth ID vs Firebase UID 불일치 대응)
+// 동일 이메일로 여러 Firebase UID가 존재할 수 있으므로 항상 이메일 기반으로 조회
 app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
   const { userId } = req.params;
   console.log(`\n📱 [MOBILE SYNC] Fetching records for user: ${userId}`);
   try {
-    // 1) userId가 dash_users에 있는지 확인
+    // userId로 이메일 확인, 없으면 Firebase 토큰의 이메일 폴백
     const [userRows] = await queryWithTimeout('SELECT email FROM dash_users WHERE id = ?', [userId]);
-    const userExistsInDb = userRows.length > 0;
+    const email = userRows.length > 0 ? userRows[0].email : req.firebaseUser?.email;
 
     let rows;
-    if (userExistsInDb) {
-      // userId가 DB에 있으면 정확히 해당 userId의 레코드만 반환
-      // (이메일 확장 쿼리 사용 시 삭제된 계정 재가입 후 구 데이터 노출 위험)
-      const email = userRows[0].email;
+    if (email) {
+      // 이메일 기반으로 조회 — 동일 이메일의 모든 UID 포함 (UID 불일치 대응)
       [rows] = await queryWithTimeout(
         `SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'owned' AS record_type
          FROM service_drafts r
          JOIN cases c ON r.case_id = c.id
          LEFT JOIN dash_users u ON c.user_id = u.id
-         WHERE c.user_id = ?
+         WHERE c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
          UNION
          SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'shared' AS record_type
          FROM service_drafts r
          JOIN cases c ON r.case_id = c.id
          LEFT JOIN dash_users u ON c.user_id = u.id
-         WHERE r.reviewer_user_id = ?
-           AND c.user_id != ?
+         WHERE r.reviewer_user_id IN (SELECT id FROM dash_users WHERE email = ?)
+           AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
            AND r.status != 'Injected'
          ORDER BY created_at DESC`,
-        [userId, userId, userId]
+        [email, email, email]
       );
       console.log(`✅ Found ${rows.length} records for userId: ${userId} (email: ${email})`);
     } else {
-      // userId가 DB에 없으면 이메일 폴백 (Chrome OAuth ID → Firebase UID 전환 시)
-      const email = req.firebaseUser?.email;
-      console.log(`⚠️  User ${userId} not in dash_users, using token email fallback: ${email}`);
-      if (email) {
-        [rows] = await queryWithTimeout(
-          `SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'owned' AS record_type
-           FROM service_drafts r
-           JOIN cases c ON r.case_id = c.id
-           LEFT JOIN dash_users u ON c.user_id = u.id
-           WHERE c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
-           UNION
-           SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'shared' AS record_type
-           FROM service_drafts r
-           JOIN cases c ON r.case_id = c.id
-           LEFT JOIN dash_users u ON c.user_id = u.id
-           WHERE r.reviewer_user_id = (SELECT id FROM dash_users WHERE email = ? LIMIT 1)
-             AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
-             AND r.status != 'Injected'
-           ORDER BY created_at DESC`,
-          [email, email, email]
-        );
-        console.log(`✅ Found ${rows.length} records via email fallback: ${email}`);
-      } else {
-        rows = [];
-        console.log(`⚠️  No email available, returning empty`);
-      }
+      rows = [];
+      console.log(`⚠️  No email available for userId: ${userId}, returning empty`);
     }
     res.json(rows);
   } catch (err) {

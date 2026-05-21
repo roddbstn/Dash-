@@ -94,9 +94,23 @@ async function handleGoogleLogin(googleToken) {
     currentUser = {
         uid: firebaseUid,
         email: userInfo.email,
-        name: userInfo.name || userInfo.email,
+        name: userInfo.name || userInfo.email, // 임시: Google 이름 (아래에서 Dash 닉네임으로 교체됨)
         photo: userInfo.picture
     };
+
+    // 4. 서버 dash_users에서 Dash 닉네임 가져오기 (Google 계정 이름 대신)
+    try {
+        const idTokenForProfile = currentOAuthToken;
+        const profileRes = await fetch(`${API_BASE}/users/${firebaseUid}`, {
+            headers: { 'Authorization': `Bearer ${idTokenForProfile}` }
+        });
+        if (profileRes.ok) {
+            const profile = await profileRes.json();
+            if (profile.name) currentUser.name = profile.name;
+        }
+    } catch (e) {
+        // 닉네임 조회 실패 시 Google 이름 유지
+    }
 
     chrome.storage.local.set({ dashUser: currentUser });
     chrome.storage.session.set({ cachedOAuthToken: idToken });
@@ -183,8 +197,8 @@ btnGoogleLogin.addEventListener('click', async () => {
     if (contentsSpan) contentsSpan.textContent = '로그인 중...';
 
     try {
-        // getAuthToken: Chrome 프로필 계정을 직접 사용 — 팝업 없음
-        const token = await getGoogleTokenViaAuthToken();
+        // launchWebAuthFlow: Web client ID로 동작 — getAuthToken은 Chrome App 타입 client 필요
+        const token = await getGoogleAccessToken(true);
         await handleGoogleLogin(token);
     } catch (error) {
         console.error('Google 로그인 실패:', error);
