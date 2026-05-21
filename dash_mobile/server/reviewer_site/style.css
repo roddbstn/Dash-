@@ -63,6 +63,36 @@ body {
     padding-top: 16px;
 }
 
+#share-participants {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 16px;
+}
+.participant-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.participant-label {
+    font-size: 11px;
+    color: #ADB5BD;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.participant-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    letter-spacing: -0.2px;
+}
+
 .status-indicator {
     display: flex;
     align-items: center;

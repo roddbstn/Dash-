@@ -603,6 +603,7 @@ function loadRecord(token) {
                 } else if (data.encrypted_blob && !encKey) {
                     showEncryptionNotice('no_key');
                 }
+                renderParticipants(data.user_name, data.share_viewers || []);
                 updateUI(data);
             })
             .catch(err => {
@@ -611,6 +612,26 @@ function loadRecord(token) {
                 const mainArea = document.querySelector('.main-editor-area');
                 if (mainArea) mainArea.innerHTML = '<div style="text-align:center; padding: 40px; color: #ADB5BD; font-size: 16px;">해당 DB는 삭제되었으므로 열람할 수 없습니다.</div>';
             });
+}
+
+// ── 공유 참여자 태그 렌더링
+const _VIEWER_COLORS = ['#10B981','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899'];
+function renderParticipants(ownerName, viewers) {
+    const el = document.getElementById('share-participants');
+    if (!el) return;
+    let html = `<div class="participant-group">
+        <span class="participant-label">DB 생성자</span>
+        <span class="participant-tag" style="background:#6366F1;">${ownerName || '알 수 없음'}</span>
+    </div>`;
+    if (viewers && viewers.length > 0) {
+        html += `<div class="participant-group"><span class="participant-label">공유받은 사람</span>`;
+        viewers.forEach((name, i) => {
+            html += `<span class="participant-tag" style="background:${_VIEWER_COLORS[i % _VIEWER_COLORS.length]};">${name || '알 수 없음'}</span>`;
+        });
+        html += `</div>`;
+    }
+    el.innerHTML = html;
+    el.style.display = 'flex';
 }
 
 // ── 본인 DB: 알림 버튼 숨기고 저장 버튼 표시

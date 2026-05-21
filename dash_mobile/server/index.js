@@ -264,6 +264,19 @@ async function ensureUserExists(uid, email, name) {
 
 // reviewer_user_id 컬럼이 없으면 자동 추가 (마이그레이션)
 // MySQL 8.0은 IF NOT EXISTS 미지원 → ER_DUP_FIELDNAME(중복)만 무시
+// share_viewers 테이블 생성 (공유 링크 접근자 이력)
+pool.query(`
+  CREATE TABLE IF NOT EXISTS share_viewers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    share_token VARCHAR(255) NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    name VARCHAR(100),
+    first_accessed_at DATETIME DEFAULT NOW(),
+    UNIQUE KEY uq_token_user (share_token, user_id),
+    INDEX idx_sv_token (share_token)
+  )
+`).catch(err => console.error('[migration] share_viewers 테이블 생성 실패:', err.message));
+
 // counselors 테이블 생성 (없으면)
 pool.query(`
   CREATE TABLE IF NOT EXISTS counselors (
@@ -1166,6 +1179,13 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
         'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ?',
         [reviewerDbId, token]
       );
+      // 공유 접근자 이력 기록 (최초 접근 시각 보존, 이름 최신화)
+      await queryWithTimeout(
+        `INSERT INTO share_viewers (share_token, user_id, name)
+         SELECT ?, id, COALESCE(NULLIF(name,''), email) FROM dash_users WHERE id = ?
+         ON DUPLICATE KEY UPDATE name = VALUES(name)`,
+        [token, reviewerDbId]
+      );
     }
 
     // 세션 인증 완료 처리 (기존 share 엔드포인트가 authAttempts로 검증하므로 동일하게 기록)
@@ -1260,8 +1280,14 @@ app.get('/api/records/share/:token', async (req, res) => {
       console.log(`⛔ [SHARE] Expired link accessed: ${token}`);
       return res.status(410).json({ error: '만료된 공유 링크입니다.' });
     }
+
+    const [viewers] = await queryWithTimeout(
+      `SELECT name FROM share_viewers WHERE share_token = ? ORDER BY first_accessed_at ASC`,
+      [token]
+    );
+
     console.log(`✅ Data fetched for ${rows[0].case_name}`);
-    res.json(rows[0]);
+    res.json({ ...rows[0], share_viewers: viewers.map(v => v.name) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
