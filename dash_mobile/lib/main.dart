@@ -13,6 +13,7 @@ import 'package:dash_mobile/onboarding_screen.dart';
 import 'package:dash_mobile/firebase_options.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/pin_setup_screen.dart';
+import 'package:dash_mobile/api_service.dart';
 
 
 @pragma('vm:entry-point')
@@ -137,9 +138,50 @@ class _PostLoginRouter extends StatelessWidget {
 
   Future<String> _resolveRoute() async {
     final prefs = await SharedPreferences.getInstance();
-    final consentDone = prefs.getBool('consent_v1_completed') ?? false;
-    // 동의가 안 된 경우(최초 가입)만 동의 화면으로
-    if (!consentDone) return 'consent';
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+
+    // 다른 계정으로 전환된 경우 이전 유저의 로컬 데이터 초기화 (consent 제외 — 유저별 저장)
+    final lastUid = prefs.getString('last_logged_in_uid');
+    final consentUid = prefs.getString('consent_user_uid');
+    final isDifferentUser = currentUid != null && (
+      (lastUid != null && lastUid != currentUid) ||
+      (lastUid == null && consentUid != null && consentUid != currentUid)
+    );
+    if (isDifferentUser) {
+      await StorageService.clearSessionData();
+      // consent 플래그는 유저별(consent_done_<uid>)로 관리하므로 삭제하지 않음
+    }
+    if (currentUid != null) {
+      await prefs.setString('last_logged_in_uid', currentUid);
+    }
+
+    // 유저별 consent 확인 (consent_done_<uid> 우선, 레거시 consent_user_uid 폴백)
+    final perUserConsent = currentUid != null
+        ? (prefs.getBool('consent_done_$currentUid') ?? false)
+        : false;
+    final legacyConsent = (prefs.getBool('consent_v1_completed') ?? false) &&
+        currentUid != null &&
+        currentUid == prefs.getString('consent_user_uid');
+    if (!perUserConsent && !legacyConsent) {
+      // 로컬에 consent 플래그가 없더라도 서버에 이미 등록된 계정이면 재동의 불필요
+      // (다른 기기 또는 앱 재설치 후 재로그인 시나리오)
+      if (currentUid != null) {
+        try {
+          final serverUser = await ApiService.fetchUser(currentUid);
+          if (serverUser != null) {
+            // 서버에 등록된 사용자 → 로컬 consent 플래그 복원 후 홈으로
+            await prefs.setBool('consent_done_$currentUid', true);
+            // fall through to PIN check below
+          } else {
+            return 'consent';
+          }
+        } catch (_) {
+          return 'consent';
+        }
+      } else {
+        return 'consent';
+      }
+    }
     // PIN 초기화 후 재설정이 필요한 경우
     final pinSetupRequired = prefs.getBool('pin_setup_required') ?? false;
     if (pinSetupRequired) return 'pin_setup';
