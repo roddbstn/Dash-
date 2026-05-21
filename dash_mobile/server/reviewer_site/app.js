@@ -169,6 +169,11 @@ async function handleReviewerLogin(user) {
         await firebase.auth().signOut();
         document.getElementById('auth-modal').style.display = 'none';
         document.getElementById('not-registered-modal').style.display = 'flex';
+    } else if (data.error === 'viewer_limit_reached') {
+        // 공유 인원 초과 (3명 이상)
+        await firebase.auth().signOut();
+        document.getElementById('auth-modal').style.display = 'none';
+        document.getElementById('viewer-limit-modal').style.display = 'flex';
     } else {
         document.getElementById('auth-modal').style.display = 'flex';
         document.getElementById('auth-error').textContent = data.error || '접근 권한이 없습니다.';

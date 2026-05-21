@@ -182,6 +182,33 @@
             </div>
         </div>
 
+        <!-- 공유 인원 초과 안내 -->
+        <div id="viewer-limit-modal" style="
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.55);
+            display: none; align-items: center; justify-content: center;
+            padding: 24px;
+        ">
+            <div style="position:absolute;inset:0;background:#f0f2f5;z-index:-1;"></div>
+            <div style="
+                background: #fff; border-radius: 20px;
+                padding: 36px 28px; width: 100%; max-width: 380px;
+                box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+                text-align: center;
+            ">
+                <div>
+                    <span style="font-size: 36px;">🚫</span>
+                    <h2 style="margin: 12px 0 8px; font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.3px;">
+                        3명부터는 공유받을 수 없어요
+                    </h2>
+                    <p style="font-size: 14px; color: #8b95a1; line-height: 1.7; margin: 0;">
+                        해당 DB에 대해 현재 2명까지 공유받았어요.<br>
+                        3명부터는 인원이 제한돼요.
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- 로그아웃 확인 모달 -->
         <div id="logout-confirm-modal" style="
             position: fixed; inset: 0; z-index: 10000;

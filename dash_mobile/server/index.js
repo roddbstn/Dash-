@@ -1199,6 +1199,16 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
     // Google 로그인 성공한 사람이 실제 리뷰어 → 항상 최신 reviewer_user_id로 업데이트 (본인이면 연결 불필요)
     if (!isOwner) {
       const reviewerDbId = userRows[0].id;
+
+      // 공유 인원 제한: 최대 2명 (이미 등록된 사람은 통과)
+      const [viewerCount] = await queryWithTimeout(
+        `SELECT COUNT(*) AS cnt FROM share_viewers WHERE share_token = ? AND user_id != ?`,
+        [token, reviewerDbId]
+      );
+      if (viewerCount[0].cnt >= 2) {
+        return res.status(403).json({ error: 'viewer_limit_reached' });
+      }
+
       await queryWithTimeout(
         'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ?',
         [reviewerDbId, token]
