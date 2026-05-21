@@ -1475,7 +1475,7 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
     const params = [];
 
     if (email) {
-      // 이메일 기반: 내 DB + 공유받은 DB (reviewer_user_id 기준)
+      // 이메일 기반: 내 DB + 공유받은 DB (share_viewers 기준 — 다중 공유 대응)
       query = `
         SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'owned' AS record_type
         FROM service_drafts r
@@ -1489,7 +1489,11 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
         JOIN cases c ON r.case_id = c.id
         LEFT JOIN dash_users u ON c.user_id = u.id
         WHERE r.status IN ('Synced', 'Reviewed')
-          AND r.reviewer_user_id IN (SELECT id FROM dash_users WHERE email = ?)
+          AND EXISTS (
+            SELECT 1 FROM share_viewers sv
+            WHERE sv.share_token = r.share_token
+              AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+          )
           AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
         ORDER BY start_time IS NULL ASC, start_time ASC
       `;
@@ -1624,6 +1628,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
     let rows;
     if (email) {
       // 이메일 기반으로 조회 — 동일 이메일의 모든 UID 포함 (UID 불일치 대응)
+      // 공유받은 DB: reviewer_user_id 단일값 대신 share_viewers 테이블로 확인 (다중 공유 대응)
       [rows] = await queryWithTimeout(
         `SELECT r.*, c.case_name, c.dong, u.name AS author_name, 'owned' AS record_type
          FROM service_drafts r
@@ -1635,7 +1640,11 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
          FROM service_drafts r
          JOIN cases c ON r.case_id = c.id
          LEFT JOIN dash_users u ON c.user_id = u.id
-         WHERE r.reviewer_user_id IN (SELECT id FROM dash_users WHERE email = ?)
+         WHERE EXISTS (
+           SELECT 1 FROM share_viewers sv
+           WHERE sv.share_token = r.share_token
+             AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+         )
            AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
            AND r.status != 'Injected'
          ORDER BY created_at DESC`,
