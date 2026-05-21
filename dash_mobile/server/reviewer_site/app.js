@@ -672,41 +672,96 @@ function loadHistory(token) {
         });
 }
 function openHistoryDetail(idx) {
-    const e = (window._historyEntries || [])[idx];
+    const entries = window._historyEntries || [];
+    const e = entries[idx];
     if (!e) return;
+    const prev = entries[idx + 1] || null; // 바로 이전 버전 (없으면 최초)
+
     const timeStr = new Date(e.created_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
-    const serviceDesc = e.service_description_snapshot || '';
-    const agentOpinion = e.agent_opinion_snapshot || '';
-    const isEncrypted = !serviceDesc && !!e.encrypted_blob_snapshot;
+    const actionClass = e.action === 'reviewed' ? 'reviewed' : 'saved';
+    const isEncrypted = !e.service_description_snapshot && !!e.encrypted_blob_snapshot;
+
+    function diffSection(label, before, after) {
+        const ops = _textDiff(before, after);
+        const beforeHtml = ops ? _renderBefore(ops) : _esc(before);
+        const afterHtml  = ops ? _renderAfter(ops)  : _esc(after);
+        const hasChange = ops ? ops.some(o => o.t !== '=') : before !== after;
+        return `
+        <div class="history-diff-section">
+            <div class="history-diff-label">${label}</div>
+            <div class="history-diff-row${!hasChange ? ' no-change' : ''}">
+                <div class="history-diff-col">
+                    <div class="history-diff-col-label before-label">이전</div>
+                    <div class="history-diff-text">${beforeHtml || '<span style="color:#CED4DA;">없음</span>'}</div>
+                </div>
+                <div class="history-diff-divider"></div>
+                <div class="history-diff-col">
+                    <div class="history-diff-col-label after-label">이후</div>
+                    <div class="history-diff-text">${afterHtml || '<span style="color:#CED4DA;">없음</span>'}</div>
+                </div>
+            </div>
+            ${!hasChange ? '<div class="history-diff-unchanged">변경 없음</div>' : ''}
+        </div>`;
+    }
+
+    const bodyHtml = isEncrypted
+        ? '<div class="history-empty" style="padding:20px 0;">🔒 암호화된 내용은 복호화 키가 있는 기기에서만 확인 가능합니다.</div>'
+        : diffSection('서비스 내용', prev ? (prev.service_description_snapshot || '') : '', e.service_description_snapshot || '')
+        + diffSection('상담원 의견', prev ? (prev.agent_opinion_snapshot || '') : '', e.agent_opinion_snapshot || '');
 
     const modal = document.createElement('div');
     modal.className = 'history-detail-modal';
     modal.innerHTML = `
         <div class="history-detail-box">
             <div class="history-detail-header">
-                <div>
-                    <div style="font-size:14px;font-weight:700;color:#212529;margin-bottom:3px;">${_esc(e.editor_name || '알 수 없음')} · ${actionLabel}</div>
-                    <div class="history-detail-meta">${timeStr}</div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span class="history-action-badge ${actionClass}" style="font-size:12px;padding:4px 10px;">${actionLabel}</span>
+                    <span style="font-size:14px;font-weight:700;color:#212529;">${_esc(e.editor_name || '알 수 없음')}</span>
+                    <span class="history-detail-meta">${timeStr}</span>
                 </div>
                 <button class="history-detail-close" onclick="this.closest('.history-detail-modal').remove()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
-            <div class="history-detail-body">
-                ${isEncrypted ? '<div class="history-empty" style="padding:20px 0;">🔒 암호화된 내용은 복호화 키가 있는 기기에서만 확인 가능합니다.</div>' : `
-                <div class="history-detail-section">
-                    <label>서비스 내용</label>
-                    <p>${_esc(serviceDesc) || '(없음)'}</p>
-                </div>
-                <div class="history-detail-section">
-                    <label>상담원 의견</label>
-                    <p>${_esc(agentOpinion) || '(없음)'}</p>
-                </div>`}
-            </div>
+            <div class="history-detail-body">${bodyHtml}</div>
         </div>`;
     modal.addEventListener('click', (ev) => { if (ev.target === modal) modal.remove(); });
     document.body.appendChild(modal);
+}
+
+// word-level diff (LCS 기반)
+function _textDiff(before, after) {
+    const tok = s => (s || '').match(/[^\s]+|\s+/g) || [];
+    const a = tok(before), b = tok(after);
+    if (a.length + b.length > 3000) return null; // 너무 길면 스킵
+    const m = a.length, n = b.length;
+    const dp = Array.from({length: m + 1}, () => new Int32Array(n + 1));
+    for (let i = 1; i <= m; i++)
+        for (let j = 1; j <= n; j++)
+            dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+    const ops = [];
+    let i = m, j = n;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && a[i-1] === b[j-1]) { ops.unshift({t:'=', v:a[i-1]}); i--; j--; }
+        else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.unshift({t:'+', v:b[j-1]}); j--; }
+        else { ops.unshift({t:'-', v:a[i-1]}); i--; }
+    }
+    return ops;
+}
+function _renderBefore(ops) {
+    return ops.map(o => {
+        if (o.t === '=') return _esc(o.v);
+        if (o.t === '-') return `<del class="diff-del">${_esc(o.v)}</del>`;
+        return '';
+    }).join('');
+}
+function _renderAfter(ops) {
+    return ops.map(o => {
+        if (o.t === '=') return _esc(o.v);
+        if (o.t === '+') return `<ins class="diff-ins">${_esc(o.v)}</ins>`;
+        return '';
+    }).join('');
 }
 function _relativeTime(dateStr) {
     const diff = Date.now() - new Date(dateStr).getTime();
