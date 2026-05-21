@@ -3,7 +3,7 @@
 // ── Firebase 초기화 ──────────────────────────────────────────
 const _fbConfig = {
     apiKey: 'AIzaSyASW_FfIITQdQjuppQzazGreivrmUMhfYY',
-    authDomain: 'dash-7cdea.firebaseapp.com',
+    authDomain: 'dash.qpon',
     projectId: 'dash-7cdea',
     storageBucket: 'dash-7cdea.firebasestorage.app',
     messagingSenderId: '803548605147',

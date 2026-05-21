@@ -86,6 +86,30 @@ app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'reviewer_site'))); // Serve static files
 
+// ── Firebase Auth 프록시 (/__/auth/) ─────────────────────────────────────────
+// authDomain을 dash.qpon으로 쓰기 위해 Firebase의 /__/auth/ 경로를 같은 도메인에서 서빙
+// → 서드파티 쿠키 차단 환경에서도 Firebase 팝업/리다이렉트 인증 정상 동작
+app.use('/__/auth', async (req, res) => {
+  try {
+    const upstream = `https://dash-7cdea.firebaseapp.com/__/auth${req.url}`;
+    const response = await fetch(upstream, {
+      method: req.method,
+      headers: { accept: req.headers['accept'] || '*/*' },
+      redirect: 'manual', // Firebase 핸들러의 302 리다이렉트를 그대로 전달
+    });
+    // 리다이렉트는 클라이언트에 그대로 전달
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (location) return res.redirect(response.status, location);
+    }
+    const contentType = response.headers.get('content-type');
+    if (contentType) res.setHeader('Content-Type', contentType);
+    res.status(response.status).send(await response.text());
+  } catch (e) {
+    res.status(502).json({ error: 'Firebase auth proxy error' });
+  }
+});
+
 // ── API Rate Limiting ──────────────────────────────────────────────────────────
 // 글로벌: 15분당 300회 (정상 사용 기준 넉넉히)
 const globalLimiter = rateLimit({
