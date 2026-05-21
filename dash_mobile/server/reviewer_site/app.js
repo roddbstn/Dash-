@@ -52,9 +52,7 @@ function hideUserProfile() {
 }
 
 // ── Google 로그인 (GIS + signInWithCredential)
-// signInWithPopup/Redirect는 firebaseapp.com iframe에 의존 → 서드파티 쿠키 차단 시 실패
-// GIS는 별도 메커니즘으로 id_token 반환 → signInWithCredential은 Firebase REST API 직접 호출
-function signInWithGoogle() {
+async function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
     const errorEl = document.getElementById('auth-error');
     btn.disabled = true;
