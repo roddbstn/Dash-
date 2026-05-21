@@ -51,26 +51,17 @@ function hideUserProfile() {
     if (wrapper) wrapper.style.display = 'none';
 }
 
-// ── Google 로그인 (popup 방식)
-async function signInWithGoogle() {
+// ── Google 로그인 (redirect 방식 — 서드파티 쿠키 차단 환경 대응)
+function signInWithGoogle() {
     const btn = document.getElementById('btn-google-login');
     const errorEl = document.getElementById('auth-error');
     btn.disabled = true;
     btn.textContent = '로그인 중...';
     errorEl.textContent = '';
 
-    try {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        const result = await firebase.auth().signInWithPopup(provider);
-        if (!_loginHandled) {
-            _loginHandled = true;
-            await handleReviewerLogin(result.user);
-        }
-    } catch (e) {
-        errorEl.textContent = '오류: ' + (e.code || e.message || JSON.stringify(e));
-        btn.disabled = false;
-        btn.textContent = 'Google 계정으로 로그인';
-    }
+    const provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithRedirect(provider);
+    // 페이지가 Google로 이동 — 이후 코드 실행 안 됨
 }
 
 function showAuthModal() {
@@ -644,25 +635,51 @@ window.onload = () => {
         return;
     }
 
-    // 재방문 세션 복원 (이미 로그인된 경우 자동 처리)
+    // 재방문 세션 복원 및 redirect 결과 처리
     _loginHandled = false;
 
-    // 이전 signInWithRedirect 배포가 남긴 stale 상태 직접 소거
-    // getRedirectResult()는 signInWithPopup과 충돌하므로 localStorage 직접 삭제
-    try {
-        Object.keys(localStorage)
-            .filter(k => k.includes('pendingRedirect') || k.includes('redirectUser'))
-            .forEach(k => localStorage.removeItem(k));
-    } catch (_) {}
+    // getRedirectResult()를 먼저 완료한 뒤 onAuthStateChanged 등록
+    // (병렬 실행 시 null 상태가 먼저 찍혀 auth 모달이 깜빡이는 문제 방지)
+    const registerAuthListener = () => {
+        firebase.auth().onAuthStateChanged(async (user) => {
+            if (_loginHandled) return;
+            if (user) {
+                _loginHandled = true;
+                try {
+                    await handleReviewerLogin(user);
+                } catch (e) {
+                    _loginHandled = false;
+                    document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
+                    document.getElementById('auth-modal').style.display = 'flex';
+                    const btn = document.getElementById('btn-google-login');
+                    if (btn) { btn.disabled = false; btn.textContent = 'Google 계정으로 로그인'; }
+                }
+            } else {
+                document.getElementById('auth-modal').style.display = 'flex';
+            }
+        });
+    };
 
-    firebase.auth().onAuthStateChanged(async (user) => {
-        if (_loginHandled) return;
-        if (user) {
+    firebase.auth().getRedirectResult().then(async (result) => {
+        if (result && result.user) {
+            // Google redirect 완료 후 복귀
             _loginHandled = true;
-            await handleReviewerLogin(user);
+            try {
+                await handleReviewerLogin(result.user);
+            } catch (e) {
+                _loginHandled = false;
+                document.getElementById('auth-error').textContent = '오류: ' + (e.message || e.code);
+                document.getElementById('auth-modal').style.display = 'flex';
+                const btn = document.getElementById('btn-google-login');
+                if (btn) { btn.disabled = false; btn.textContent = 'Google 계정으로 로그인'; }
+            }
         } else {
-            document.getElementById('auth-modal').style.display = 'flex';
+            // redirect 결과 없음 — 일반 세션 복원
+            registerAuthListener();
         }
+    }).catch(() => {
+        // getRedirectResult 오류 — 일반 흐름으로 처리
+        registerAuthListener();
     });
 };
 
