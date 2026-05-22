@@ -2166,19 +2166,7 @@ final List<int> _selectedCaseIds = [];
             ),
             const SizedBox(height: 10),
             // ── 세그먼트 탭 ──────────────────────────────────
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F6F8),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.all(2),
-              child: Row(
-                children: [
-                  _buildSegmentTab('나의 DB', 0, pendingDrafts.length),
-                  _buildSegmentTab('공유받은 DB', 1, _sharedDrafts.length),
-                ],
-              ),
-            ),
+            _buildSegmentControl(pendingDrafts.length, _sharedDrafts.length),
             const SizedBox(height: 12),
             // ── 탭 콘텐츠 ────────────────────────────────────
             if (isMyDb) ...[
@@ -2248,50 +2236,92 @@ final List<int> _selectedCaseIds = [];
     );
   }
 
+  Widget _buildSegmentControl(int myCount, int sharedCount) {
+    final isFirst = _dbTabController.index == 0;
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F6F8),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(2),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final pillWidth = constraints.maxWidth / 2;
+          return SizedBox(
+            height: 38,
+            child: Stack(
+              children: [
+                // 슬라이딩 흰 pill
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeInOut,
+                  left: isFirst ? 0 : pillWidth,
+                  top: 0,
+                  bottom: 0,
+                  width: pillWidth,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.07),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // 탭 레이블 (pill 위에 올라옴)
+                Row(
+                  children: [
+                    _buildSegmentTab('나의 DB', 0, myCount),
+                    _buildSegmentTab('공유받은 DB', 1, sharedCount),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildSegmentTab(String label, int index, int count) {
     final isActive = _dbTabController.index == index;
     return Expanded(
       child: GestureDetector(
         onTap: () => _dbTabController.animateTo(index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isActive ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: isActive
-                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4, offset: const Offset(0, 1))]
-                : [],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                  color: isActive ? const Color(0xFF222222) : const Color(0xFF888888),
+        behavior: HitTestBehavior.opaque,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                color: isActive ? const Color(0xFF222222) : const Color(0xFF888888),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
                 ),
               ),
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '$count',
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
