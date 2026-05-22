@@ -1928,9 +1928,9 @@ final List<int> _selectedCaseIds = [];
               'DB 작성하기',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 15,
+                fontSize: 17,
                 fontWeight: FontWeight.w600,
-                letterSpacing: -0.2,
+                letterSpacing: -0.3,
               ),
             ),
           ],
