@@ -1550,7 +1550,7 @@ final List<int> _selectedCaseIds = [];
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF5F6F8),
         elevation: 0,
         scrolledUnderElevation: 0,
         toolbarHeight: 0,
@@ -1753,7 +1753,6 @@ final List<int> _selectedCaseIds = [];
         final bool isTablet = constraints.maxWidth > 650;
 
         if (isTablet) {
-          // 태블릿 레이아웃: 기존 스타일 유지
           return RefreshIndicator(
             onRefresh: _loadData,
             color: AppColors.primary,
@@ -1774,46 +1773,80 @@ final List<int> _selectedCaseIds = [];
           );
         }
 
-        // 모바일 레이아웃: 흰색 상단 + 회색 하단 두 존 구조
-        return RefreshIndicator(
-          onRefresh: _loadData,
-          color: AppColors.primary,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
+        // 모바일: 상단 고정 배경 + 드래그 가능한 DB 시트
+        return Stack(
+          children: [
+            // ── 상단 배경 영역 (연한 회색) ──────────────────
+            Positioned.fill(
+              child: Container(
+                color: const Color(0xFFF5F6F8),
+                padding: const EdgeInsets.fromLTRB(18, 36, 18, 0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── 상단 흰색 영역 ──────────────────────────
-                    Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.fromLTRB(18, 36, 18, 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildGreetingHeader(),
-                          const SizedBox(height: 28),
-                          _buildCtaCard(),
-                          const SizedBox(height: 16),
-                          _buildPcGuideBanner(),
-                        ],
-                      ),
-                    ),
-                    // ── 하단 회색 영역 ──────────────────────────
-                    Expanded(
-                      child: Container(
-                        color: const Color(0xFFF2F3F7),
-                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
-                        child: _buildDbList(isPad: false),
-                      ),
-                    ),
+                    _buildGreetingHeader(),
+                    const SizedBox(height: 28),
+                    _buildCtaCard(),
+                    const SizedBox(height: 16),
+                    _buildPcGuideBanner(),
                   ],
                 ),
               ),
             ),
-          ),
+            // ── DB 시트 (위아래 슬라이드 가능) ──────────────
+            DraggableScrollableSheet(
+              initialChildSize: 0.50,
+              minChildSize: 0.38,
+              maxChildSize: 0.91,
+              snap: true,
+              snapSizes: const [0.38, 0.50, 0.91],
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x18000000),
+                        blurRadius: 24,
+                        spreadRadius: 0,
+                        offset: Offset(0, -6),
+                      ),
+                    ],
+                  ),
+                  child: RefreshIndicator(
+                    onRefresh: _loadData,
+                    color: AppColors.primary,
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        children: [
+                          // 드래그 핸들
+                          Container(
+                            margin: const EdgeInsets.only(top: 12, bottom: 4),
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDDDDDD),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                            child: _buildDbList(isPad: false),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         );
       },
     );
