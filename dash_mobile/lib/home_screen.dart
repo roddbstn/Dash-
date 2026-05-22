@@ -1789,14 +1789,14 @@ final List<int> _selectedCaseIds = [];
                     // ── 상단 흰색 영역 ──────────────────────────
                     Container(
                       color: Colors.white,
-                      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+                      padding: const EdgeInsets.fromLTRB(18, 36, 18, 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildGreetingHeader(),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 28),
                           _buildCtaCard(),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 16),
                           _buildPcGuideBanner(),
                         ],
                       ),
@@ -1849,9 +1849,9 @@ final List<int> _selectedCaseIds = [];
       children: [
         const Text(
           '안녕하세요!',
-          style: TextStyle(fontSize: 11, color: Color(0xFF888888)),
+          style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 6),
         RichText(
           text: TextSpan(
             style: const TextStyle(
@@ -1869,10 +1869,10 @@ final List<int> _selectedCaseIds = [];
             ],
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         Text(
           '기입할 DB가 ${totalDbCount}개 있어요',
-          style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
+          style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
         ),
       ],
     );
