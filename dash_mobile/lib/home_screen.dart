@@ -1789,14 +1789,14 @@ final List<int> _selectedCaseIds = [];
                     // ── 상단 흰색 영역 ──────────────────────────
                     Container(
                       color: Colors.white,
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildGreetingHeader(),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 16),
                           _buildCtaCard(),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           _buildPcGuideBanner(),
                         ],
                       ),
@@ -1805,7 +1805,7 @@ final List<int> _selectedCaseIds = [];
                     Expanded(
                       child: Container(
                         color: const Color(0xFFF2F3F7),
-                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
                         child: _buildDbList(isPad: false),
                       ),
                     ),
@@ -1879,28 +1879,27 @@ final List<int> _selectedCaseIds = [];
   }
 
   Widget _buildCtaCard() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _showCaseSelectionModal,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+    return GestureDetector(
+      onTap: _showCaseSelectionModal,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
           children: const [
-            Icon(Icons.add, color: Colors.white, size: 16),
+            Icon(Icons.add_rounded, color: Colors.white, size: 18),
             SizedBox(width: 6),
             Text(
               'DB 작성하기',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
               ),
             ),
           ],
@@ -1962,7 +1961,7 @@ final List<int> _selectedCaseIds = [];
         MaterialPageRoute(builder: (_) => const UserGuideScreen()),
       ),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: const Color(0xFFEEF3FC),
           borderRadius: BorderRadius.circular(12),
@@ -1974,7 +1973,7 @@ final List<int> _selectedCaseIds = [];
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(4),
@@ -1985,23 +1984,32 @@ final List<int> _selectedCaseIds = [];
                         fontSize: 9,
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 7),
                   const Text(
-                    'PC에서 DB\n확인하려면?',
+                    'PC에서 DB 확인하려면?',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF222222),
-                      height: 1.4,
+                      color: Color(0xFF1A2340),
+                      letterSpacing: -0.2,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.laptop_mac, color: AppColors.primary, size: 36),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.computer_rounded, color: AppColors.primary, size: 22),
+            ),
           ],
         ),
       ),
