@@ -1961,11 +1961,11 @@ final List<int> _selectedCaseIds = [];
         MaterialPageRoute(builder: (_) => const UserGuideScreen()),
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: const Color(0xFFEEF3FC),
           borderRadius: BorderRadius.circular(12),
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Expanded(
@@ -1973,42 +1973,141 @@ final List<int> _selectedCaseIds = [];
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppColors.primary,
+                      color: const Color(0xFF1A56DB),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
                       '이용 안내',
                       style: TextStyle(
-                        fontSize: 9,
                         color: Colors.white,
+                        fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 7),
-                  const Text(
-                    'PC에서 DB 확인하려면?',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A2340),
-                      letterSpacing: -0.2,
+                  const SizedBox(height: 6),
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111111),
+                        letterSpacing: -0.3,
+                        height: 1.35,
+                      ),
+                      children: [
+                        TextSpan(text: 'PC에서 DB\n'),
+                        TextSpan(
+                          text: '확인하려면?',
+                          style: TextStyle(color: Color(0xFF1A56DB)),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 56,
+              height: 48,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: 0,
+                    top: 6,
+                    child: Container(
+                      width: 40,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDBEAFE),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      padding: const EdgeInsets.all(5),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            height: 3,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A56DB).withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Container(
+                            width: 22,
+                            height: 2.5,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A56DB).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Container(
+                            width: 16,
+                            height: 2.5,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A56DB).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 13,
+                    top: 34,
+                    child: Container(
+                      width: 12,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFBFDBFE),
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 8,
+                    top: 38,
+                    child: Container(
+                      width: 22,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFBFDBFE),
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1A56DB),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        '?',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              child: Icon(Icons.computer_rounded, color: AppColors.primary, size: 22),
             ),
           ],
         ),
