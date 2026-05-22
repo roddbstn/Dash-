@@ -6,7 +6,6 @@ import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/create_case_screen.dart';
 import 'package:dash_mobile/form_screen.dart';
 import 'package:dash_mobile/api_service.dart';
-import 'package:dash_mobile/widgets/dash_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -44,8 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
   List<dynamic> _counselors = [];
   String? _selectedCounselorId;
   bool _isSelectionMode = false;
-  bool _isPlusPressed = false;
-  final List<int> _selectedCaseIds = [];
+final List<int> _selectedCaseIds = [];
   late TabController _dbTabController;
 
   // Debounce _loadData to prevent duplicate card flicker from simultaneous calls
@@ -1552,21 +1550,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppColors.bg,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         toolbarHeight: 0,
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
+          border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 0.5)),
         ),
         child: SafeArea(
           child: SizedBox(
@@ -1759,71 +1751,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     return LayoutBuilder(
       builder: (context, constraints) {
         final bool isTablet = constraints.maxWidth > 650;
-        final bool isLandscape = constraints.maxWidth > constraints.maxHeight;
-        final bool isPadLandscape = isTablet && isLandscape;
-        final bool isPadPortrait = isTablet && !isLandscape;
 
-        Widget layoutContent;
-        if (isPadLandscape) {
-          layoutContent = KeyedSubtree(
-            key: const ValueKey('pad-landscape'),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 66,
-                  child: _buildDbList(
-                    isPad: true,
-                    padWidth: (constraints.maxWidth - 40 - 16) * 0.66,
-                  ),
+        if (isTablet) {
+          // 태블릿 레이아웃: 기존 스타일 유지
+          return RefreshIndicator(
+            onRefresh: _loadData,
+            color: AppColors.primary,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
+                child: Column(
+                  children: [
+                    _buildGuideAndCta(),
+                    const SizedBox(height: 20),
+                    _buildDbList(isPad: true, padWidth: constraints.maxWidth - 40),
+                    const SizedBox(height: 100),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 34,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildGreetingHeader(),
-                      const SizedBox(height: 16),
-                      _buildPcGuideBanner(),
-                      const SizedBox(height: 10),
-                      _buildCtaCard(),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        } else if (isPadPortrait) {
-          layoutContent = KeyedSubtree(
-            key: const ValueKey('pad-portrait'),
-            child: Column(
-              children: [
-                _buildGuideAndCta(),
-                const SizedBox(height: 20),
-                _buildDbList(
-                  isPad: true,
-                  padWidth: constraints.maxWidth - 40,
-                  crossAxisCount: 2,
-                ),
-                const SizedBox(height: 100),
-              ],
-            ),
-          );
-        } else {
-          layoutContent = KeyedSubtree(
-            key: const ValueKey('mobile'),
-            child: Column(
-              children: [
-                _buildGuideAndCta(),
-                const SizedBox(height: 20),
-                _buildDbList(isPad: false),
-                const SizedBox(height: 100),
-              ],
+              ),
             ),
           );
         }
 
+        // 모바일 레이아웃: 흰색 상단 + 회색 하단 두 존 구조
         return RefreshIndicator(
           onRefresh: _loadData,
           color: AppColors.primary,
@@ -1832,39 +1783,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 350),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder: (child, animation) {
-                      return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position:
-                              Tween<Offset>(
-                                begin: const Offset(0, 0.04),
-                                end: Offset.zero,
-                              ).animate(
-                                CurvedAnimation(
-                                  parent: animation,
-                                  curve: Curves.easeOutCubic,
-                                ),
-                              ),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: layoutContent,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── 상단 흰색 영역 ──────────────────────────
+                    Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildGreetingHeader(),
+                          const SizedBox(height: 14),
+                          _buildCtaCard(),
+                          const SizedBox(height: 12),
+                          _buildPcGuideBanner(),
+                        ],
+                      ),
+                    ),
+                    // ── 하단 회색 영역 ──────────────────────────
+                    Expanded(
+                      child: Container(
+                        color: const Color(0xFFF2F3F7),
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                        child: _buildDbList(isPad: false),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-        ); // RefreshIndicator
+        );
       },
-    ); // LayoutBuilder
+    );
   }
 
   // ── 탭 배지 (숫자 동그라미) ──────────────────────────────────
@@ -1886,107 +1838,73 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     );
   }
 
-  // ── 좌상단 인사말 + DB 카운트 (CTA 카드 밖)
+  // ── 상단 인사말 섹션
   Widget _buildGreetingHeader() {
     final int totalDbCount = _pendingDrafts.length + _sharedDrafts.length;
-    return Text.rich(
-      TextSpan(
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w400,
-          color: Color(0xFF222222),
-          letterSpacing: -0.6,
-          height: 1.35,
+    final String displayName = (_userName != null && _userName!.trim().isNotEmpty)
+        ? _userName!
+        : '안녕하세요';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '안녕하세요!',
+          style: TextStyle(fontSize: 11, color: Color(0xFF888888)),
         ),
-        children: [
-          if (_userName != null && _userName!.trim().isNotEmpty)
-            TextSpan(
-              text: '$_userName님,',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          if (_userName != null && _userName!.trim().isNotEmpty)
-            const TextSpan(text: '\n기입할 DB는 '),
-          if (_userName == null || _userName!.trim().isEmpty)
-            const TextSpan(text: '기입할 DB는 '),
-          TextSpan(
-            text: '$totalDbCount개',
+        const SizedBox(height: 3),
+        RichText(
+          text: TextSpan(
             style: const TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w800,
-              fontSize: 24,
-              decoration: TextDecoration.underline,
-              decorationColor: AppColors.primary,
-              decorationThickness: 2.0,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+              color: Color(0xFF222222),
             ),
+            children: [
+              TextSpan(text: '$displayName님'),
+              TextSpan(
+                text: '.',
+                style: TextStyle(color: AppColors.primary),
+              ),
+            ],
           ),
-          const TextSpan(text: '예요'),
-        ],
-      ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '기입할 DB가 ${totalDbCount}개 있어요',
+          style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
+        ),
+      ],
     );
   }
 
   Widget _buildCtaCard() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [
-            const Color(0xFF90C2FF).withValues(alpha: 0.55),
-            Colors.white,
-          ],
-          stops: const [0.0, 0.65],
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _showCaseSelectionModal,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
         ),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── + 버튼 (가운데 정렬, DB 작성 버튼 위)
-          GestureDetector(
-            onTapDown: (_) => setState(() => _isPlusPressed = true),
-            onTapUp: (_) => setState(() => _isPlusPressed = false),
-            onTapCancel: () => setState(() => _isPlusPressed = false),
-            onTap: _showCaseSelectionModal,
-            child: AnimatedScale(
-              scale: _isPlusPressed ? 0.94 : 1.0,
-              duration: const Duration(milliseconds: 100),
-              curve: Curves.easeOutCubic,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 100),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _isPlusPressed ? const Color(0xFFF2F4F6) : Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: _isPlusPressed
-                      ? []
-                      : [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.15),
-                            blurRadius: 15,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                ),
-                child: const Icon(
-                  Icons.add_circle_outline,
-                  color: AppColors.primary,
-                  size: 40,
-                ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.add, color: Colors.white, size: 16),
+            SizedBox(width: 6),
+            Text(
+              'DB 작성하기',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          DashButton(
-            onTap: _showCaseSelectionModal,
-            text: 'DB 작성하기',
-            backgroundColor: AppColors.primary,
-            width: double.infinity,
-            height: 60,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2044,51 +1962,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
         MaterialPageRoute(builder: (_) => const UserGuideScreen()),
       ),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [Color(0xFF1B2340), Color(0xFF2A3F80)],
-          ),
-          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFFEEF3FC),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            // 아이콘 컨테이너
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      '이용 안내',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'PC에서 DB\n확인하려면?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF222222),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
-              child: const Icon(Icons.computer_rounded, color: Colors.white, size: 22),
             ),
-            const SizedBox(width: 14),
-            // 텍스트
-            const Expanded(
-              child: Text(
-                'PC에서 DB 확인하려면?',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // 화살표 버튼
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.white),
-            ),
+            Icon(Icons.laptop_mac, color: AppColors.primary, size: 36),
           ],
         ),
       ),
@@ -2101,90 +2014,57 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
     int crossAxisCount = 3,
   }) {
     final pendingDrafts = _pendingDrafts;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── 탭 메뉴 (카카오T 스타일, 좌정렬) ──────────────────
-        TabBar(
-          controller: _dbTabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          indicatorColor: const Color(0xFF222222),
-          indicatorWeight: 2.5,
-          indicatorSize: TabBarIndicatorSize.label,
-          labelColor: const Color(0xFF222222),
-          unselectedLabelColor: const Color(0xFF8B95A1),
-          labelStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
-          ),
-          unselectedLabelStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            letterSpacing: -0.3,
-          ),
-          dividerColor: AppColors.border,
-          padding: EdgeInsets.zero,
-          labelPadding: const EdgeInsets.only(right: 24, bottom: 2),
-          splashFactory: NoSplash.splashFactory,
-          overlayColor: WidgetStateProperty.all(Colors.transparent),
-          tabs: [
-            Tab(
+    return AnimatedBuilder(
+      animation: _dbTabController,
+      builder: (context, _) {
+        final isMyDb = _dbTabController.index == 0;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── 섹션 타이틀 ──────────────────────────────────
+            const Text(
+              'DB 목록',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+            ),
+            const SizedBox(height: 10),
+            // ── 세그먼트 탭 ──────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFE4E6ED),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.all(2),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('나의 DB'),
-                  const SizedBox(width: 5),
-                  _buildTabBadge(_pendingDrafts.length),
+                  _buildSegmentTab('나의 DB', 0, pendingDrafts.length),
+                  _buildSegmentTab('공유받은 DB', 1, _sharedDrafts.length),
                 ],
               ),
             ),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('공유받은 DB'),
-                  const SizedBox(width: 5),
-                  _buildTabBadge(_sharedDrafts.length),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // ── 탭 콘텐츠 ─────────────────────────────────────────
-        AnimatedBuilder(
-          animation: _dbTabController,
-          builder: (context, _) {
-            final isMyDb = _dbTabController.index == 0;
-            if (isMyDb) {
-              // 나의 DB 탭
-              if (pendingDrafts.isNotEmpty) {
-                return Container(
+            const SizedBox(height: 12),
+            // ── 탭 콘텐츠 ────────────────────────────────────
+            if (isMyDb) ...[
+              if (pendingDrafts.isNotEmpty)
+                Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(12),
                     child: Column(
                       children: pendingDrafts.asMap().entries.map<Widget>((entry) {
                         final idx = entry.key;
                         final d = entry.value;
                         final foundCase = _cases.cast<Map<String, dynamic>?>().firstWhere(
-                          (c) =>
-                              c?['realName'] == d['caseName'] ||
-                              c?['maskedName'] == d['caseName'],
+                          (c) => c?['realName'] == d['caseName'] || c?['maskedName'] == d['caseName'],
                           orElse: () => null,
                         );
                         final dong = foundCase != null ? foundCase['dong'] : '미지정';
@@ -2192,28 +2072,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                       }).toList(),
                     ),
                   ),
-                );
-              } else {
-                return _buildEmptyHint('사례를 선택해 DB를 만들어주세요');
-              }
-            } else {
-              // 공유받은 DB 탭
-              if (_sharedDrafts.isNotEmpty) {
-                return Container(
+                )
+              else
+                _buildEmptyHint('사례를 선택해 DB를 만들어주세요'),
+            ] else ...[
+              if (_sharedDrafts.isNotEmpty)
+                Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(12),
                     child: Column(
                       children: _sharedDrafts.asMap().entries.map<Widget>((entry) {
                         final idx = entry.key;
@@ -2222,15 +2099,63 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
                       }).toList(),
                     ),
                   ),
-                );
-              } else {
-                return _buildEmptyHint('동행자에게 DB 공유를 요청하세요');
-              }
-            }
-          },
+                )
+              else
+                _buildEmptyHint('동행자에게 DB 공유를 요청하세요'),
+            ],
+            const SizedBox(height: 30),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSegmentTab(String label, int index, int count) {
+    final isActive = _dbTabController.index == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _dbTabController.animateTo(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isActive ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: isActive
+                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4, offset: const Offset(0, 1))]
+                : [],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? const Color(0xFF222222) : const Color(0xFF888888),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: isActive ? AppColors.primary : const Color(0xFFD0D3DC),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : const Color(0xFF888888),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 30),
-      ],
+      ),
     );
   }
 
@@ -2444,7 +2369,7 @@ class _NavBarItemState extends State<_NavBarItem> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.selected ? const Color(0xFF222222) : const Color(0xFFBEC7D0);
+    final color = widget.selected ? AppColors.primary : const Color(0xFFBBBBBB);
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
