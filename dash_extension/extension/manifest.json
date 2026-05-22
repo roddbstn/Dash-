@@ -13,7 +13,8 @@
         "*://ncads.go.kr/*",
         "*://*.ncads.go.kr/*",
         "*://dash.qpon/*",
-        "*://www.googleapis.com/*"
+        "*://www.googleapis.com/*",
+        "*://localhost/*"
     ],
     "oauth2": {
         "client_id": "803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com",
@@ -47,7 +48,8 @@
         {
             "matches": [
                 "*://ncads.go.kr/*",
-                "*://*.ncads.go.kr/*"
+                "*://*.ncads.go.kr/*",
+                "*://localhost/*"
             ],
             "js": [
                 "core/config.js",

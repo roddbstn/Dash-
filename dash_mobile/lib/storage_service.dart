@@ -152,12 +152,16 @@ class StorageService {
 
   // 계정 탈퇴 시 모든 데이터 초기화 (온보딩·동의 플래그 포함)
   static Future<void> clearAllData() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     await clearSessionData();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('consent_v1_completed');
+    await prefs.remove('consent_user_uid');
     await prefs.remove('consent_marketing');
     await prefs.remove('onboarding_v1_completed');
     await prefs.remove('fcm_permission_asked');
+    await prefs.remove('last_logged_in_uid');
+    if (uid != null) await prefs.remove('consent_done_$uid');
   }
 
   static const String _nicknameKey = 'dash_user_nickname';

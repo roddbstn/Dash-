@@ -290,8 +290,15 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
               scale: _isCardPressed ? 0.98 : 1.0,
               duration: const Duration(milliseconds: 100),
               curve: Curves.easeOutCubic,
-              child: Stack(
-                children: [
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFEEEEEE), width: 0.8),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(11.2),
+                  child: Stack(
+                    children: [
                   // 공유 배경 (오른쪽 스와이프 — 파란색, 왼쪽 정렬)
                   if (offset > 0)
                     Positioned.fill(
@@ -488,7 +495,9 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                       ),
                     ),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
             // 카드 사이 구분선 (마지막 카드 제외)
@@ -654,13 +663,20 @@ class _SwipeableSharedDraftCardState extends State<SwipeableSharedDraftCard>
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Stack(
-              children: [
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFEEEEEE), width: 0.8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(11.2),
+                child: Stack(
+                  children: [
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.danger.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Align(
                       alignment: Alignment.centerRight,
@@ -767,7 +783,9 @@ class _SwipeableSharedDraftCardState extends State<SwipeableSharedDraftCard>
                     ),
                   ),
                 ),
-              ],
+                  ],
+                ),
+              ),
             ),
             if (!widget.isLast)
               const Divider(height: 1, thickness: 1, color: Color(0xFFF2F4F6)),

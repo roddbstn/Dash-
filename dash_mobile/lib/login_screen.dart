@@ -77,8 +77,15 @@ class _LoginScreenState extends State<LoginScreen> {
       // StreamBuilder 재빌드에만 의존하지 않고 명시적 화면 전환
       if (mounted) {
         final p = await SharedPreferences.getInstance();
-        final consentDone = p.getBool('consent_v1_completed') ?? false;
-        if (consentDone) {
+        final currentUid = FirebaseAuth.instance.currentUser?.uid;
+        final perUserConsent = currentUid != null
+            ? (p.getBool('consent_done_$currentUid') ?? false)
+            : false;
+        final legacyConsent = (p.getBool('consent_v1_completed') ?? false) &&
+            currentUid != null &&
+            currentUid == p.getString('consent_user_uid');
+        final consentValid = perUserConsent || legacyConsent;
+        if (consentValid) {
           final nickname = await StorageService.getUserNickname();
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(

@@ -5,7 +5,7 @@ const double kTabletBreakpoint = 650.0;
 class AppColors {
   static const Color primary = Color(0xFF1A56DB);
   static const Color primaryLight = Color(0xFFE8F3FF);
-  static const Color bg = Color(0xFFECEEF0);
+  static const Color bg = Color(0xFFF5F6F8);
   static const Color card = Color(0xFFFFFFFF);
   static const Color textMain = Color(0xFF222222);
   static const Color textSub = Color(0xFF4E5968);

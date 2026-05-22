@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
-import 'package:dash_mobile/create_case_screen.dart';
 import 'package:dash_mobile/form_screen.dart';
 import 'package:dash_mobile/api_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,13 +13,12 @@ import 'dart:convert';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dash_mobile/widgets/home_widgets.dart';
 import 'package:dash_mobile/screens/notification_tab.dart';
 import 'package:dash_mobile/vault_recovery_screen.dart';
 import 'package:dash_mobile/screens/profile_tab.dart';
 import 'package:dash_mobile/screens/db_history_tab.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:dash_mobile/user_guide_screen.dart';
+import 'package:dash_mobile/screens/home_tab.dart';
+import 'package:dash_mobile/screens/case_selection_modal.dart';
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -34,7 +31,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   List<dynamic> _drafts = [];
   List<dynamic> _sharedDrafts = [];
   Map<String, String> _keyMap = {};
@@ -42,8 +40,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Si
   List<dynamic> _notifications = [];
   List<dynamic> _counselors = [];
   String? _selectedCounselorId;
-  bool _isSelectionMode = false;
-final List<int> _selectedCaseIds = [];
   late TabController _dbTabController;
 
   // Debounce _loadData to prevent duplicate card flicker from simultaneous calls
@@ -52,14 +48,24 @@ final List<int> _selectedCaseIds = [];
 
   // Real-time event subscription
   StreamSubscription? _eventSub;
-  StreamSubscription? _authSub; // 타 기기 계정 삭제 감지용
+  StreamSubscription? _authSub;
   bool _notificationsEnabled = true;
 
   // 로딩 / 네트워크 상태
-  bool _isLoadingInitial = true; // 앱 첫 진입 시 로딩 스피너 표시용
-  bool _serverReachable = true; // false = 서버 미응답, 오프라인 배너 표시
-  bool _isModalOpen = false; // 바텀 모달 열림 여부 (FAB 숨김 제어)
-  bool _hasPromptedVaultRecovery = false; // keyMap 복구 다이얼로그 중복 표시 방지
+  bool _isLoadingInitial = true;
+  bool _serverReachable = true;
+  bool _hasPromptedVaultRecovery = false;
+
+  String? _userName;
+  final bool _isProfileLoading = false;
+  int _currentIndex = 0;
+
+  /// 홈에 표시할 나의 DB 목록 (Injected 제외, 공유받은 임시 로컬 드래프트 제외)
+  List<dynamic> get _pendingDrafts => _drafts
+      .where((d) => d['status'] != 'Injected' && d['isShared'] != true)
+      .toList();
+
+  // ── 라이프사이클 ────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -82,14 +88,12 @@ final List<int> _selectedCaseIds = [];
     _fetchUserProfile();
 
     // 다른 기기에서 계정 삭제 시 이 기기도 즉시 로그아웃 처리
-    // (이 기기에서 직접 로그아웃하는 경우엔 cases/PIN을 삭제하지 않음)
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user == null && mounted) {
         _eventSub?.cancel();
         if (!StorageService.intentionalLogout) {
-          // 원격 계정 삭제 — 모든 로컬 데이터 초기화
           StorageService.clearSessionData().then((_) {
-            GoogleSignIn().signOut().catchError((_) {});
+            GoogleSignIn().signOut().catchError((_) => null);
           });
         }
         StorageService.intentionalLogout = false;
@@ -122,14 +126,14 @@ final List<int> _selectedCaseIds = [];
     super.dispose();
   }
 
+  // ── 실시간 SSE ──────────────────────────────────────────────────
+
   bool _isInitializingSse = false;
   void _initRealtime() async {
-    // 이미 SSE가 살아있으면 재연결 불필요
     if (_eventSub != null) return;
     if (_isInitializingSse) return;
     _isInitializingSse = true;
 
-    // Wait for login state stabilization
     User? user = FirebaseAuth.instance.currentUser;
     int retries = 0;
     while (user == null && retries < 5) {
@@ -145,30 +149,20 @@ final List<int> _selectedCaseIds = [];
         (event) {
           final String? ev = event['event'];
           debugPrint('🔔 Server Event Received: $ev');
-
-          // Initial setup/heartbeat event should not trigger a heavy refresh
-          if (ev != 'connected') {
-            _loadData();
-          }
+          if (ev != 'connected') _loadData();
         },
-        onDone: () {
-          // 스트림이 완전히 종료되면 구독 초기화 (재연결 허용)
-          _eventSub = null;
-        },
-        onError: (_) {
-          _eventSub = null;
-        },
+        onDone: () => _eventSub = null,
+        onError: (_) => _eventSub = null,
       );
     }
-
     _isInitializingSse = false;
   }
 
+  // ── 데이터 로딩 및 서버 동기화 ─────────────────────────────────
+
   Future<void> _loadData() async {
-    // 다른 기기에서 계정 삭제 시 currentUser가 null이 됨 — 즉시 중단
     if (FirebaseAuth.instance.currentUser == null) return;
 
-    // Debounce: if already loading, mark pending and return
     if (_isLoadingData) {
       _pendingLoadData = true;
       return;
@@ -201,37 +195,35 @@ final List<int> _selectedCaseIds = [];
       });
     }
 
-    // 매번 서버에서 상담원 목록 동기화 (계정 전환 후 다른 유저 상담원 노출 방지)
+    // 서버에서 상담원 목록 동기화
     if (userId != null) {
       final serverCounselors = await ApiService.fetchCounselors(userId);
       if (serverCounselors != null && serverCounselors.isNotEmpty) {
         counselors = serverCounselors.map<Map<String, dynamic>>((c) => {
-          'id': c['id'],
-          'name': c['name'],
-          'isSelf': c['is_self'] == 1 || c['is_self'] == true,
-          'sortOrder': c['sort_order'] ?? 0,
-        }).toList();
+              'id': c['id'],
+              'name': c['name'],
+              'isSelf': c['is_self'] == 1 || c['is_self'] == true,
+              'sortOrder': c['sort_order'] ?? 0,
+            }).toList();
         await StorageService.saveCounselors(counselors);
       }
     }
 
-    // 매번 서버에서 사례 목록을 가져와 동기화 (계정 전환 후 다른 유저 사례 노출 방지)
+    // 서버에서 사례 목록 동기화
     {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId != null) {
-        final serverCases = await ApiService.fetchCases(userId);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final serverCases = await ApiService.fetchCases(uid);
         if (serverCases != null) {
-          // 서버 사례를 기준으로 덮어씀 (서버가 user_id로 필터링해 반환)
           cases = serverCases
-              .map<Map<String, dynamic>>(
-                (c) => {
-                  'id': c['id'],
-                  'maskedName': c['case_name'],
-                  'realName': c['case_name'],
-                  'dong': c['dong'] ?? '',
-                  'targetSystem': c['target_system_code'] ?? 'NCADS_v2',
-                },
-              )
+              .map<Map<String, dynamic>>((c) => {
+                    'id': c['id'],
+                    'maskedName': c['case_name'],
+                    'realName': c['case_name'],
+                    'dong': c['dong'] ?? '',
+                    'targetSystem':
+                        c['target_system_code'] ?? 'NCADS_v2',
+                  })
               .toList();
           await StorageService.saveCases(cases);
         }
@@ -249,7 +241,6 @@ final List<int> _selectedCaseIds = [];
         }
         _isLoadingInitial = false;
       });
-      // Vault 복구 유도는 서버 레코드 처리 + auto-migration 이후로 이동
     }
 
     // Background Sync for offline drafts
@@ -260,14 +251,14 @@ final List<int> _selectedCaseIds = [];
         List<dynamic> remaining = [];
         for (var data in pending) {
           final clientId = data['client_draft_id'];
-          // Remove client_draft_id from payload before sending
           final payload = Map<String, dynamic>.from(data)
             ..remove('client_draft_id');
           final token = await ApiService.syncRecord(payload);
 
           if (token != null) {
             syncedAny = true;
-            final idx = localDrafts.indexWhere((d) => d['id'] == clientId);
+            final idx =
+                localDrafts.indexWhere((d) => d['id'] == clientId);
             if (idx != -1) {
               localDrafts[idx]['share_token'] = token;
               localDrafts[idx]['status'] = 'Synced';
@@ -285,9 +276,7 @@ final List<int> _selectedCaseIds = [];
             failureCount: remaining.length,
           );
           if (mounted) {
-            setState(() {
-              _drafts = localDrafts;
-            });
+            setState(() => _drafts = localDrafts);
             _showToast('오프라인 기록이 자동 동기화되었습니다. ✨');
           }
         }
@@ -298,12 +287,11 @@ final List<int> _selectedCaseIds = [];
 
     // 서버에서 최신 상태 가져오기 (records + notifications 병렬 요청)
     try {
-      final String? userId = FirebaseAuth.instance.currentUser?.uid;
-
+      final String? uid = FirebaseAuth.instance.currentUser?.uid;
       final results = await Future.wait([
         ApiService.fetchRecords(),
-        if (userId != null)
-          ApiService.fetchNotifications(userId)
+        if (uid != null)
+          ApiService.fetchNotifications(uid)
         else
           Future.value(<dynamic>[]),
       ]);
@@ -315,19 +303,17 @@ final List<int> _selectedCaseIds = [];
         setState(() {
           final wasReachable = _serverReachable;
           _serverReachable = serverRecords != null;
-          if (wasReachable && !_serverReachable)
+          if (wasReachable && !_serverReachable) {
             AnalyticsService.offlineBannerShown();
+          }
           _notifications = serverNotifs;
         });
       }
 
-      // Background sync(_syncRecordInBackground)가 share_token을 저장했을 수 있으므로
-      // 서버 병합 직전 최신 로컬 데이터를 다시 읽어 race condition으로 인한 중복을 방지
       localDrafts = await StorageService.getDrafts();
 
       if (serverRecords != null &&
           (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
-        // 공유받은 레코드 분리 (병합 로직에서 제외)
         final List sharedOnly = serverRecords
             .where((s) => s['record_type'] == 'shared')
             .toList();
@@ -338,10 +324,8 @@ final List<int> _selectedCaseIds = [];
           setState(() => _sharedDrafts = sharedOnly);
         }
 
-        // 로컬 데이터와 서버 데이터 병합 및 삭제 처리
         List<Map<String, dynamic>> updatedDrafts = [];
 
-        // 1. 서버에 있는 데이터를 기준으로 로컬과 대조하여 병합
         for (var s in ownedServerRecords) {
           final String? serverToken = s['share_token'];
           final String serverId = s['id'].toString();
@@ -349,16 +333,17 @@ final List<int> _selectedCaseIds = [];
           final localIdx = localDrafts.indexWhere((l) {
             final String? localToken = l['share_token'];
             final String localId = l['id'].toString();
-            final bool isUnsynced = localToken == null || localToken.isEmpty;
+            final bool isUnsynced =
+                localToken == null || localToken.isEmpty;
             return (serverToken != null && serverToken == localToken) ||
                 (serverId == localId) ||
                 (isUnsynced && l['caseName'] == s['case_name']);
           });
 
           if (localIdx != -1) {
-            // 로컬에 이미 있으면 병합 (상태 업데이트 및 데이터 보정)
             final local = localDrafts[localIdx];
-            String finalDescription = local['serviceDescription'] ?? '';
+            String finalDescription =
+                local['serviceDescription'] ?? '';
             String finalOpinion = local['agentOpinion'] ?? '';
 
             if (s['service_description'] != null &&
@@ -370,38 +355,42 @@ final List<int> _selectedCaseIds = [];
               finalOpinion = s['agent_opinion'];
             }
 
-            // [E2EE] 기존 레코드 encryption_key → SecureStorage 자동 마이그레이션
-            final String? serverToken = s['share_token']?.toString();
+            // [E2EE] encryption_key → SecureStorage 자동 마이그레이션
+            final String? sToken = s['share_token']?.toString();
             final String? legacyKey = s['encryption_key']?.toString();
-            if (serverToken != null && legacyKey != null && legacyKey.isNotEmpty
-                && !keyMap.containsKey(serverToken)) {
-              await StorageService.saveKeyToMap(serverToken, legacyKey);
-              keyMap[serverToken] = legacyKey;
+            if (sToken != null &&
+                legacyKey != null &&
+                legacyKey.isNotEmpty &&
+                !keyMap.containsKey(sToken)) {
+              await StorageService.saveKeyToMap(sToken, legacyKey);
+              keyMap[sToken] = legacyKey;
             }
 
-            // [E2EE] 복호화 로직 — 키는 SecureStorage keyMap에서 조회
+            // [E2EE] 복호화
             final String? blob = s['encrypted_blob'];
-            final String? keyStr = keyMap[s['share_token']?.toString()];
-            if (blob != null && keyStr != null && blob.contains(':')) {
+            final String? keyStr =
+                keyMap[s['share_token']?.toString()];
+            if (blob != null &&
+                keyStr != null &&
+                blob.contains(':')) {
               try {
                 final parts = blob.split(':');
                 final iv = encrypt.IV.fromBase64(parts[0]);
-                final encrypted = encrypt.Encrypted.fromBase64(parts[1]);
+                final encrypted =
+                    encrypt.Encrypted.fromBase64(parts[1]);
                 final key = encrypt.Key.fromUtf8(
-                  keyStr.padRight(32).substring(0, 32),
-                );
+                    keyStr.padRight(32).substring(0, 32));
                 final encrypter = encrypt.Encrypter(
-                  encrypt.AES(key, mode: encrypt.AESMode.cbc),
-                );
-                final decrypted = encrypter.decrypt(encrypted, iv: iv);
+                    encrypt.AES(key, mode: encrypt.AESMode.cbc));
+                final decrypted =
+                    encrypter.decrypt(encrypted, iv: iv);
                 final decryptedData =
                     jsonDecode(decrypted) as Map<String, dynamic>;
                 finalDescription =
                     decryptedData['serviceDescription'] ??
-                    decryptedData['service_description'] ??
-                    finalDescription;
-                finalOpinion =
-                    decryptedData['agentOpinion'] ??
+                        decryptedData['service_description'] ??
+                        finalDescription;
+                finalOpinion = decryptedData['agentOpinion'] ??
                     decryptedData['agent_opinion'] ??
                     finalOpinion;
               } catch (e) {
@@ -413,23 +402,28 @@ final List<int> _selectedCaseIds = [];
               ...local,
               'status': s['status'],
               'share_token': s['share_token'],
-              'treatment': s['target_system_code'] ?? local['treatment'],
+              'treatment':
+                  s['target_system_code'] ?? local['treatment'],
               'caseName': s['case_name'] ?? local['caseName'],
               'dong': s['dong'] ?? local['dong'],
               'serviceDescription': finalDescription,
               'agentOpinion': finalOpinion,
               'reviewed_at': s['reviewed_at'],
               'updated_at': s['updated_at'],
-              'service_type': s['service_type'] ?? local['service_type'],
-              'service_category': s['service_category'] ?? local['service_category'],
-              'service_name': s['service_name'] ?? local['service_name'],
+              'service_type':
+                  s['service_type'] ?? local['service_type'],
+              'service_category':
+                  s['service_category'] ?? local['service_category'],
+              'service_name':
+                  s['service_name'] ?? local['service_name'],
               'startTime':
                   (s['status'] == 'Reviewed' && s['start_time'] != null)
-                  ? s['start_time']
-                  : (local['startTime'] ?? s['start_time']),
-              'endTime': (s['status'] == 'Reviewed' && s['end_time'] != null)
-                  ? s['end_time']
-                  : (local['endTime'] ?? s['end_time']),
+                      ? s['start_time']
+                      : (local['startTime'] ?? s['start_time']),
+              'endTime':
+                  (s['status'] == 'Reviewed' && s['end_time'] != null)
+                      ? s['end_time']
+                      : (local['endTime'] ?? s['end_time']),
               'serviceCount': (s['status'] == 'Reviewed')
                   ? (s['service_count'] ?? local['serviceCount'])
                   : (local['serviceCount'] ?? s['service_count']),
@@ -438,12 +432,13 @@ final List<int> _selectedCaseIds = [];
                   : (local['travelTime'] ?? s['travel_time']),
             });
           } else {
-            // 로컬에 없는데 서버에만 있는 경우 (다른 기기에서 작성했거나 재설치 등)
-            // [E2EE] 재설치 후 자동 복구 — encryption_key → keyMap에 저장
+            // 로컬에 없는데 서버에만 있는 경우 (재설치 등)
             final String? reToken = s['share_token']?.toString();
             final String? reKey = s['encryption_key']?.toString();
-            if (reToken != null && reKey != null && reKey.isNotEmpty
-                && !keyMap.containsKey(reToken)) {
+            if (reToken != null &&
+                reKey != null &&
+                reKey.isNotEmpty &&
+                !keyMap.containsKey(reToken)) {
               await StorageService.saveKeyToMap(reToken, reKey);
               keyMap[reToken] = reKey;
             }
@@ -467,12 +462,12 @@ final List<int> _selectedCaseIds = [];
               'status': s['status'],
               'reviewed_at': s['reviewed_at'],
               'updated_at': s['updated_at'],
-              'is_server_only': true, // 로컬 복구 데이터 표시용
+              'is_server_only': true,
             });
           }
         }
 
-        // 2. 로컬에만 있는 데이터(동기화 전인 것들)들 보존
+        // 로컬에만 있는 데이터 보존
         for (var local in localDrafts) {
           final String? localToken = local['share_token'];
           final alreadyAdded = updatedDrafts.any(
@@ -482,23 +477,14 @@ final List<int> _selectedCaseIds = [];
           );
 
           if (!alreadyAdded) {
-            // 서버 목록에는 없지만 로컬에 있는 경우
             if (localToken == null || localToken.isEmpty) {
-              // 아직 동기화 전인 데이터는 당연히 유지
               updatedDrafts.add(local);
             } else {
-              // 서버 응답 목록에서 해당 토큰을 명시적으로 못 찾은 경우에만 삭제
-              // (서버에 레코드가 있는데 타이밍 문제로 포함 안 됐을 수 있으므로 이중 확인)
-              final bool confirmedDeletedOnServer = ownedServerRecords.every(
+              final bool confirmedDeletedOnServer =
+                  ownedServerRecords.every(
                 (s) => s['share_token'] != localToken,
               );
-              if (confirmedDeletedOnServer) {
-                debugPrint(
-                  '🗑️ Record with token $localToken not found on server (deleted). Removing local copy.',
-                );
-                // updatedDrafts에 추가하지 않음으로써 로컬에서도 삭제
-              } else {
-                // 서버에 있는 레코드인데 병합 로직에서 누락된 경우 — 유지
+              if (!confirmedDeletedOnServer) {
                 updatedDrafts.add(local);
               }
             }
@@ -508,10 +494,9 @@ final List<int> _selectedCaseIds = [];
         if (mounted) {
           setState(() {
             _drafts = updatedDrafts;
-            _keyMap = keyMap; // 마이그레이션된 키 포함하여 상태 갱신
+            _keyMap = keyMap;
           });
           await StorageService.saveDrafts(updatedDrafts);
-          // auto-migration 완료 후 keyMap 체크 → 여전히 비어있을 때만 Vault 복구 유도
           _checkAndPromptVaultRecovery(keyMap, updatedDrafts);
         }
       }
@@ -519,16 +504,13 @@ final List<int> _selectedCaseIds = [];
       debugPrint('Sync failed: $e');
     }
 
-    // Sync active tokens AFTER merge is complete so we never send stale/empty list
+    // 활성 토큰 동기화
     try {
-      // Use the FINAL merged _drafts (which already includes server-only records)
       final activeTokens = _drafts
           .map((d) => d['share_token'] as String?)
           .where((t) => t != null && t.isNotEmpty)
           .cast<String>()
           .toList();
-
-      // Guard: never send an empty list right after a save — it would wipe all server records
       if (activeTokens.isNotEmpty) {
         await ApiService.syncActiveRecords(activeTokens);
       }
@@ -536,7 +518,6 @@ final List<int> _selectedCaseIds = [];
       debugPrint('Orphan cleanup error: $e');
     }
 
-    // Release debounce lock and re-run if a call came in while we were loading
     _isLoadingData = false;
     if (_pendingLoadData) {
       _pendingLoadData = false;
@@ -544,10 +525,11 @@ final List<int> _selectedCaseIds = [];
     }
   }
 
+  // ── FCM 설정 ────────────────────────────────────────────────────
+
   Future<void> _setupFCM() async {
     final messaging = FirebaseMessaging.instance;
 
-    // 1. Android 알림 채널 설정 (포그라운드 팝업용) — 권한 요청보다 먼저 실행
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'high_importance_channel',
       'High Importance Notifications',
@@ -557,72 +539,57 @@ final List<int> _selectedCaseIds = [];
 
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
-    // 2. 플러그인 초기화
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const InitializationSettings initializationSettings =
         InitializationSettings(android: initializationSettingsAndroid);
     await flutterLocalNotificationsPlugin.initialize(
-      settings: initializationSettings,
-    );
+        settings: initializationSettings);
 
-    // 3. 권한 요청 — 최초 실행 시 3초 유예 (온보딩 직후 팝업 방지)
     final prefs = await SharedPreferences.getInstance();
-    final permissionAsked = prefs.getBool('fcm_permission_asked') ?? false;
+    final permissionAsked =
+        prefs.getBool('fcm_permission_asked') ?? false;
     if (!permissionAsked) {
       await Future.delayed(const Duration(seconds: 3));
       await prefs.setBool('fcm_permission_asked', true);
     }
 
     final settings = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+        alert: true, badge: true, sound: true);
 
-    // 알림 권한 상태에 따른 토글 초기화
     if (mounted) {
       setState(() {
-        _notificationsEnabled =
-            settings.authorizationStatus == AuthorizationStatus.authorized;
+        _notificationsEnabled = settings.authorizationStatus ==
+            AuthorizationStatus.authorized;
       });
     }
 
-    // 4. 토큰 획득 및 서버 저장
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // iOS: 포그라운드에서도 시스템 알림 표시 (기본값은 숨김)
       await messaging.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+          alert: true, badge: true, sound: true);
 
       final token = await messaging.getToken();
       final user = FirebaseAuth.instance.currentUser;
       if (token != null && user != null) {
         await ApiService.saveFcmToken(user.uid, token, user.email);
-        debugPrint('🔥 FCM Token Registered: ${token.substring(0, 8)}...');
+        debugPrint(
+            '🔥 FCM Token Registered: ${token.substring(0, 8)}...');
       }
     }
 
-    // 5. 포그라운드 메시지 리스너 (앱이 켜져 있을 때)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final targetUserId = message.data['target_user_id'];
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      // 다른 계정의 알림은 포그라운드에서 무시
       if (targetUserId != null && targetUserId != currentUid) return;
 
-      RemoteNotification? notification = message.notification;
-      AndroidNotification? android = message.notification?.android;
-
+      final notification = message.notification;
       if (notification != null && mounted) {
-        AnalyticsService.notificationReceived(notification.title ?? 'unknown');
+        AnalyticsService.notificationReceived(
+            notification.title ?? 'unknown');
         _loadData();
-
         flutterLocalNotificationsPlugin.show(
           id: notification.hashCode,
           title: notification.title,
@@ -631,7 +598,8 @@ final List<int> _selectedCaseIds = [];
             android: AndroidNotificationDetails(
               'high_importance_channel',
               'High Importance Notifications',
-              channelDescription: 'This channel is used for important notifications.',
+              channelDescription:
+                  'This channel is used for important notifications.',
               importance: Importance.max,
               priority: Priority.high,
             ),
@@ -640,27 +608,22 @@ final List<int> _selectedCaseIds = [];
       }
     });
 
-    // 6. 알림 클릭으로 앱이 열렸을 때 처리 (백그라운드)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('🚀 Notification opened app: ${message.data}');
+      debugPrint(
+          '🚀 Notification opened app: ${message.data}');
       final targetUserId = message.data['target_user_id'];
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      if (targetUserId != null && targetUserId != currentUid) {
-        debugPrint('⚠️ Notification for different account ($targetUserId), current: $currentUid');
-        return;
-      }
+      if (targetUserId != null && targetUserId != currentUid) return;
       _handleFcmNavigation(message.data);
     });
 
-    // 7. 앱이 완전히 종료된 상태에서 알림 클릭으로 열렸을 때 처리 (terminated)
-    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    final initialMessage =
+        await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       final targetUserId = initialMessage.data['target_user_id'];
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
       if (targetUserId == null || targetUserId == currentUid) {
         _handleFcmNavigation(initialMessage.data);
-      } else {
-        debugPrint('⚠️ Terminated notification for different account ($targetUserId), current: $currentUid');
       }
     }
   }
@@ -671,50 +634,54 @@ final List<int> _selectedCaseIds = [];
       setState(() => _currentIndex = 1);
       return;
     }
-    // share_token으로 로컬 draft 조회 후 FormScreen으로 이동
     final draft = _drafts.cast<Map<String, dynamic>?>().firstWhere(
       (d) => d?['share_token']?.toString() == recordToken,
       orElse: () => null,
     );
     if (draft != null && mounted) {
       setState(() => _currentIndex = 0);
-      final caseName = draft['caseName']?.toString() ?? draft['case_name']?.toString() ?? '';
+      final caseName = draft['caseName']?.toString() ??
+          draft['case_name']?.toString() ??
+          '';
       final dong = draft['dong']?.toString() ?? '';
       final caseId = draft['caseId'] ?? draft['case_id'];
       final draftId = int.tryParse(draft['id']?.toString() ?? '');
-      _goToForm(caseName, caseName, dong, caseId: caseId, draftId: draftId);
+      _goToForm(caseName, caseName, dong,
+          caseId: caseId, draftId: draftId);
     } else {
-      setState(() => _currentIndex = 1); // 해당 레코드 없으면 알림 탭으로
+      setState(() => _currentIndex = 1);
     }
   }
 
-  void _checkAndPromptVaultRecovery(Map<String, String> keyMap, List<dynamic> drafts) {
+  // ── Vault 복구 ──────────────────────────────────────────────────
+
+  void _checkAndPromptVaultRecovery(
+      Map<String, String> keyMap, List<dynamic> drafts) {
     if (_hasPromptedVaultRecovery) return;
     if (keyMap.isNotEmpty) return;
-    final hasSyncedDrafts = drafts.any(
-      (d) => d['share_token'] != null && (d['share_token']?.toString().isNotEmpty ?? false),
-    );
+    final hasSyncedDrafts = drafts.any((d) =>
+        d['share_token'] != null &&
+        (d['share_token']?.toString().isNotEmpty ?? false));
     if (!hasSyncedDrafts) return;
     _hasPromptedVaultRecovery = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      // 1단계: 백업된 PIN으로 Vault 자동 복구 시도 (앱 재설치 후 SharedPreferences에서 복원된 경우)
       final pin = await StorageService.getPin();
       if (pin != null) {
-        final userId = FirebaseAuth.instance.currentUser?.uid;
-        if (userId != null) {
-          final vaultMap = await VaultService.decryptVault(pin, userId);
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          final vaultMap = await VaultService.decryptVault(pin, uid);
           if (vaultMap != null && mounted) {
             for (final entry in vaultMap.entries) {
-              await StorageService.saveKeyToMap(entry.key, entry.value.toString());
+              await StorageService.saveKeyToMap(
+                  entry.key, entry.value.toString());
             }
-            debugPrint('✅ Vault auto-recovered silently using backed-up PIN');
+            debugPrint('✅ Vault auto-recovered silently');
             _loadData();
-            return; // 자동 복구 성공 → 다이얼로그 불필요
+            return;
           }
         }
       }
-      // 2단계: 자동 복구 실패 시 수동 복구 화면으로 슬라이드업 전환
       if (mounted) _navigateToVaultRecovery();
     });
   }
@@ -724,12 +691,14 @@ final List<int> _selectedCaseIds = [];
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             VaultRecoveryScreen(onRecovered: _loadData),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        transitionsBuilder:
+            (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(0, 1),
               end: Offset.zero,
-            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+            ).animate(CurvedAnimation(
+                parent: animation, curve: Curves.easeOutCubic)),
             child: child,
           );
         },
@@ -738,189 +707,33 @@ final List<int> _selectedCaseIds = [];
     );
   }
 
-  void _showCaseDeleteConfirmation(BuildContext modalContext) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '정말 삭제할까요?',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '삭제하면 복구할 수 없습니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: AppColors.textSub),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFF2F4F6),
-                          padding: const EdgeInsets.all(16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '아니오',
-                          style: TextStyle(
-                            color: AppColors.textSub,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () {
-                          _confirmCaseDelete();
-                          Navigator.pop(context); // Close dialog
-                          // Navigator.pop(modalContext); // Keep modal open as requested
-                        },
-                        style: TextButton.styleFrom(
-                          backgroundColor: AppColors.danger,
-                          padding: const EdgeInsets.all(16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '네',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  // ── 프로필 로딩 ─────────────────────────────────────────────────
 
-  Future<bool> _showDraftDeleteConfirmation() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'DB 삭제',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-          ),
-          content: const Text(
-            '이 DB 작성을 삭제할까요?\n삭제하면 복구할 수 없습니다.',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSub,
-              height: 1.5,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text(
-                '취소',
-                style: TextStyle(
-                  color: Color(0xFFADB5BD),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                '삭제',
-                style: TextStyle(
-                  color: AppColors.danger,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    return result ?? false;
-  }
-
-  void _confirmCaseDelete() async {
-    final remainingCases = _cases
-        .where((c) => !_selectedCaseIds.contains(c['id']))
-        .toList();
-    await StorageService.saveCases(remainingCases);
-    setState(() {
-      _cases = remainingCases;
-      _isSelectionMode = false;
-      _selectedCaseIds.clear();
-    });
-  }
-
-  void _deleteDraft(int draftId) async {
-    final drafts = await StorageService.getDrafts();
-    final draftToDelete = drafts.firstWhere(
-      (d) => d['id'] == draftId,
-      orElse: () => null,
-    );
-
-    drafts.removeWhere((d) => d['id'] == draftId);
-    await StorageService.saveDrafts(drafts);
-
-    if (draftToDelete != null && draftToDelete['share_token'] != null) {
-      ApiService.deleteRecord(draftToDelete['share_token']);
+  Future<void> _fetchUserProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    if (_userName == null) {
+      final localNickname = await StorageService.getUserNickname();
+      if (mounted) {
+        setState(() {
+          _userName =
+              user.displayName?.isNotEmpty == true
+                  ? user.displayName
+                  : localNickname;
+        });
+      }
     }
-
-    setState(() {
-      _drafts = drafts;
-    });
+    try {
+      final serverUser = await ApiService.fetchUser(user.uid);
+      if (serverUser != null && mounted) {
+        setState(() => _userName = serverUser['name']);
+      }
+    } catch (e) {
+      debugPrint('Error fetching profile: $e');
+    }
   }
 
-  void _showToast(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        backgroundColor: const Color(0xFF222222),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
+  // ── 네비게이션 ──────────────────────────────────────────────────
 
   void _goToForm(
     String name,
@@ -938,14 +751,12 @@ final List<int> _selectedCaseIds = [];
           dong: dong,
           draftId: draftId,
           userName: _userName,
-          // 서버 동기화 완료 후 _loadData() 호출 (race condition 방지)
           onSyncComplete: () {
             if (mounted) _loadData();
           },
         ),
       ),
     );
-    // pop 직후: 로컬 스토리지만 읽어 즉시 화면 반영 (서버 매칭 없음)
     final freshDrafts = await StorageService.getDrafts();
     final freshCases = await StorageService.getCases();
     if (mounted) {
@@ -960,597 +771,153 @@ final List<int> _selectedCaseIds = [];
   }
 
   void _showCaseSelectionModal() async {
-    AnalyticsService.caseSelectionModalOpened();
-    setState(() {
-      _isSelectionMode = false;
-      _selectedCaseIds.clear();
-      _isModalOpen = true;
-      if (_selectedCounselorId == null && _counselors.isNotEmpty) {
-        _selectedCounselorId = _counselors[0]['id']?.toString();
-      }
-    });
-
-    await showModalBottomSheet(
+    await showCaseSelectionModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      barrierColor: Colors.black.withValues(alpha: 0.6),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      builder: (modalContext) {
-        bool isEditingCounselors = false;
-
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            // 현재 선택된 상담원의 사례만 필터링
-            final filteredCases = _cases.where((c) {
-              final cid = c['counselorId']?.toString();
-              if (_selectedCounselorId == null) return true;
-              // counselorId가 없는 사례는 첫 번째(내 사례) 상담원에 귀속
-              if (cid == null || cid.isEmpty) {
-                return _counselors.isNotEmpty &&
-                    _selectedCounselorId == _counselors[0]['id']?.toString();
-              }
-              return cid == _selectedCounselorId;
-            }).toList();
-
-            return DraggableScrollableSheet(
-              initialChildSize: 0.85,
-              minChildSize: 0.5,
-              maxChildSize: 0.95,
-              expand: false,
-              builder: (_, scrollController) {
-                return Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(30)),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: [
-                      // ── 드래그 핸들 + 헤더 ─────────────────────
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Center(
-                              child: Container(
-                                width: 40,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE5E8EB),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  '사례 선택',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    setModalState(() {
-                                      isEditingCounselors =
-                                          !isEditingCounselors;
-                                    });
-                                  },
-                                  child: Text(
-                                    isEditingCounselors ? '완료' : '편집',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: isEditingCounselors
-                                          ? AppColors.primary
-                                          : AppColors.textSub,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'DB를 작성할 사례를 선택해주세요.',
-                              style: TextStyle(
-                                  fontSize: 14, color: AppColors.textSub),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                        ),
-                      ),
-
-                      // ── 상담원 탭 ──────────────────────────────
-                      SizedBox(
-                        height: 44,
-                        child: isEditingCounselors
-                            ? ReorderableListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 24),
-                                buildDefaultDragHandles: false,
-                                onReorder: (oldIdx, newIdx) {
-                                  setState(() {
-                                    if (newIdx > oldIdx) newIdx--;
-                                    final item =
-                                        _counselors.removeAt(oldIdx);
-                                    _counselors.insert(newIdx, item);
-                                  });
-                                  setModalState(() {});
-                                  StorageService.saveCounselors(_counselors);
-                                  ApiService.reorderCounselors(_counselors);
-                                },
-                                itemCount: _counselors.length,
-                                itemBuilder: (ctx, i) {
-                                  final c = _counselors[i];
-                                  return ReorderableDelayedDragStartListener(
-                                    key: ValueKey(c['id']),
-                                    index: i,
-                                    child: _buildCounselorChip(
-                                      c: c,
-                                      isSelected: _selectedCounselorId ==
-                                          c['id']?.toString(),
-                                      isEditing: true,
-                                      onTap: null,
-                                      onDelete: () async {
-                                        final confirmed =
-                                            await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            backgroundColor: Colors.white,
-                                            surfaceTintColor:
-                                                Colors.transparent,
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        16)),
-                                            title: const Text('상담원 삭제',
-                                                style: TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.w800,
-                                                    fontSize: 16)),
-                                            content: const Text(
-                                                '해당 상담원을 삭제하시겠어요?\n소속된 사례도 함께 삭제됩니다.',
-                                                style: TextStyle(
-                                                    fontSize: 14,
-                                                    height: 1.5)),
-                                            actions: [
-                                              TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(
-                                                          ctx, false),
-                                                  child:
-                                                      const Text('아니오')),
-                                              TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(
-                                                          ctx, true),
-                                                  child: const Text('삭제',
-                                                      style: TextStyle(
-                                                          color: AppColors
-                                                              .danger))),
-                                            ],
-                                          ),
-                                        );
-                                        if (confirmed == true) {
-                                          final cid =
-                                              c['id']?.toString() ?? '';
-                                          // 소속 사례 삭제
-                                          final updatedCases = _cases
-                                              .where((cs) =>
-                                                  cs['counselorId']
-                                                      ?.toString() !=
-                                                  cid)
-                                              .toList();
-                                          await StorageService.saveCases(
-                                              updatedCases);
-                                          await ApiService.deleteCounselor(
-                                              cid);
-                                          AnalyticsService.counselorDeleted();
-                                          setState(() {
-                                            _counselors.removeWhere((x) =>
-                                                x['id']?.toString() == cid);
-                                            _cases = updatedCases;
-                                            if (_selectedCounselorId ==
-                                                cid) {
-                                              _selectedCounselorId =
-                                                  _counselors.isNotEmpty
-                                                      ? _counselors[0]['id']
-                                                          ?.toString()
-                                                      : null;
-                                            }
-                                          });
-                                          await StorageService.saveCounselors(
-                                              _counselors);
-                                          setModalState(() {});
-                                        }
-                                      },
-                                    ),
-                                  );
-                                },
-                              )
-                            : ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 24),
-                                itemCount: _counselors.length,
-                                itemBuilder: (ctx, i) {
-                                  final c = _counselors[i];
-                                  return _buildCounselorChip(
-                                    c: c,
-                                    isSelected: _selectedCounselorId ==
-                                        c['id']?.toString(),
-                                    isEditing: false,
-                                    onTap: () {
-                                      setState(() => _selectedCounselorId =
-                                          c['id']?.toString());
-                                      setModalState(() {});
-                                    },
-                                    onDelete: null,
-                                  );
-                                },
-                              ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // ── 사례 그리드 ────────────────────────────
-                      Expanded(
-                        child: filteredCases.isEmpty
-                            ? Center(
-                                child: Text(
-                                  _cases.isEmpty
-                                      ? '담당 사례들을 추가해주세요.'
-                                      : '이 상담원의 사례가 없어요.',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Color(0xFFADB5BD),
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                              )
-                            : Scrollbar(
-                                thumbVisibility: true,
-                                child: GridView.builder(
-                                  controller: scrollController,
-                                  padding: const EdgeInsets.fromLTRB(
-                                      20, 0, 20, 16),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
-                                    crossAxisSpacing: 12,
-                                    mainAxisSpacing: 12,
-                                    childAspectRatio: 1.6,
-                                  ),
-                                  itemCount: filteredCases.length,
-                                  itemBuilder: (context, index) {
-                                    final c = filteredCases[index];
-                                    final bool isSelected =
-                                        _selectedCaseIds.contains(c['id']);
-                                    final int sIndex =
-                                        _selectedCaseIds.indexOf(c['id']) +
-                                            1;
-                                    return PressableCaseCard(
-                                      caseData: c,
-                                      isSelected: isSelected,
-                                      sIndex: sIndex,
-                                      isSelectionMode: _isSelectionMode,
-                                      isEditing: isEditingCounselors,
-                                      onTap: isEditingCounselors ? () {} : () {
-                                        Navigator.pop(modalContext);
-                                        _goToForm(
-                                          c['realName'],
-                                          c['maskedName'],
-                                          c['dong'],
-                                          caseId: c['id'],
-                                        );
-                                      },
-                                      onDelete: () async {
-                                        final confirmed = await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            backgroundColor: Colors.white,
-                                            surfaceTintColor: Colors.transparent,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                            title: const Text('사례 삭제', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                                            content: const Text('해당 사례를 삭제하시겠어요?', style: TextStyle(fontSize: 14, height: 1.5)),
-                                            actions: [
-                                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(ctx, true),
-                                                child: const Text('삭제', style: TextStyle(color: AppColors.danger)),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                        if (confirmed == true) {
-                                          final updatedCases = _cases.where((x) => x['id'] != c['id']).toList();
-                                          await StorageService.saveCases(updatedCases);
-                                          setState(() => _cases = updatedCases);
-                                          setModalState(() {});
-                                        }
-                                      },
-                                    );
-                                  },
-                                ),
-                              ),
-                      ),
-
-                      // ── 하단 버튼 바 (흰색 구분선) ────────────
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.06),
-                              blurRadius: 12,
-                              offset: const Offset(0, -4),
-                            ),
-                          ],
-                        ),
-                        child: SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () async {
-                                      final partnerCount = _counselors
-                                          .where((c) => c['isSelf'] != true)
-                                          .length;
-                                      if (partnerCount >= 3) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(const SnackBar(
-                                          content: Text(
-                                              '동행 파트너는 최대 3명까지 추가할 수 있습니다.'),
-                                          duration: Duration(seconds: 2),
-                                        ));
-                                        return;
-                                      }
-                                      final name =
-                                          await _showAddCounselorDialog(
-                                              context);
-                                      if (name != null && name.isNotEmpty) {
-                                        final uid = FirebaseAuth
-                                            .instance.currentUser?.uid;
-                                        final newCounselor = {
-                                          'id':
-                                              'c_${DateTime.now().millisecondsSinceEpoch}',
-                                          'name': name,
-                                          'isSelf': false,
-                                          'sortOrder': _counselors.length,
-                                        };
-                                        setState(() => _counselors
-                                            .add(newCounselor));
-                                        await StorageService.saveCounselors(
-                                            _counselors);
-                                        if (uid != null) {
-                                          await ApiService.syncCounselor({
-                                            'id': newCounselor['id'],
-                                            'user_id': uid,
-                                            'name': newCounselor['name'],
-                                            'is_self': false,
-                                            'sort_order':
-                                                newCounselor['sortOrder'],
-                                          });
-                                        }
-                                        AnalyticsService.counselorAdded();
-                                        setModalState(() {});
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 16),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(100)),
-                                      elevation: 0,
-                                    ),
-                                    child: const Text(
-                                      '동행 파트너 추가',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                ElevatedButton(
-                                  onPressed: () async {
-                                    final result = await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => CreateCaseScreen(
-                                          counselors: _counselors,
-                                          initialCounselorId:
-                                              _selectedCounselorId,
-                                        ),
-                                      ),
-                                    );
-                                    if (result == true) {
-                                      await _loadData();
-                                      setModalState(() {});
-                                      _showToast(
-                                          '사례를 추가하였어요. DB를 작성해보세요!');
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: AppColors.textMain,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 24, vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(100),
-                                      side: const BorderSide(
-                                          color: Color(0xFFE5E8EB), width: 1),
-                                    ),
-                                    elevation: 2,
-                                    shadowColor:
-                                        Colors.black.withValues(alpha: 0.12),
-                                  ),
-                                  child: const Text(
-                                    '사례 추가',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 15),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
+      initialCounselors: _counselors,
+      initialCases: _cases,
+      initialSelectedCounselorId: _selectedCounselorId,
+      onCounselorsChanged: (list) =>
+          setState(() => _counselors = List.from(list)),
+      onCasesChanged: (list) => setState(() => _cases = List.from(list)),
+      onCounselorIdChanged: (id) =>
+          setState(() => _selectedCounselorId = id),
+      onGoToForm: _goToForm,
+      onShowToast: _showToast,
+      onReloadData: _loadData,
     );
+  }
+
+  // ── 삭제 액션 ───────────────────────────────────────────────────
+
+  void _deleteDraft(int draftId) async {
+    final drafts = await StorageService.getDrafts();
+    final draftToDelete =
+        drafts.firstWhere((d) => d['id'] == draftId, orElse: () => null);
+    drafts.removeWhere((d) => d['id'] == draftId);
+    await StorageService.saveDrafts(drafts);
+    if (draftToDelete != null && draftToDelete['share_token'] != null) {
+      ApiService.deleteRecord(draftToDelete['share_token']);
+    }
+    setState(() => _drafts = drafts);
+  }
+
+  Future<bool> _deleteSharedDraft(String recordId) async {
+    final ok = await ApiService.removeSharedRecord(recordId);
+    if (ok && mounted) {
+      setState(() {
+        _sharedDrafts.removeWhere((s) => s['id'].toString() == recordId);
+      });
+      return true;
+    }
+    return false;
+  }
+
+  /// 공유받은 DB 카드 탭 핸들러 — StorageService 동기화 후 FormScreen으로 이동
+  Future<void> _onSharedDraftTap(dynamic d) async {
+    final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
+    final String? shareToken = d['share_token'];
+    final String? encKey =
+        shareToken != null ? _keyMap[shareToken] : null;
+    final dong = d['dong']?.toString() ?? '미지정';
+    final localDrafts = await StorageService.getDrafts();
+
+    String freshDescription =
+        d['service_description'] ?? d['serviceDescription'] ?? '';
+    String freshOpinion = d['agent_opinion'] ?? d['agentOpinion'] ?? '';
+
+    Map<String, dynamic>? localDraft;
+    if (shareToken != null) {
+      localDraft = localDrafts
+          .cast<Map<String, dynamic>?>()
+          .firstWhere(
+            (l) => l?['share_token']?.toString() == shareToken,
+            orElse: () => null,
+          );
+    }
+
+    if (localDraft != null) {
+      localDraft = {
+        ...localDraft,
+        'serviceDescription': freshDescription,
+        'agentOpinion': freshOpinion,
+      };
+      final idx = localDrafts.indexWhere(
+          (l) => l['share_token']?.toString() == shareToken);
+      if (idx != -1) {
+        localDrafts[idx] = localDraft;
+        await StorageService.saveDrafts(List<dynamic>.from(localDrafts));
+      }
+    } else {
+      final newId = DateTime.now().millisecondsSinceEpoch;
+      localDraft = {
+        'id': newId,
+        'caseName': caseName,
+        'dong': dong,
+        'status': 'Draft',
+        'isShared': true,
+        'share_token': shareToken,
+        'encryption_key': encKey,
+        'target': d['target'] ?? '피해아동',
+        'method': d['method'] ?? '방문',
+        'provision_type': d['provision_type'] ?? '제공',
+        'service_type': d['service_type'] ?? '아보전',
+        'service_name': d['service_name'] ?? '',
+        'service_category': d['service_category'] ?? '',
+        'location': d['location'] ?? '기관내',
+        'travelTime':
+            (d['travel_time'] ?? d['travelTime'] ?? '30').toString(),
+        'serviceCount':
+            (d['service_count'] ?? d['serviceCount'] ?? '1').toString(),
+        'serviceDescription': freshDescription,
+        'agentOpinion': freshOpinion,
+        'startTime': d['start_time'] ?? d['startTime'],
+        'endTime': d['end_time'] ?? d['endTime'],
+      };
+      await StorageService.saveDrafts([...localDrafts, localDraft]);
+    }
 
     if (mounted) {
-      setState(() {
-        _isSelectionMode = false;
-        _selectedCaseIds.clear();
-        _isModalOpen = false;
-      });
+      _goToForm(
+        caseName,
+        caseName,
+        dong,
+        caseId: d['case_id'] ?? d['id'],
+        draftId: int.tryParse(localDraft['id'].toString()),
+      );
     }
   }
 
-  /// 상담원 칩 위젯
-  Widget _buildCounselorChip({
-    required Map<String, dynamic> c,
-    required bool isSelected,
-    required bool isEditing,
-    required VoidCallback? onTap,
-    required VoidCallback? onDelete,
-  }) {
-    return Padding(
-      key: ValueKey(c['id']),
-      padding: const EdgeInsets.only(right: 8),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          GestureDetector(
-            onTap: isEditing ? null : onTap,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected && !isEditing ? AppColors.primary : Colors.white,
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(
-                  color: isSelected && !isEditing
-                      ? AppColors.primary
-                      : const Color(0xFFDDE1E7),
-                  width: 1.5,
-                ),
-              ),
-              child: Text(
-                c['name']?.toString() ?? '',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected && !isEditing
-                      ? Colors.white
-                      : AppColors.textMain,
-                ),
-              ),
-            ),
-          ),
-          if (isEditing && onDelete != null && c['isSelf'] != true)
-            Positioned(
-              top: -6,
-              right: 2,
-              child: GestureDetector(
-                onTap: onDelete,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF222222),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.close, color: Colors.white, size: 11),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  // ── 토스트 ──────────────────────────────────────────────────────
 
-  /// 동행 파트너(상담원) 이름 입력 다이얼로그
-  Future<String?> _showAddCounselorDialog(BuildContext context) async {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('동행 파트너 추가',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '최대 3명 · 7글자까지 입력 가능합니다.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF868E96)),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              maxLength: 7,
-              decoration: const InputDecoration(
-                hintText: '홍길동 대리님',
-                hintStyle: TextStyle(color: Color(0xFFADB5BD)),
-                counterStyle: TextStyle(fontSize: 11, color: Color(0xFFADB5BD)),
-              ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-            ),
-          ],
+  void _showToast(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500),
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, null),
-              child: const Text('취소')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text('추가',
-                  style: TextStyle(color: AppColors.primary))),
-        ],
+        backgroundColor: const Color(0xFF222222),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  int _currentIndex = 0;
+  // ── 빌드 ────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F6F8),
+        backgroundColor: AppColors.bg,
         elevation: 0,
         scrolledUnderElevation: 0,
         toolbarHeight: 0,
@@ -1558,7 +925,8 @@ final List<int> _selectedCaseIds = [];
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 0.5)),
+          border: Border(
+              top: BorderSide(color: Color(0xFFE5E7EB), width: 0.5)),
         ),
         child: SafeArea(
           child: SizedBox(
@@ -1572,31 +940,45 @@ final List<int> _selectedCaseIds = [];
                       icon: const Icon(Icons.home_filled),
                       label: '홈',
                       selected: _currentIndex == 0,
-                      onTap: () { setState(() => _currentIndex = 0); AnalyticsService.tabSwitched('home'); },
+                      onTap: () {
+                        setState(() => _currentIndex = 0);
+                        AnalyticsService.tabSwitched('home');
+                      },
                     ),
                     _NavBarItem(
                       icon: Badge(
                         isLabelVisible: _notifications.any(
-                          (n) => n['is_read'] == 0 || n['is_read'] == false,
+                          (n) =>
+                              n['is_read'] == 0 ||
+                              n['is_read'] == false,
                         ),
                         backgroundColor: const Color(0xFFFF4D00),
                         child: const Icon(Icons.notifications),
                       ),
                       label: '알림',
                       selected: _currentIndex == 1,
-                      onTap: () { setState(() => _currentIndex = 1); AnalyticsService.tabSwitched('notification'); },
+                      onTap: () {
+                        setState(() => _currentIndex = 1);
+                        AnalyticsService.tabSwitched('notification');
+                      },
                     ),
                     _NavBarItem(
                       icon: const Icon(Icons.history_rounded),
                       label: 'DB 내역',
                       selected: _currentIndex == 2,
-                      onTap: () { setState(() => _currentIndex = 2); AnalyticsService.tabSwitched('db_history'); },
+                      onTap: () {
+                        setState(() => _currentIndex = 2);
+                        AnalyticsService.tabSwitched('db_history');
+                      },
                     ),
                     _NavBarItem(
                       icon: const Icon(Icons.person),
                       label: '프로필',
                       selected: _currentIndex == 3,
-                      onTap: () { setState(() => _currentIndex = 3); AnalyticsService.tabSwitched('profile'); },
+                      onTap: () {
+                        setState(() => _currentIndex = 3);
+                        AnalyticsService.tabSwitched('profile');
+                      },
                     ),
                   ],
                 ),
@@ -1611,19 +993,33 @@ final List<int> _selectedCaseIds = [];
 
   Widget _buildBody() {
     if (_currentIndex == 0) {
-      // 첫 진입 로딩 스피너
       if (_isLoadingInitial) {
-        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+        return const Center(
+            child: CircularProgressIndicator(strokeWidth: 2));
       }
-      // 오프라인 배너 + 홈 탭
       return Column(
         children: [
           if (!_serverReachable) _buildOfflineBanner(),
-          Expanded(child: _buildHomeTab()),
+          Expanded(
+            child: HomeTab(
+              userName: _userName,
+              pendingDrafts: _pendingDrafts,
+              sharedDrafts: _sharedDrafts,
+              cases: _cases,
+              counselors: _counselors,
+              dbTabController: _dbTabController,
+              onRefresh: _loadData,
+              onShowCaseSelection: _showCaseSelectionModal,
+              onGoToForm: _goToForm,
+              onDeleteMyDraft: (draftId) async => _deleteDraft(draftId),
+              onSharedDraftTap: _onSharedDraftTap,
+              onDeleteSharedDraft: _deleteSharedDraft,
+            ),
+          ),
         ],
       );
     }
-    if (_currentIndex == 1)
+    if (_currentIndex == 1) {
       return NotificationTab(
         notifications: _notifications,
         drafts: _drafts,
@@ -1632,19 +1028,20 @@ final List<int> _selectedCaseIds = [];
         onShowToast: _showToast,
         onNotificationRead: (notifId) {
           setState(() {
-            final index = _notifications.indexWhere((n) => n['id'] == notifId);
-            if (index != -1) {
-              _notifications[index]['is_read'] = 1;
-            }
+            final index =
+                _notifications.indexWhere((n) => n['id'] == notifId);
+            if (index != -1) _notifications[index]['is_read'] = 1;
           });
         },
       );
-    if (_currentIndex == 2)
+    }
+    if (_currentIndex == 2) {
       return DbHistoryTab(
         injectedDrafts: _drafts
             .where((d) => d['status'] == 'Injected')
             .toList(),
       );
+    }
     return ProfileTab(
       userName: _userName,
       isProfileLoading: _isProfileLoading,
@@ -1652,22 +1049,15 @@ final List<int> _selectedCaseIds = [];
       cases: _cases,
       drafts: _drafts,
       notifications: _notifications,
-      onNameChanged: (newName) {
-        setState(() => _userName = newName);
-      },
-      onNotificationsChanged: (enabled) {
-        setState(() => _notificationsEnabled = enabled);
-      },
-      onResetComplete: () {
-        setState(() {
-          _drafts = [];
-          _cases = [];
-          _notifications = [];
-        });
-      },
-      onCasesChanged: (cases) {
-        setState(() => _cases = cases);
-      },
+      onNameChanged: (newName) => setState(() => _userName = newName),
+      onNotificationsChanged: (enabled) =>
+          setState(() => _notificationsEnabled = enabled),
+      onResetComplete: () => setState(() {
+        _drafts = [];
+        _cases = [];
+        _notifications = [];
+      }),
+      onCasesChanged: (cases) => setState(() => _cases = cases),
       onShowToast: _showToast,
     );
   }
@@ -1679,20 +1069,16 @@ final List<int> _selectedCaseIds = [];
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            const Icon(
-              Icons.wifi_off_rounded,
-              size: 15,
-              color: Color(0xFFB45309),
-            ),
+            const Icon(Icons.wifi_off_rounded,
+                size: 15, color: Color(0xFFB45309)),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
                 '서버에 연결하지 못했습니다. 로컬 저장 기록만 표시됩니다.',
                 style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF92400E),
-                  letterSpacing: -0.1,
-                ),
+                    fontSize: 12,
+                    color: Color(0xFF92400E),
+                    letterSpacing: -0.1),
               ),
             ),
             GestureDetector(
@@ -1700,794 +1086,20 @@ final List<int> _selectedCaseIds = [];
               child: const Text(
                 '재시도',
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFB45309),
-                  letterSpacing: -0.1,
-                ),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFB45309),
+                    letterSpacing: -0.1),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  String? _userName;
-  bool _isProfileLoading = false;
-
-  /// 홈에 표시할 나의 DB 목록 (Injected 제외, 공유받은 임시 로컬 드래프트 제외)
-  List<dynamic> get _pendingDrafts => _drafts
-      .where((d) => d['status'] != 'Injected' && d['isShared'] != true)
-      .toList();
-
-  Future<void> _fetchUserProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    // Firebase Auth displayName 또는 로컬 닉네임 우선 표시
-    if (_userName == null) {
-      final localNickname = await StorageService.getUserNickname();
-      if (mounted) {
-        setState(() {
-          _userName = user.displayName?.isNotEmpty == true
-              ? user.displayName
-              : localNickname;
-        });
-      }
-    }
-    try {
-      final serverUser = await ApiService.fetchUser(user.uid);
-      if (serverUser != null && mounted) {
-        setState(() {
-          _userName = serverUser['name'];
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching profile: $e');
-    }
-  }
-
-  Widget _buildHomeTab() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isTablet = constraints.maxWidth > 650;
-
-        if (isTablet) {
-          return RefreshIndicator(
-            onRefresh: _loadData,
-            color: AppColors.primary,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
-                child: Column(
-                  children: [
-                    _buildGuideAndCta(),
-                    const SizedBox(height: 20),
-                    _buildDbList(isPad: true, padWidth: constraints.maxWidth - 40),
-                    const SizedBox(height: 100),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        // 모바일: 상단 고정 배경 + 드래그 가능한 DB 시트
-        return Stack(
-          children: [
-            // ── 상단 배경 영역 (연한 회색) ──────────────────
-            Positioned.fill(
-              child: Container(
-                color: const Color(0xFFF5F6F8),
-                padding: const EdgeInsets.fromLTRB(18, 36, 18, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildGreetingHeader(),
-                    const SizedBox(height: 28),
-                    _buildCtaCard(),
-                    const SizedBox(height: 32),
-                    _buildPcGuideBanner(),
-                  ],
-                ),
-              ),
-            ),
-            // ── DB 시트 (위아래 슬라이드 가능) ──────────────
-            DraggableScrollableSheet(
-              initialChildSize: 0.50,
-              minChildSize: 0.38,
-              maxChildSize: 0.91,
-              snap: true,
-              snapSizes: const [0.38, 0.50, 0.91],
-              builder: (context, scrollController) {
-                return Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0x18000000),
-                        blurRadius: 24,
-                        spreadRadius: 0,
-                        offset: Offset(0, -6),
-                      ),
-                    ],
-                  ),
-                  child: RefreshIndicator(
-                    onRefresh: _loadData,
-                    color: AppColors.primary,
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-                            child: _buildDbList(isPad: false),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ── 탭 배지 (숫자 동그라미) ──────────────────────────────────
-  Widget _buildTabBadge(int count) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: const Color(0xFFDCEEFF),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        '$count',
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF2979FF),
-        ),
-      ),
-    );
-  }
-
-  // ── 상단 인사말 섹션
-  Widget _buildGreetingHeader() {
-    final int totalDbCount = _pendingDrafts.length + _sharedDrafts.length;
-    final String displayName = (_userName != null && _userName!.trim().isNotEmpty)
-        ? _userName!
-        : '안녕하세요';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '안녕하세요!',
-          style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
-        ),
-        const SizedBox(height: 6),
-        RichText(
-          text: TextSpan(
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-              color: Color(0xFF222222),
-            ),
-            children: [
-              TextSpan(text: '$displayName님'),
-              TextSpan(
-                text: '.',
-                style: TextStyle(color: AppColors.primary),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '기입할 DB가 ${totalDbCount}개 있어요',
-          style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCtaCard() {
-    return GestureDetector(
-      onTap: _showCaseSelectionModal,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.35),
-              blurRadius: 14,
-              spreadRadius: 0,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Text(
-              'DB 작성하기',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUserGreeting() {
-    if (_userName == null || _userName!.trim().isEmpty)
-      return const SizedBox.shrink();
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: _userName,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF222222),
-              letterSpacing: -0.4,
-            ),
-          ),
-          const TextSpan(
-            text: '님',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF8B95A1),
-              letterSpacing: -0.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGuideAndCta() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 1. 좌상단 인사말 + 카운트
-        _buildGreetingHeader(),
-        const SizedBox(height: 20),
-        // 2. 배너 (CTA 바로 위)
-        _buildPcGuideBanner(),
-        const SizedBox(height: 10),
-        // 3. CTA 카드 (배너 아래)
-        _buildCtaCard(),
-      ],
-    );
-  }
-
-  Widget _buildPcGuideBanner() {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const UserGuideScreen()),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFEEF3FC),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      '이용 안내',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF111111),
-                        letterSpacing: -0.3,
-                        height: 1.35,
-                      ),
-                      children: [
-                        TextSpan(text: 'PC에서 DB\n'),
-                        TextSpan(
-                          text: '확인하려면?',
-                          style: TextStyle(color: Color(0xFF1A56DB)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 56,
-              height: 48,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                    left: 0,
-                    top: 6,
-                    child: Container(
-                      width: 40,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDBEAFE),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      padding: const EdgeInsets.all(5),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.35),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Container(
-                            width: 22,
-                            height: 2.5,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Container(
-                            width: 16,
-                            height: 2.5,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 13,
-                    top: 34,
-                    child: Container(
-                      width: 12,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFBFDBFE),
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 8,
-                    top: 38,
-                    child: Container(
-                      width: 22,
-                      height: 2,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFBFDBFE),
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF1A56DB),
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        '?',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDbList({
-    bool isPad = false,
-    double padWidth = 0,
-    int crossAxisCount = 3,
-  }) {
-    final pendingDrafts = _pendingDrafts;
-    return AnimatedBuilder(
-      animation: _dbTabController,
-      builder: (context, _) {
-        final isMyDb = _dbTabController.index == 0;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── 섹션 타이틀 ──────────────────────────────────
-            const Text(
-              'DB 목록',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
-            ),
-            const SizedBox(height: 10),
-            // ── 세그먼트 탭 ──────────────────────────────────
-            _buildSegmentControl(pendingDrafts.length, _sharedDrafts.length),
-            const SizedBox(height: 12),
-            // ── 탭 콘텐츠 ────────────────────────────────────
-            if (isMyDb) ...[
-              if (pendingDrafts.isNotEmpty)
-                Column(
-                  children: pendingDrafts.asMap().entries.map<Widget>((entry) {
-                    final idx = entry.key;
-                    final d = entry.value;
-                    final foundCase = _cases.cast<Map<String, dynamic>?>().firstWhere(
-                      (c) => c?['realName'] == d['caseName'] || c?['maskedName'] == d['caseName'],
-                      orElse: () => null,
-                    );
-                    final dong = foundCase != null ? foundCase['dong'] : '미지정';
-                    return Padding(
-                      padding: EdgeInsets.only(bottom: idx == pendingDrafts.length - 1 ? 0 : 8),
-                      child: _buildDraftCardInBox(d, dong, index: idx, isLast: true),
-                    );
-                  }).toList(),
-                )
-              else
-                _buildEmptyHint('사례를 선택해 DB를 만들어주세요'),
-            ] else ...[
-              if (_sharedDrafts.isNotEmpty)
-                Column(
-                  children: _sharedDrafts.asMap().entries.map<Widget>((entry) {
-                    final idx = entry.key;
-                    final d = entry.value;
-                    return Padding(
-                      padding: EdgeInsets.only(bottom: idx == _sharedDrafts.length - 1 ? 0 : 8),
-                      child: _buildSharedDraftCardInBox(d, isLast: true),
-                    );
-                  }).toList(),
-                )
-              else
-                _buildEmptyHint('동행자에게 DB 공유를 요청하세요'),
-            ],
-            const SizedBox(height: 30),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildSegmentControl(int myCount, int sharedCount) {
-    final isFirst = _dbTabController.index == 0;
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F6F8),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: const EdgeInsets.all(2),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final pillWidth = constraints.maxWidth / 2;
-          return SizedBox(
-            height: 38,
-            child: Stack(
-              children: [
-                // 슬라이딩 흰 pill
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeInOut,
-                  left: isFirst ? 0 : pillWidth,
-                  top: 0,
-                  bottom: 0,
-                  width: pillWidth,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.07),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // 탭 레이블 (pill 위에 올라옴)
-                Positioned.fill(
-                  child: Row(
-                    children: [
-                      _buildSegmentTab('나의 DB', 0, myCount),
-                      _buildSegmentTab('공유받은 DB', 1, sharedCount),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSegmentTab(String label, int index, int count) {
-    final isActive = _dbTabController.index == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => _dbTabController.animateTo(index),
-        behavior: HitTestBehavior.opaque,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                color: isActive ? const Color(0xFF222222) : const Color(0xFF888888),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyHint(String message) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Center(
-        child: Text(
-          message,
-          style: const TextStyle(
-            fontSize: 14,
-            color: Color(0xFFADB5BD),
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDraftCardInBox(dynamic d, String dong, {int index = 0, bool isLast = false}) {
-    final foundCase = _cases.cast<Map<String, dynamic>?>().firstWhere(
-      (c) =>
-          c?['realName'] == d['caseName'] || c?['maskedName'] == d['caseName'],
-      orElse: () => null,
-    );
-
-    // 해당 사례의 상담원 이름 조회
-    final counselorId = foundCase?['counselorId']?.toString();
-    final counselor = counselorId != null
-        ? _counselors.cast<Map<String, dynamic>?>().firstWhere(
-            (c) => c?['id']?.toString() == counselorId,
-            orElse: () => null,
-          )
-        : (_counselors.isNotEmpty ? _counselors[0] as Map<String, dynamic>? : null);
-    final counselorName = counselor?['name']?.toString();
-
-    return SwipeableDraftCard(
-      key: ValueKey(d['id']),
-      d: d,
-      index: index,
-      isLast: isLast,
-      counselorName: counselorName,
-      onTap: () => _goToForm(
-        foundCase?['realName'] ?? d['caseName'],
-        d['caseName'],
-        dong,
-        caseId: foundCase?['id'] ?? d['id'],
-        draftId: d['id'],
-      ),
-      onDelete: () async {
-        final confirmed = await _showDraftDeleteConfirmation();
-        if (confirmed) {
-          _deleteDraft(d['id']);
-          return true;
-        }
-        return false;
-      },
-    );
-  }
-
-  Widget _buildSharedDraftCardInBox(dynamic d, {bool isLast = false}) {
-    final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
-    final String authorName = d['author_name'] ?? '담당자';
-    final String? shareToken = d['share_token'];
-    final String? encKey = shareToken != null ? _keyMap[shareToken] : null;
-    final String recordId = d['id'].toString();
-
-    return SwipeableSharedDraftCard(
-      key: ValueKey('shared_$recordId'),
-      caseName: caseName,
-      authorName: authorName,
-      dong: d['dong']?.toString(),
-      target: d['target']?.toString(),
-      method: d['method']?.toString(),
-      startTime: d['start_time']?.toString() ?? d['startTime']?.toString(),
-      endTime: d['end_time']?.toString() ?? d['endTime']?.toString(),
-      isLast: isLast,
-      onTap: () async {
-        final dong = d['dong']?.toString() ?? '미지정';
-        final localDrafts = await StorageService.getDrafts();
-
-        // 서버 최신 내용 추출 (항상 서버 데이터 기준으로 갱신)
-        String freshDescription = d['service_description'] ?? d['serviceDescription'] ?? '';
-        String freshOpinion = d['agent_opinion'] ?? d['agentOpinion'] ?? '';
-
-        Map<String, dynamic>? localDraft;
-        if (shareToken != null) {
-          localDraft = localDrafts.cast<Map<String, dynamic>?>().firstWhere(
-            (l) => l?['share_token']?.toString() == shareToken,
-            orElse: () => null,
-          );
-        }
-
-        if (localDraft != null) {
-          // 기존 로컬 드래프트가 있으면 서버 최신 내용으로 덮어쓰기
-          // (리뷰어가 웹에서 수정한 내용이 앱에 반영되지 않는 문제 방지)
-          localDraft = {
-            ...localDraft,
-            'serviceDescription': freshDescription,
-            'agentOpinion': freshOpinion,
-          };
-          final idx = localDrafts.indexWhere(
-            (l) => l['share_token']?.toString() == shareToken,
-          );
-          if (idx != -1) {
-            localDrafts[idx] = localDraft;
-            await StorageService.saveDrafts(List<dynamic>.from(localDrafts));
-          }
-        } else {
-          // 로컬 드래프트 없으면 서버 데이터로 신규 생성
-          final newId = DateTime.now().millisecondsSinceEpoch;
-          localDraft = {
-            'id': newId,
-            'caseName': caseName,
-            'dong': dong,
-            'status': 'Draft',
-            'isShared': true,
-            'share_token': shareToken,
-            'encryption_key': encKey,
-            'target': d['target'] ?? '피해아동',
-            'method': d['method'] ?? '방문',
-            'provision_type': d['provision_type'] ?? '제공',
-            'service_type': d['service_type'] ?? '아보전',
-            'service_name': d['service_name'] ?? '',
-            'service_category': d['service_category'] ?? '',
-            'location': d['location'] ?? '기관내',
-            'travelTime': (d['travel_time'] ?? d['travelTime'] ?? '30').toString(),
-            'serviceCount': (d['service_count'] ?? d['serviceCount'] ?? '1').toString(),
-            'serviceDescription': freshDescription,
-            'agentOpinion': freshOpinion,
-            'startTime': d['start_time'] ?? d['startTime'],
-            'endTime': d['end_time'] ?? d['endTime'],
-          };
-          await StorageService.saveDrafts([...localDrafts, localDraft]);
-        }
-
-        if (mounted) {
-          _goToForm(
-            caseName,
-            caseName,
-            dong,
-            caseId: d['case_id'] ?? d['id'],
-            draftId: int.tryParse(localDraft['id'].toString()),
-          );
-        }
-      },
-      onDelete: () async {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text(
-              '목록에서 삭제',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            content: const Text(
-              '공유받은 DB를 목록에서 삭제할까요?',
-              style: TextStyle(fontSize: 14),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('취소'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text(
-                  '삭제',
-                  style: TextStyle(color: AppColors.danger),
-                ),
-              ),
-            ],
-          ),
-        );
-        if (confirmed == true) {
-          final ok = await ApiService.removeSharedRecord(recordId);
-          if (ok && mounted) {
-            setState(() {
-              _sharedDrafts.removeWhere((s) => s['id'].toString() == recordId);
-            });
-            return true;
-          }
-        }
-        return false;
-      },
     );
   }
 }
+
+// ── 하단 네비게이션 아이템 ─────────────────────────────────────────
 
 class _NavBarItem extends StatefulWidget {
   final Widget icon;
@@ -2511,7 +1123,9 @@ class _NavBarItemState extends State<_NavBarItem> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.selected ? AppColors.primary : const Color(0xFFBBBBBB);
+    final color = widget.selected
+        ? AppColors.primary
+        : const Color(0xFFBBBBBB);
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,

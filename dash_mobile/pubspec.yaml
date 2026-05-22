@@ -81,6 +81,7 @@ flutter:
     - assets/icons/share-arrow.png
     - assets/icons/google_logo.png
     - assets/icons/logo.png
+    - assets/icons/logo_transparent.png
     - assets/images/office_messenger.png
     - assets/images/edge_logo.png
 

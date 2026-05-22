@@ -1181,7 +1181,7 @@ function renderRecords() {
                 const token = e.currentTarget.dataset.token;
                 // [Security] Phase 2-B: 클릭 시점에 vaultKeys에서 키 조회 (렌더 타이밍 문제 방지)
                 const key = vaultKeys[token] || '';
-                const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
+                const url = `https://dash.qpon/?token=${token}${key ? '&key=' + key : ''}`;
                 navigator.clipboard.writeText(url).then(() => {
                     showToastNotification('공유 링크가 복사됐어요');
                 }).catch(() => alert(url));

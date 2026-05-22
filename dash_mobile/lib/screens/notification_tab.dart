@@ -84,7 +84,7 @@ class NotificationTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(24, 40, 24, 16),
+            padding: EdgeInsets.fromLTRB(20, 40, 20, 16),
             child: Text(
               '알림',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF222222)),
@@ -113,7 +113,7 @@ class NotificationTab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.fromLTRB(24, 48, 24, 16),
+          padding: EdgeInsets.fromLTRB(20, 48, 20, 16),
           child: Text(
             '알림',
             style: TextStyle(

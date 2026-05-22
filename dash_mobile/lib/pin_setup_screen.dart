@@ -56,9 +56,10 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           await VaultService.syncKey(user.uid, entry.key, entry.value, newPin);
         }
       } else {
-        // keyMap이 비어있어도 빈 Vault를 서버에 생성하여 salt를 확립
-        // → 이후 form_screen에서 syncKey 호출 시 같은 salt를 재사용하므로 PIN 일관성 보장
-        await VaultService.initEmptyVault(user.uid, newPin);
+        // keyMap이 비어있음 → 서버 Vault를 새 PIN으로 강제 초기화
+        // (기존 Vault가 있어도 덮어씀 — keyMap이 없으므로 보존할 키 없음)
+        // force:true 없으면 기존 Vault가 있을 때 early-return되어 PIN 불일치 발생
+        await VaultService.initEmptyVault(user.uid, newPin, force: true);
       }
     } catch (e) {
       debugPrint('❌ PinSetupScreen: vault sync error: $e');

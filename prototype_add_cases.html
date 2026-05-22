@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>사례 추가 프로토타입</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #e5e7eb;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 24px 0;
+    font-family: -apple-system, 'Apple SD Gothic Neo', 'Pretendard', sans-serif;
+  }
+
+  /* 모바일 프레임 */
+  .phone {
+    width: 390px;
+    min-height: 844px;
+    background: #f7f8fa;
+    border-radius: 44px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.22), 0 0 0 10px #1a1a1a;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* 상단 노치 */
+  .notch {
+    height: 44px;
+    background: #f7f8fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .notch-bar {
+    width: 126px; height: 34px;
+    background: #1a1a1a;
+    border-radius: 0 0 20px 20px;
+  }
+
+  /* AppBar */
+  .appbar {
+    height: 56px;
+    background: #f7f8fa;
+    display: flex;
+    align-items: center;
+    padding: 0 8px 0 4px;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .appbar-back {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer;
+    color: #222; font-size: 18px;
+  }
+  .appbar-title {
+    flex: 1; text-align: center;
+    font-size: 17px; font-weight: 700;
+    color: #222; letter-spacing: -0.4px;
+  }
+  .appbar-spacer { width: 40px; }
+
+  /* 스크롤 영역 */
+  .scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px 120px;
+  }
+
+  /* 안내 텍스트 */
+  .guide-text {
+    font-size: 13px; color: #8b95a1;
+    margin-bottom: 16px; letter-spacing: -0.2px; line-height: 1.5;
+  }
+
+  /* 헤더 행 */
+  .row-header {
+    display: grid;
+    grid-template-columns: 110px 1fr 86px 36px;
+    gap: 8px;
+    padding: 0 4px 8px;
+  }
+  .row-header span {
+    font-size: 11px; font-weight: 600;
+    color: #adb5bd; letter-spacing: -0.1px;
+  }
+
+  /* 사례 행 */
+  .case-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 86px 36px;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+    animation: fadeSlideIn 0.22s ease;
+  }
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── 상담원 드롭다운 ── */
+  .counselor-select { position: relative; }
+
+  .counselor-btn {
+    width: 100%; height: 48px;
+    border: 1.5px solid #dde1e7;
+    border-radius: 12px;
+    background: white;
+    font-size: 12px; font-weight: 600; color: #8b95a1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 10px;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: inherit;
+  }
+  .counselor-btn.selected { border-color: #3366FF; color: #3366FF; background: #f0f4ff; }
+  .counselor-btn .chevron { font-size: 10px; color: #adb5bd; transition: transform 0.15s; flex-shrink: 0; margin-left: 4px; }
+  .counselor-btn.open .chevron { transform: rotate(180deg); }
+  .counselor-btn .clabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .counselor-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px); left: 0;
+    width: 180px;          /* 드롭다운 고정 너비 */
+    background: white;
+    border: 1.5px solid #dde1e7;
+    border-radius: 14px;
+    overflow: hidden;
+    z-index: 200;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.13);
+  }
+  .counselor-dropdown.open { display: block; }
+
+  .counselor-option {
+    padding: 11px 14px;
+    font-size: 13px; font-weight: 600; color: #222;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: 1px solid #f1f3f5;
+  }
+  .counselor-option:last-child { border-bottom: none; }
+  .counselor-option:hover { background: #f0f4ff; color: #3366FF; }
+  .counselor-option.active { color: #3366FF; }
+
+  /* 상담원 추가 버튼 (드롭다운 맨 아래) */
+  .add-counselor-btn {
+    width: 100%;
+    padding: 11px 14px;
+    background: none;
+    border: none;
+    border-top: 1.5px solid #eef0f3;
+    font-size: 12px; font-weight: 700;
+    color: #3366FF;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    font-family: inherit;
+    transition: background 0.1s;
+  }
+  .add-counselor-btn:hover { background: #f8faff; }
+
+  /* ── 이름 입력 래퍼 (마스킹 오버레이) ── */
+  .name-wrap { position: relative; }
+  .name-real {
+    /* 투명 — 실제 입력 받는 필드 */
+    position: absolute; inset: 0;
+    opacity: 0;
+    width: 100%; height: 48px;
+    border: none; outline: none;
+    font-size: 14px; padding: 0 12px;
+    font-family: inherit;
+    cursor: text;
+    z-index: 2;
+  }
+  .name-display {
+    height: 48px;
+    border: 1.5px solid #dde1e7;
+    border-radius: 12px;
+    background: white;
+    padding: 0 12px;
+    font-size: 14px; font-weight: 500; color: #222;
+    display: flex; align-items: center;
+    transition: border-color 0.15s;
+    letter-spacing: 0.5px;
+    cursor: text;
+    position: relative; z-index: 1;
+  }
+  .name-display.focused { border-color: #3366FF; }
+  .name-display.empty::before {
+    content: '이름 입력';
+    color: #c4c9d0;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  /* 텍스트필드 (동) */
+  .case-input {
+    height: 48px;
+    border: 1.5px solid #dde1e7;
+    border-radius: 12px;
+    background: white;
+    padding: 0 12px;
+    font-size: 14px; font-weight: 500; color: #222;
+    outline: none; width: 100%;
+    transition: border-color 0.15s;
+    font-family: inherit;
+  }
+  .case-input::placeholder { color: #c4c9d0; }
+  .case-input:focus { border-color: #3366FF; }
+
+  /* 삭제 버튼 */
+  .delete-btn {
+    width: 36px; height: 36px;
+    border: none; background: #f1f3f5;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: #adb5bd; font-size: 15px;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .delete-btn:hover { background: #ffe3e3; color: #e03131; }
+
+  /* 행 추가 버튼 */
+  .add-row-btn {
+    width: 100%; height: 48px;
+    border: 1.5px dashed #c8d0da;
+    border-radius: 12px; background: white;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 14px; font-weight: 600; color: #8b95a1;
+    cursor: pointer; margin-top: 4px;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .add-row-btn:hover { border-color: #3366FF; color: #3366FF; background: #f8faff; }
+  .add-row-btn .plus { font-size: 18px; line-height: 1; }
+
+  /* 하단 고정 */
+  .bottom-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: white;
+    padding: 16px 20px 28px;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+  }
+  .confirm-btn {
+    width: 100%; height: 56px;
+    background: #3366FF; border: none; border-radius: 14px;
+    color: white; font-size: 16px; font-weight: 700;
+    letter-spacing: -0.3px; cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .confirm-btn:active { transform: scale(0.98); }
+  .confirm-btn:disabled { background: #dde1e7; color: #adb5bd; cursor: default; }
+  .confirm-btn:not(:disabled):hover { background: #2255ee; }
+
+  /* 토스트 */
+  .toast {
+    position: absolute;
+    bottom: 100px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #222; color: white;
+    padding: 10px 20px; border-radius: 100px;
+    font-size: 13px; font-weight: 600;
+    white-space: nowrap; opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none; z-index: 300;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── 상담원 추가 모달 ── */
+  .modal-backdrop {
+    display: none;
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 500;
+    align-items: flex-end;
+  }
+  .modal-backdrop.open { display: flex; }
+
+  .modal-sheet {
+    width: 100%;
+    background: white;
+    border-radius: 24px 24px 0 0;
+    padding: 20px 20px 32px;
+    animation: sheetUp 0.25s cubic-bezier(0.22,1,0.36,1);
+  }
+  @keyframes sheetUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+
+  .modal-handle {
+    width: 40px; height: 4px;
+    background: #dde1e7; border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+  .modal-title {
+    font-size: 18px; font-weight: 800;
+    color: #111; margin-bottom: 6px; letter-spacing: -0.4px;
+  }
+  .modal-sub {
+    font-size: 13px; color: #8b95a1;
+    margin-bottom: 20px; letter-spacing: -0.2px;
+  }
+  .modal-input {
+    width: 100%; height: 52px;
+    border: 1.5px solid #dde1e7;
+    border-radius: 14px;
+    padding: 0 16px;
+    font-size: 16px; font-weight: 500;
+    color: #222; outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    margin-bottom: 16px;
+  }
+  .modal-input:focus { border-color: #3366FF; }
+  .modal-input::placeholder { color: #c4c9d0; }
+
+  .modal-add-btn {
+    width: 100%; height: 52px;
+    background: #3366FF; border: none; border-radius: 14px;
+    color: white; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+    transition: background 0.15s;
+  }
+  .modal-add-btn:hover { background: #2255ee; }
+  .modal-add-btn:disabled { background: #dde1e7; color: #adb5bd; cursor: default; }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="notch"><div class="notch-bar"></div></div>
+
+  <div class="appbar">
+    <button class="appbar-back">‹</button>
+    <div class="appbar-title">사례 추가</div>
+    <div class="appbar-spacer"></div>
+  </div>
+
+  <div class="scroll-area">
+    <p class="guide-text">상담원을 선택하고 아동 이름과 동을 입력해주세요.<br>한 번에 여러 사례를 추가할 수 있어요.</p>
+
+    <div class="row-header">
+      <span>상담원</span>
+      <span>아동 이름</span>
+      <span>동</span>
+      <span></span>
+    </div>
+
+    <div id="case-list"></div>
+
+    <button class="add-row-btn" onclick="addRow()">
+      <span class="plus">+</span>
+      <span>사례 추가</span>
+    </button>
+  </div>
+
+  <div class="bottom-bar">
+    <button class="confirm-btn" id="confirm-btn" disabled onclick="handleConfirm()">확인</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 상담원 추가 모달 -->
+  <div class="modal-backdrop" id="modal-backdrop" onclick="closeModalOnBackdrop(event)">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">상담원 추가</div>
+      <div class="modal-sub">추가할 상담원의 이름을 입력해주세요.</div>
+      <input
+        class="modal-input"
+        id="modal-input"
+        placeholder="예) 이상훈"
+        maxlength="10"
+        oninput="onModalInput()"
+        onkeydown="if(event.key==='Enter') confirmAddCounselor()"
+      />
+      <button class="modal-add-btn" id="modal-add-btn" disabled onclick="confirmAddCounselor()">추가하기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 상담원 목록 ──────────────────────────────────────────────
+let COUNSELORS = ['김민지 (나)', '이상훈', '박지연'];
+let rowCount = 0;
+let pendingDropdownRowId = null; // 모달 열 때 어느 행 드롭다운에서 열었는지
+
+// ── 이름 마스킹 ──────────────────────────────────────────────
+function getMaskedName(name) {
+  if (!name) return '';
+  const len = name.length;
+  if (len <= 1) return name;
+  const chars = name.split('');
+  if (len === 2) {
+    chars[1] = 'O';
+  } else {
+    for (let i = 1; i < len - 1; i++) {
+      if (chars[i] !== ' ') chars[i] = 'O';
+    }
+  }
+  return chars.join('');
+}
+
+// ── 드롭다운 HTML 생성 ────────────────────────────────────────
+function buildDropdownHTML(rowId, selectedName) {
+  const options = COUNSELORS.map(c =>
+    `<div class="counselor-option${selectedName === c ? ' active' : ''}" onclick="selectCounselor(${rowId}, '${escHtml(c)}')">${escHtml(c)}</div>`
+  ).join('');
+  return options +
+    `<button class="add-counselor-btn" onclick="openAddCounselorModal(${rowId})">
+      <span style="font-size:15px;line-height:1">＋</span> 상담원 추가
+    </button>`;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// 열려 있는 모든 드롭다운 닫기
+function closeAllDropdowns() {
+  document.querySelectorAll('.counselor-dropdown.open').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.counselor-btn.open').forEach(b => b.classList.remove('open'));
+}
+
+// ── 행 추가 ──────────────────────────────────────────────────
+function addRow(defaultCounselor = null) {
+  const id = ++rowCount;
+  const list = document.getElementById('case-list');
+
+  const row = document.createElement('div');
+  row.className = 'case-row';
+  row.id = `row-${id}`;
+
+  const sel = defaultCounselor || null;
+
+  row.innerHTML = `
+    <div class="counselor-select" id="cs-${id}">
+      <button class="counselor-btn${sel ? ' selected' : ''}" id="cbtn-${id}" onclick="toggleDropdown(${id})">
+        <span class="clabel" id="clabel-${id}">${sel ? escHtml(sel) : '선택'}</span>
+        <span class="chevron">▾</span>
+      </button>
+      <div class="counselor-dropdown" id="cdrop-${id}">
+        ${buildDropdownHTML(id, sel)}
+      </div>
+    </div>
+
+    <div class="name-wrap">
+      <input
+        type="text"
+        class="name-real"
+        id="name-real-${id}"
+        maxlength="5"
+        autocomplete="off"
+        oninput="onNameInput(${id})"
+        onfocus="onNameFocus(${id})"
+        onblur="onNameBlur(${id})"
+      />
+      <div class="name-display empty" id="name-disp-${id}"></div>
+    </div>
+
+    <input
+      class="case-input"
+      id="dong-${id}"
+      placeholder="유천동"
+      maxlength="7"
+      oninput="updateConfirmBtn()"
+    />
+
+    <button class="delete-btn" onclick="removeRow(${id})">✕</button>
+  `;
+
+  list.appendChild(row);
+  if (rowCount === 1) {
+    setTimeout(() => document.getElementById(`name-real-${id}`)?.focus(), 80);
+  }
+  updateConfirmBtn();
+}
+
+// ── 이름 입력 이벤트 ─────────────────────────────────────────
+function onNameInput(id) {
+  const real  = document.getElementById(`name-real-${id}`);
+  const disp  = document.getElementById(`name-disp-${id}`);
+  const val   = real.value;
+  const masked = getMaskedName(val);
+  disp.textContent = masked;
+  disp.classList.toggle('empty', val.length === 0);
+  updateConfirmBtn();
+}
+
+function onNameFocus(id) {
+  document.getElementById(`name-disp-${id}`)?.classList.add('focused');
+}
+function onNameBlur(id) {
+  document.getElementById(`name-disp-${id}`)?.classList.remove('focused');
+}
+
+// ── 드롭다운 토글 ────────────────────────────────────────────
+function toggleDropdown(id) {
+  const drop = document.getElementById(`cdrop-${id}`);
+  const btn  = document.getElementById(`cbtn-${id}`);
+  const isOpen = drop.classList.contains('open');
+  closeAllDropdowns();
+  if (!isOpen) { drop.classList.add('open'); btn.classList.add('open'); }
+}
+
+// ── 상담원 선택 ──────────────────────────────────────────────
+function selectCounselor(id, name) {
+  document.getElementById(`clabel-${id}`).textContent = name;
+  document.getElementById(`cbtn-${id}`).classList.add('selected');
+  closeAllDropdowns();
+  // 드롭다운 내용 갱신 (active 표시)
+  document.getElementById(`cdrop-${id}`).innerHTML = buildDropdownHTML(id, name);
+  updateConfirmBtn();
+}
+
+// ── 행 삭제 ──────────────────────────────────────────────────
+function removeRow(id) {
+  const row = document.getElementById(`row-${id}`);
+  if (!row) return;
+  row.style.cssText += 'opacity:0;transform:translateX(16px);transition:opacity .18s,transform .18s';
+  setTimeout(() => { row.remove(); updateConfirmBtn(); }, 180);
+}
+
+// ── 확인 버튼 활성화 ─────────────────────────────────────────
+function updateConfirmBtn() {
+  const rows = document.querySelectorAll('.case-row');
+  let hasValid = false;
+  rows.forEach(row => {
+    const id = row.id.replace('row-', '');
+    const name = document.getElementById(`name-real-${id}`)?.value.trim();
+    const dong = document.getElementById(`dong-${id}`)?.value.trim();
+    const label = document.getElementById(`clabel-${id}`)?.textContent;
+    if (name && dong && label && label !== '선택') hasValid = true;
+  });
+  document.getElementById('confirm-btn').disabled = !hasValid;
+}
+
+// ── 확인 처리 ────────────────────────────────────────────────
+function handleConfirm() {
+  const rows = document.querySelectorAll('.case-row');
+  const cases = [];
+  rows.forEach(row => {
+    const id = row.id.replace('row-', '');
+    const name = document.getElementById(`name-real-${id}`)?.value.trim();
+    const dong = document.getElementById(`dong-${id}`)?.value.trim();
+    const label = document.getElementById(`clabel-${id}`)?.textContent;
+    if (name && dong && label !== '선택') cases.push({ counselor: label, name, dong });
+  });
+  if (!cases.length) return;
+
+  const btn = document.getElementById('confirm-btn');
+  btn.textContent = '저장 중...';
+  btn.disabled = true;
+
+  setTimeout(() => {
+    btn.textContent = '확인';
+    showToast(`✓ ${cases.length}개 사례가 추가됐어요`);
+    document.getElementById('case-list').innerHTML = '';
+    rowCount = 0;
+    updateConfirmBtn();
+    console.log('저장된 사례:', cases);
+  }, 700);
+}
+
+// ── 상담원 추가 모달 ─────────────────────────────────────────
+function openAddCounselorModal(rowId) {
+  pendingDropdownRowId = rowId;
+  closeAllDropdowns();
+  const input = document.getElementById('modal-input');
+  input.value = '';
+  document.getElementById('modal-add-btn').disabled = true;
+  document.getElementById('modal-backdrop').classList.add('open');
+  setTimeout(() => input.focus(), 150);
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.remove('open');
+  pendingDropdownRowId = null;
+}
+
+function closeModalOnBackdrop(e) {
+  if (e.target === document.getElementById('modal-backdrop')) closeModal();
+}
+
+function onModalInput() {
+  const val = document.getElementById('modal-input').value.trim();
+  document.getElementById('modal-add-btn').disabled = val.length === 0;
+}
+
+function confirmAddCounselor() {
+  const val = document.getElementById('modal-input').value.trim();
+  if (!val) return;
+
+  // 중복 체크
+  if (COUNSELORS.includes(val)) {
+    showToast('이미 있는 상담원이에요');
+    return;
+  }
+
+  COUNSELORS.push(val);
+
+  // 열려있던 행의 드롭다운 갱신 + 자동 선택
+  if (pendingDropdownRowId !== null) {
+    const id = pendingDropdownRowId;
+    document.getElementById(`cdrop-${id}`).innerHTML = buildDropdownHTML(id, val);
+    selectCounselor(id, val);
+  }
+
+  // 다른 모든 행 드롭다운도 갱신
+  document.querySelectorAll('.case-row').forEach(row => {
+    const id = row.id.replace('row-', '');
+    if (parseInt(id) !== pendingDropdownRowId) {
+      const currentLabel = document.getElementById(`clabel-${id}`)?.textContent;
+      document.getElementById(`cdrop-${id}`).innerHTML = buildDropdownHTML(id, currentLabel !== '선택' ? currentLabel : null);
+    }
+  });
+
+  closeModal();
+  showToast(`✓ '${val}' 상담원이 추가됐어요`);
+}
+
+// ── 토스트 ───────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// 외부 클릭 시 드롭다운 닫기
+document.addEventListener('click', e => {
+  if (!e.target.closest('.counselor-select')) closeAllDropdowns();
+});
+
+// 초기 행 1개 (첫 번째 상담원 기본 선택)
+addRow(COUNSELORS[0]);
+</script>
+</body>
+</html>

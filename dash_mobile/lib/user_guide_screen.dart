@@ -86,7 +86,6 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               icon: Icons.edit_note_outlined,
               title: 'DB 작성하기',
               description: 'DB 작성하기를 클릭하여 상담원님의 사례를\n등록해주세요.',
-              tip: '저장한 기록은 인터넷이 없어도 폰에 보관되며, 인터넷이 다시 연결되면 자동으로 업로드돼요.',
               mockup: const _MockupCtaAndModal(),
             ),
             _StepConnector(),
@@ -106,7 +105,6 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               icon: Icons.share_outlined,
               title: '동행자에게 공유 및 검토 요청',
               description: 'DB 생성 후 동행자에게 공유메모를 전달해보세요. 서비스 내용을 공동으로 수정할 수 있어요.',
-              tip: '링크는 본인 계정의 기록에만 접근 가능해요.',
               mockup: const _MockupDbCard(),
             ),
             _StepConnector(),
@@ -117,7 +115,6 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               title: '수정 완료 알림 받기',
               description: '동행자가 수정을 완료하면 완료 알림이 도착해요.\n'
                   '완료 즉시 수정 내용이 나의 DB에 반영돼요.',
-              tip: '알림 설정은 프로필 탭에서 변경할 수 있어요.',
               mockup: const _MockupNotification(),
             ),
             _StepConnector(),
@@ -150,7 +147,7 @@ class _StepCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String description;
-  final String tip;
+  final String? tip;
   final String? actionLabel;
   final String? actionUrl;
   final Widget? mockup;
@@ -161,7 +158,7 @@ class _StepCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.description,
-    required this.tip,
+    this.tip,
     this.actionLabel,
     this.actionUrl,
     this.mockup,
@@ -245,35 +242,37 @@ class _StepCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   mockup!,
                 ],
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '💡 ',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      Expanded(
-                        child: Text(
-                          tip,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF6B7280),
-                            height: 1.5,
-                            letterSpacing: -0.1,
+                if (tip != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '💡 ',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        Expanded(
+                          child: Text(
+                            tip!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF6B7280),
+                              height: 1.5,
+                              letterSpacing: -0.1,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
                 if (actionLabel != null && actionUrl != null) ...[
                   const SizedBox(height: 10),
                   GestureDetector(
