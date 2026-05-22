@@ -86,6 +86,7 @@ app.use(cors({
 }));
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+app.use((req, res, next) => { res.setHeader('Referrer-Policy', 'no-referrer'); next(); });
 app.use(express.static(path.join(__dirname, 'reviewer_site'))); // Serve static files
 
 // ── API Rate Limiting ──────────────────────────────────────────────────────────
@@ -1227,7 +1228,6 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
     );
     const isOwner = ownerRows.length > 0 && ownerRows[0].owner_uid === uid;
 
-    // Google 로그인 성공한 사람이 실제 리뷰어 → 항상 최신 reviewer_user_id로 업데이트 (본인이면 연결 불필요)
     if (!isOwner) {
       const reviewerDbId = userRows[0].id;
 
@@ -1240,36 +1240,78 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
         return res.status(403).json({ error: 'viewer_limit_reached' });
       }
 
-      await queryWithTimeout(
-        'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ?',
-        [reviewerDbId, token]
-      );
-      // 공유 접근자 이력 기록 (최초 접근 시각 보존, 이름 최신화)
+      // 이름 인증 대기 상태 저장 (share_viewers 등록은 verify-name에서 수행)
       const viewerName = userRows[0].name || userRows[0].email || email || '알 수 없음';
-      console.log(`📝 [SHARE_VIEWERS INSERT] token=${token} reviewerDbId=${reviewerDbId} viewerName=${viewerName}`);
-      const [insertResult] = await queryWithTimeout(
-        `INSERT INTO share_viewers (share_token, user_id, name)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE name = ?`,
-        [token, reviewerDbId, viewerName, viewerName]
-      );
-      console.log(`📝 [SHARE_VIEWERS RESULT] affectedRows=${insertResult.affectedRows} insertId=${insertResult.insertId}`);
-      // 실제 DB 확인
-      const [verifyRows] = await queryWithTimeout(
-        `SELECT user_id, name FROM share_viewers WHERE share_token = ?`,
-        [token]
-      );
-      console.log(`📋 [SHARE_VIEWERS DB] token=${token} rows=${JSON.stringify(verifyRows)}`);
+      authAttempts.set(`${token}:${uid}`, { pendingName: true, reviewerDbId, viewerName });
+      console.log(`🔒 [REVIEWER LOGIN] uid=${uid} → token=${token} 이름 인증 대기`);
+      return res.json({ ok: true, isOwner: false, needsNameVerification: true });
     }
 
-    // 세션 인증 완료 처리 (기존 share 엔드포인트가 authAttempts로 검증하므로 동일하게 기록)
+    // 오너: 바로 인증 완료
     authAttempts.set(token, { verified: true, verifiedAt: Date.now(), uid });
-    console.log(`✅ [REVIEWER LOGIN] uid=${uid} → token=${token} isOwner=${isOwner}`);
-
-    // [Security] encryption_key는 서버에 저장하지 않음 — 키는 PIN Vault에서만 복호화
-    return res.json({ ok: true, isOwner });
+    console.log(`✅ [REVIEWER LOGIN] uid=${uid} → token=${token} isOwner=true`);
+    return res.json({ ok: true, isOwner: true });
   } catch (err) {
     console.error('Reviewer login error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// [Web] 공유자 이름 인증 (Google 로그인 후 2단계)
+app.post('/api/records/verify-name/:token', verifyFirebaseAuth, async (req, res) => {
+  const { token } = req.params;
+  const { uid } = req.firebaseUser;
+  const { owner_name: submittedName } = req.body;
+
+  const pending = authAttempts.get(`${token}:${uid}`);
+  if (!pending?.pendingName) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const [ownerRows] = await queryWithTimeout(
+      `SELECT u.name AS owner_name
+       FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       JOIN dash_users u ON c.user_id = u.id
+       WHERE sd.share_token = ?`,
+      [token]
+    );
+    if (!ownerRows.length) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
+
+    const normalize = s => (s || '').trim().replace(/\s+/g, '');
+    if (!submittedName || normalize(submittedName) !== normalize(ownerRows[0].owner_name)) {
+      console.log(`❌ [VERIFY NAME] uid=${uid} token=${token} 이름 불일치`);
+      return res.status(403).json({ error: 'name_mismatch' });
+    }
+
+    // 인원 재확인 후 share_viewers 등록
+    const { reviewerDbId, viewerName } = pending;
+    const [viewerCount] = await queryWithTimeout(
+      `SELECT COUNT(*) AS cnt FROM share_viewers WHERE share_token = ? AND user_id != ?`,
+      [token, reviewerDbId]
+    );
+    if (viewerCount[0].cnt >= 2) {
+      authAttempts.delete(`${token}:${uid}`);
+      return res.status(403).json({ error: 'viewer_limit_reached' });
+    }
+
+    await queryWithTimeout(
+      `INSERT INTO share_viewers (share_token, user_id, name) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE name = ?`,
+      [token, reviewerDbId, viewerName, viewerName]
+    );
+    await queryWithTimeout(
+      'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ?',
+      [reviewerDbId, token]
+    );
+
+    authAttempts.delete(`${token}:${uid}`);
+    authAttempts.set(token, { verified: true, verifiedAt: Date.now(), uid });
+    console.log(`✅ [VERIFY NAME] uid=${uid} → token=${token} 인증 완료`);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('verify-name error:', err);
     res.status(500).json({ error: err.message });
   }
 });

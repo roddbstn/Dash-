@@ -120,6 +120,51 @@ function signInWithGoogle() {
     }, 500);
 }
 
+async function submitOwnerName() {
+    const token = new URLSearchParams(window.location.search).get('token');
+    const nameInput = document.getElementById('owner-name-input');
+    const errorEl = document.getElementById('name-verify-error');
+    const btn = document.getElementById('btn-verify-name');
+    const name = nameInput.value.trim();
+
+    if (!name) { errorEl.textContent = '이름을 입력해주세요.'; return; }
+
+    btn.disabled = true;
+    btn.textContent = '확인 중...';
+    errorEl.textContent = '';
+
+    try {
+        const user = firebase.auth().currentUser;
+        const idToken = await user.getIdToken(true);
+        const res = await fetch(`/api/records/verify-name/${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+            body: JSON.stringify({ owner_name: name }),
+        });
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+            sessionStorage.setItem('dash_auth_' + token, '1');
+            document.getElementById('name-verify-modal').style.display = 'none';
+            loadRecord(token);
+        } else if (data.error === 'name_mismatch') {
+            errorEl.textContent = '이름이 일치하지 않습니다. 다시 확인해주세요.';
+            nameInput.value = '';
+            nameInput.focus();
+        } else if (data.error === 'viewer_limit_reached') {
+            document.getElementById('name-verify-modal').style.display = 'none';
+            document.getElementById('viewer-limit-modal').style.display = 'flex';
+        } else {
+            errorEl.textContent = data.error || '오류가 발생했습니다.';
+        }
+    } catch (_) {
+        errorEl.textContent = '네트워크 오류가 발생했습니다.';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '확인';
+    }
+}
+
 function showAuthModal() {
     document.getElementById('not-registered-modal').style.display = 'none';
     document.getElementById('auth-modal').style.display = 'flex';
@@ -151,19 +196,22 @@ async function handleReviewerLogin(user) {
     const data = await res.json();
 
     if (res.ok && data.ok) {
-        sessionStorage.setItem('dash_auth_' + token, '1');
         document.getElementById('auth-modal').style.display = 'none';
         _logEvent('reviewer_login_success', { is_owner: data.isOwner ? 1 : 0 });
-        // 프로필 아바타 표시
         showUserProfile(user);
-        // 본인 DB 접근 시 편집 UI 숨김 + encryption_key 세션 저장
         if (data.isOwner) {
+            sessionStorage.setItem('dash_auth_' + token, '1');
             setOwnerReadOnlyMode();
-            if (data.encryptionKey) {
-                sessionStorage.setItem('dash_key_' + token, data.encryptionKey);
-            }
+            loadRecord(token);
+        } else if (data.needsNameVerification) {
+            // 이름 인증 모달 표시 (share_viewers 등록은 인증 후)
+            const modal = document.getElementById('name-verify-modal');
+            modal.style.display = 'flex';
+            document.getElementById('owner-name-input').focus();
+        } else {
+            sessionStorage.setItem('dash_auth_' + token, '1');
+            loadRecord(token);
         }
-        loadRecord(token);
     } else if (data.error === 'not_registered') {
         // 모바일 앱 미가입 → Firebase 세션 즉시 소거 후 안내 화면 표시
         await firebase.auth().signOut();

@@ -331,6 +331,43 @@
             </div>
         </div>
     </div>
+    <!-- 공유자 이름 인증 모달 -->
+    <div id="name-verify-modal" style="
+        position: fixed; inset: 0; z-index: 9999;
+        background: rgba(0,0,0,0.55);
+        display: none; align-items: center; justify-content: center;
+        padding: 24px;
+    ">
+        <div style="
+            background: #fff; border-radius: 20px;
+            padding: 36px 28px; width: 100%; max-width: 380px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+            text-align: center;
+        ">
+            <div style="margin-bottom: 24px;">
+                <span style="font-size: 36px;">🔒</span>
+                <h2 style="margin: 12px 0 8px; font-size: 20px; font-weight: 800; color: #1a1a2e; letter-spacing: -0.3px;">
+                    공유자 확인
+                </h2>
+                <p style="font-size: 14px; color: #8b95a1; line-height: 1.6; margin: 0;">
+                    이 DB를 공유한 상담원의<br>실명을 입력해주세요.
+                </p>
+            </div>
+            <input id="owner-name-input" type="text" placeholder="예) 홍길동" maxlength="10"
+                onkeydown="if(event.key==='Enter') submitOwnerName()"
+                style="width: 100%; border: 1.5px solid #e5e8eb; border-radius: 10px;
+                padding: 13px 16px; font-size: 15px; font-family: inherit;
+                outline: none; color: #191f28; margin-bottom: 8px;
+                box-sizing: border-box; transition: border-color 0.15s;" />
+            <p id="name-verify-error" style="font-size: 12px; color: #f04452; min-height: 18px; margin-bottom: 16px; text-align: left;"></p>
+            <button id="btn-verify-name" onclick="submitOwnerName()" style="
+                width: 100%; background: #3182f6; color: #fff;
+                border: none; border-radius: 10px; padding: 14px;
+                font-size: 15px; font-weight: 700; font-family: inherit;
+                cursor: pointer;">확인</button>
+        </div>
+    </div>
+
     <!-- 수정 히스토리 패널 -->
     <div id="history-panel-overlay" onclick="closeHistoryPanel()" style="display:none;"></div>
     <div id="history-panel" class="history-panel">
