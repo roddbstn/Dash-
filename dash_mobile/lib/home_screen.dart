@@ -1825,16 +1825,6 @@ final List<int> _selectedCaseIds = [];
                       physics: const AlwaysScrollableScrollPhysics(),
                       child: Column(
                         children: [
-                          // 드래그 핸들
-                          Container(
-                            margin: const EdgeInsets.only(top: 12, bottom: 4),
-                            width: 36,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDDDDDD),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
                             child: _buildDbList(isPad: false),
@@ -1920,6 +1910,14 @@ final List<int> _selectedCaseIds = [];
         decoration: BoxDecoration(
           color: AppColors.primary,
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.35),
+              blurRadius: 14,
+              spreadRadius: 0,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -2171,60 +2169,34 @@ final List<int> _selectedCaseIds = [];
             // ── 탭 콘텐츠 ────────────────────────────────────
             if (isMyDb) ...[
               if (pendingDrafts.isNotEmpty)
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Column(
-                      children: pendingDrafts.asMap().entries.map<Widget>((entry) {
-                        final idx = entry.key;
-                        final d = entry.value;
-                        final foundCase = _cases.cast<Map<String, dynamic>?>().firstWhere(
-                          (c) => c?['realName'] == d['caseName'] || c?['maskedName'] == d['caseName'],
-                          orElse: () => null,
-                        );
-                        final dong = foundCase != null ? foundCase['dong'] : '미지정';
-                        return _buildDraftCardInBox(d, dong, index: idx, isLast: idx == pendingDrafts.length - 1);
-                      }).toList(),
-                    ),
-                  ),
+                Column(
+                  children: pendingDrafts.asMap().entries.map<Widget>((entry) {
+                    final idx = entry.key;
+                    final d = entry.value;
+                    final foundCase = _cases.cast<Map<String, dynamic>?>().firstWhere(
+                      (c) => c?['realName'] == d['caseName'] || c?['maskedName'] == d['caseName'],
+                      orElse: () => null,
+                    );
+                    final dong = foundCase != null ? foundCase['dong'] : '미지정';
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: idx == pendingDrafts.length - 1 ? 0 : 8),
+                      child: _buildDraftCardInBox(d, dong, index: idx, isLast: true),
+                    );
+                  }).toList(),
                 )
               else
                 _buildEmptyHint('사례를 선택해 DB를 만들어주세요'),
             ] else ...[
               if (_sharedDrafts.isNotEmpty)
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Column(
-                      children: _sharedDrafts.asMap().entries.map<Widget>((entry) {
-                        final idx = entry.key;
-                        final d = entry.value;
-                        return _buildSharedDraftCardInBox(d, isLast: idx == _sharedDrafts.length - 1);
-                      }).toList(),
-                    ),
-                  ),
+                Column(
+                  children: _sharedDrafts.asMap().entries.map<Widget>((entry) {
+                    final idx = entry.key;
+                    final d = entry.value;
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: idx == _sharedDrafts.length - 1 ? 0 : 8),
+                      child: _buildSharedDraftCardInBox(d, isLast: true),
+                    );
+                  }).toList(),
                 )
               else
                 _buildEmptyHint('동행자에게 DB 공유를 요청하세요'),
@@ -2274,11 +2246,13 @@ final List<int> _selectedCaseIds = [];
                   ),
                 ),
                 // 탭 레이블 (pill 위에 올라옴)
-                Row(
-                  children: [
-                    _buildSegmentTab('나의 DB', 0, myCount),
-                    _buildSegmentTab('공유받은 DB', 1, sharedCount),
-                  ],
+                Positioned.fill(
+                  child: Row(
+                    children: [
+                      _buildSegmentTab('나의 DB', 0, myCount),
+                      _buildSegmentTab('공유받은 DB', 1, sharedCount),
+                    ],
+                  ),
                 ),
               ],
             ),
