@@ -1,16 +1,16 @@
 /* ==============================================
    Dash Extension — Design System (Mobile App 연동)
    Color Tokens from theme.dart:
-     primary: #3182F6  |  primaryLight: #E8F3FF
+     primary: #1A56DB  |  primaryLight: #E8F3FF
      bg: #FAFAF8       |  card: #FFFFFF
      textMain: #222222  |  textSub: #4E5968
      border: #E5E8EB    |  danger: #FF4D4F
    ============================================== */
 
 :root {
-    --primary: #3182F6;
+    --primary: #1A56DB;
     --primary-light: #E8F3FF;
-    --primary-hover: #1B6AE0;
+    --primary-hover: #1446B8;
     --bg: #FAFAF8;
     --card: #FFFFFF;
     --text-main: #222222;
@@ -556,9 +556,6 @@ body {
     font-weight: 600;
     text-align: right;
     flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     min-width: 0;
 }
 

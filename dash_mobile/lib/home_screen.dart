@@ -1975,7 +1975,7 @@ final List<int> _selectedCaseIds = [];
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A56DB),
+                      color: AppColors.primary,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
@@ -2034,7 +2034,7 @@ final List<int> _selectedCaseIds = [];
                           Container(
                             height: 3,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1A56DB).withValues(alpha: 0.35),
+                              color: AppColors.primary.withValues(alpha: 0.35),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -2043,7 +2043,7 @@ final List<int> _selectedCaseIds = [];
                             width: 22,
                             height: 2.5,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1A56DB).withValues(alpha: 0.2),
+                              color: AppColors.primary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -2052,7 +2052,7 @@ final List<int> _selectedCaseIds = [];
                             width: 16,
                             height: 2.5,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1A56DB).withValues(alpha: 0.2),
+                              color: AppColors.primary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
