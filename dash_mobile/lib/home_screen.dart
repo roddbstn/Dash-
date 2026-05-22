@@ -1787,7 +1787,7 @@ final List<int> _selectedCaseIds = [];
                     _buildGreetingHeader(),
                     const SizedBox(height: 28),
                     _buildCtaCard(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 32),
                     _buildPcGuideBanner(),
                   ],
                 ),
@@ -1924,8 +1924,6 @@ final List<int> _selectedCaseIds = [];
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(Icons.add_rounded, color: Colors.white, size: 18),
-            SizedBox(width: 6),
             Text(
               'DB 작성하기',
               style: TextStyle(
@@ -1998,7 +1996,7 @@ final List<int> _selectedCaseIds = [];
           color: const Color(0xFFEEF3FC),
           borderRadius: BorderRadius.circular(12),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         child: Row(
           children: [
             Expanded(
@@ -2024,7 +2022,7 @@ final List<int> _selectedCaseIds = [];
                   RichText(
                     text: const TextSpan(
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 17,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF111111),
                         letterSpacing: -0.3,
@@ -2164,13 +2162,13 @@ final List<int> _selectedCaseIds = [];
             // ── 섹션 타이틀 ──────────────────────────────────
             const Text(
               'DB 목록',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
             ),
             const SizedBox(height: 10),
             // ── 세그먼트 탭 ──────────────────────────────────
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFE4E6ED),
+                color: const Color(0xFFF5F6F8),
                 borderRadius: BorderRadius.circular(8),
               ),
               padding: const EdgeInsets.all(2),
@@ -2271,24 +2269,24 @@ final List<int> _selectedCaseIds = [];
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                   color: isActive ? const Color(0xFF222222) : const Color(0xFF888888),
                 ),
               ),
               const SizedBox(width: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
-                  color: isActive ? AppColors.primary : const Color(0xFFD0D3DC),
+                  color: AppColors.primary,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   '$count',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.white : const Color(0xFF888888),
+                    color: Colors.white,
                   ),
                 ),
               ),
