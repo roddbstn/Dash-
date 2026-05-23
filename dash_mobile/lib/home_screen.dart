@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
@@ -224,6 +225,7 @@ class _HomeScreenState extends State<HomeScreen>
                     'dong': c['dong'] ?? '',
                     'targetSystem':
                         c['target_system_code'] ?? 'NCADS_v2',
+                    'counselorId': c['counselor_id']?.toString(),
                   })
               .toList();
           await StorageService.saveCases(cases);
@@ -843,6 +845,9 @@ class _HomeScreenState extends State<HomeScreen>
           onSyncComplete: () {
             if (mounted) _loadData();
           },
+          onSharedDbReady: (token, key) {
+            if (mounted) _showShareDialog(token, key);
+          },
         ),
       ),
     );
@@ -974,6 +979,89 @@ class _HomeScreenState extends State<HomeScreen>
         draftId: int.tryParse(localDraft['id'].toString()),
       );
     }
+  }
+
+  // ── 공유할 DB 즉시 공유 다이얼로그 ────────────────────────────────
+  void _showShareDialog(String shareToken, String encryptionKey) {
+    final String host = ApiService.serverUrl;
+    final String shareUrl = '$host/?token=$shareToken#key=$encryptionKey';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 상단 핸들 + 나중에 버튼
+            Row(
+              children: [
+                const Spacer(),
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDDE1E7),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: const Text(
+                        '나중에',
+                        style: TextStyle(fontSize: 14, color: Color(0xFF868E96), fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Text('방금 저장한 DB 공유하세요!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+            const SizedBox(height: 6),
+            const Text('링크를 복사해 사례 담당자에게 전달하세요.', style: TextStyle(fontSize: 14, color: Color(0xFF868E96))),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: shareUrl));
+                  AnalyticsService.linkCopied();
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  _showToast('링크가 복사되었습니다.');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.ios_share_rounded, size: 20),
+                    SizedBox(width: 8),
+                    Text('링크 복사해서 공유하기', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ── 토스트 ──────────────────────────────────────────────────────

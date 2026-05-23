@@ -124,6 +124,23 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         },
         onAddCounselor: () async {
           Navigator.pop(ctx);
+          final partnerCount = _counselors.where((c) => c['isSelf'] != true).length;
+          if (partnerCount >= 3) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: const Text('동행 상담원은 3명까지 등록할 수 있어요',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+                backgroundColor: const Color(0xFF222222),
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                duration: const Duration(seconds: 2),
+              ));
+            }
+            return;
+          }
           await _showAddCounselorSheet(rowIndex);
         },
       ),
@@ -270,7 +287,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-        Navigator.pop(context, true);
+        Navigator.pop(context, validRows.first.counselorId ?? true);
       }
     }
   }

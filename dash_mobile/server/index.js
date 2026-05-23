@@ -806,7 +806,7 @@ app.get('/api/cases/user/:userId', verifyFirebaseAuth, async (req, res) => {
   try {
     const resolvedId = await resolveUserId(userId, req.firebaseUser?.email);
     const [rows] = await queryWithTimeout(
-      'SELECT id, case_name, dong, target_system_code FROM cases WHERE user_id = ? ORDER BY created_at DESC',
+      'SELECT id, case_name, dong, target_system_code, counselor_id FROM cases WHERE user_id = ? ORDER BY created_at DESC',
       [resolvedId]
     );
     res.json(rows);

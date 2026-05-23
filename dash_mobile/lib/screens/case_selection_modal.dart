@@ -237,8 +237,52 @@ Future<void> showCaseSelectionModal({
                               scrollDirection: Axis.horizontal,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 24),
-                              itemCount: counselors.length,
+                              itemCount: counselors.length +
+                                  (counselors.where((c) => c['isSelf'] != true).length < 3 ? 1 : 0),
                               itemBuilder: (ctx, i) {
+                                if (i == counselors.length) {
+                                  // + 상담원 추가 버튼
+                                  return SizedBox(
+                                    height: 44,
+                                    child: Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: GestureDetector(
+                                      onTap: () async {
+                                        final name = await _showAddCounselorDialog(context);
+                                        if (name != null && name.isNotEmpty) {
+                                          final uid = FirebaseAuth.instance.currentUser?.uid;
+                                          final newCounselor = {
+                                            'id': 'c_${DateTime.now().millisecondsSinceEpoch}',
+                                            'name': name,
+                                            'isSelf': false,
+                                            'sortOrder': counselors.length,
+                                          };
+                                          counselors.add(newCounselor);
+                                          await StorageService.saveCounselors(counselors);
+                                          if (uid != null) {
+                                            await ApiService.syncCounselor({
+                                              'id': newCounselor['id'],
+                                              'user_id': uid,
+                                              'name': newCounselor['name'],
+                                              'is_self': false,
+                                              'sort_order': newCounselor['sortOrder'],
+                                            });
+                                          }
+                                          AnalyticsService.counselorAdded();
+                                          onCounselorsChanged(List.from(counselors));
+                                          setModalState(() {});
+                                        }
+                                      },
+                                      child: Center(
+                                        child: const Icon(
+                                          Icons.add_circle_outline_rounded,
+                                          size: 18,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ));
+                                }
                                 final c = counselors[i];
                                 return _buildCounselorChip(
                                   c: c,
@@ -297,7 +341,6 @@ Future<void> showCaseSelectionModal({
                                     onTap: isEditingCounselors
                                         ? () {}
                                         : () {
-                                            Navigator.pop(modalContext);
                                             onGoToForm(
                                               c['realName'],
                                               c['maskedName'],
@@ -387,12 +430,7 @@ Future<void> showCaseSelectionModal({
                                         .where((c) => c['isSelf'] != true)
                                         .length;
                                     if (partnerCount >= 3) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(const SnackBar(
-                                        content: Text(
-                                            '동행 파트너는 최대 3명까지 추가할 수 있습니다.'),
-                                        duration: Duration(seconds: 2),
-                                      ));
+                                      _showModalToast(context, '동행 상담원은 3명까지 등록할 수 있어요');
                                       return;
                                     }
                                     final name =
@@ -428,17 +466,19 @@ Future<void> showCaseSelectionModal({
                                     }
                                   },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: AppColors.textMain,
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 16),
                                     shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(100)),
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: const BorderSide(
+                                          color: Color(0xFFE5E8EB), width: 1),
+                                    ),
                                     elevation: 0,
                                   ),
                                   child: const Text(
-                                    '동행 파트너 추가',
+                                    '상담원 추가',
                                     style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 15),
@@ -446,7 +486,8 @@ Future<void> showCaseSelectionModal({
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              ElevatedButton(
+                              Expanded(
+                                child: ElevatedButton(
                                 onPressed: () async {
                                   final result = await Navigator.push(
                                     context,
@@ -458,7 +499,12 @@ Future<void> showCaseSelectionModal({
                                       ),
                                     ),
                                   );
-                                  if (result == true) {
+                                  if (result != null && result != false) {
+                                    // result = counselorId of created case
+                                    if (result is String) {
+                                      selectedCounselorId = result;
+                                      onCounselorIdChanged(selectedCounselorId);
+                                    }
                                     await onReloadData();
                                     final freshCases =
                                         await StorageService.getCases();
@@ -469,19 +515,14 @@ Future<void> showCaseSelectionModal({
                                   }
                                 },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: AppColors.textMain,
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 24, vertical: 16),
+                                      vertical: 16),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(100),
-                                    side: const BorderSide(
-                                        color: Color(0xFFE5E8EB), width: 1),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  elevation: 2,
-                                  shadowColor:
-                                      Colors.black.withValues(alpha: 0.12),
+                                  elevation: 0,
                                 ),
                                 child: const Text(
                                   '사례 추가',
@@ -489,6 +530,7 @@ Future<void> showCaseSelectionModal({
                                       fontWeight: FontWeight.w700,
                                       fontSize: 15),
                                 ),
+                              ),
                               ),
                             ],
                           ),
@@ -617,6 +659,23 @@ Future<String?> _showAddCounselorDialog(BuildContext context) async {
       ],
     ),
   );
-  controller.dispose();
+  Future.microtask(() => controller.dispose());
   return result;
+}
+
+void _showModalToast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(
+      message,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+          color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+    ),
+    backgroundColor: const Color(0xFF222222),
+    behavior: SnackBarBehavior.floating,
+    margin: const EdgeInsets.only(bottom: 40, left: 60, right: 60),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+    duration: const Duration(seconds: 2),
+  ));
 }
