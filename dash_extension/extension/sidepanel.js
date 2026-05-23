@@ -1173,8 +1173,8 @@ function renderRecords() {
                         <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
                         <span class="record-dong">${record.dong || ''}</span>
                     </div>
-                    <div style="margin-top:4px;display:flex;align-items:center;gap:8px;">${dbTypeBadge}${fromTag}</div>
                 </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">${dbTypeBadge}${fromTag}</div>
             </div>
             <div class="record-info-list">
                 <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
