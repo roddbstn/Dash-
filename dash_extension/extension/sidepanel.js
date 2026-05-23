@@ -433,7 +433,6 @@ async function verifyPinWithVault(pin) {
         if (!encrypted_vault) return null;
 
         const result = await attemptDecryptVault(pin, encrypted_vault, salt);
-        console.log('[DEBUG] decrypt result:', result !== null ? 'SUCCESS' : 'FAIL');
         return result;
     } catch (e) {
         console.error('PIN verification failed:', e);
@@ -482,10 +481,8 @@ async function attemptDecryptVault(pin, encryptedVaultB64, salt) {
             const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
             const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
             const decryptedText = new TextDecoder().decode(buf);
-            console.log('[DEBUG] PBKDF2 decrypt success, text:', decryptedText);
             return JSON.parse(decryptedText);
         } catch (e) {
-            console.error('[DEBUG] PBKDF2 decrypt failed detail:', e);
         }
         return null; // 신규 Vault는 PBKDF2만 시도 — 실패 = PIN 불일치
     }
@@ -1078,7 +1075,12 @@ function renderRecords() {
     recordsContainer.innerHTML = '';
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    const pendingRecords = records.filter(record => record.status !== 'Injected');
+    const allPending = records.filter(r => r.status !== 'Injected');
+    // "내 DB" + "공유받은 DB" → 대기 목록
+    const pendingRecords = allPending.filter(r => !(r.record_type === 'owned' && r.is_shared_db == 1));
+    // "공유할 DB" → 별도 섹션
+    const sharedByMeRecords = allPending.filter(r => r.record_type === 'owned' && r.is_shared_db == 1);
+
     pendingRecords.forEach(record => {
         const card = document.createElement('div');
         card.className = `record-card ${record.id === selectedRecordId ? 'selected' : ''}`;
@@ -1115,11 +1117,18 @@ function renderRecords() {
         const authorTag = record.author_name
             ? `<span class="counselor-tag">담당: ${record.author_name}</span>`
             : '';
+        const isShared = record.record_type === 'shared';
+        const dbTypeBadge = isShared
+            ? `<span style="display:inline-block;padding:2px 8px;background:#EBF3FF;color:#1A56DB;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">공유받은 DB</span>`
+            : `<span style="display:inline-block;padding:2px 8px;background:#F2F4F6;color:#8B95A1;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">내 DB</span>`;
         card.innerHTML = `
             <div class="record-card-header">
                 <div class="record-card-header-left">
-                    <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
-                    <span class="record-dong">${record.dong || ''}</span>
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                        <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
+                        <span class="record-dong">${record.dong || ''}</span>
+                    </div>
+                    <div style="margin-top:4px;">${dbTypeBadge}</div>
                 </div>
                 ${authorTag}
             </div>
@@ -1181,7 +1190,7 @@ function renderRecords() {
                 const token = e.currentTarget.dataset.token;
                 // [Security] Phase 2-B: 클릭 시점에 vaultKeys에서 키 조회 (렌더 타이밍 문제 방지)
                 const key = vaultKeys[token] || '';
-                const url = `https://dash.qpon/?token=${token}${key ? '&key=' + key : ''}`;
+                const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
                 navigator.clipboard.writeText(url).then(() => {
                     showToastNotification('공유 링크가 복사됐어요');
                 }).catch(() => alert(url));
@@ -1229,6 +1238,88 @@ function renderRecords() {
 
         recordsContainer.appendChild(card);
     });
+
+    // ── "공유할 DB" 섹션 (하단 버튼으로만 접근)
+    _renderSharedByMeSection(sharedByMeRecords);
+}
+
+function _renderSharedByMeSection(sharedByMeRecords) {
+    // 기존 섹션 제거 후 재렌더
+    const existing = document.getElementById('shared-by-me-section');
+    if (existing) existing.remove();
+
+    if (sharedByMeRecords.length === 0) return;
+
+    const section = document.createElement('div');
+    section.id = 'shared-by-me-section';
+    section.style.cssText = 'margin-top:12px;';
+
+    // 토글 버튼
+    const toggle = document.createElement('button');
+    toggle.id = 'btn-shared-by-me-toggle';
+    toggle.style.cssText = [
+        'width:100%;display:flex;align-items:center;justify-content:space-between;',
+        'padding:10px 14px;background:#F8F9FA;border:1px solid #E9ECEF;border-radius:10px;',
+        'font-size:12px;font-weight:700;color:#4E5968;cursor:pointer;font-family:inherit;',
+    ].join('');
+    toggle.innerHTML = `
+        <span style="display:flex;align-items:center;gap:6px;">
+            <span style="padding:2px 7px;background:#EBF3FF;color:#1A56DB;border-radius:5px;font-size:10px;font-weight:700;">공유할 DB</span>
+            <span>${sharedByMeRecords.length}건</span>
+        </span>
+        <svg id="shared-by-me-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4L6 8L10 4" stroke="#ADB5BD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    `;
+
+    const list = document.createElement('div');
+    list.id = 'shared-by-me-list';
+    list.style.cssText = 'display:none;margin-top:8px;display:flex;flex-direction:column;gap:8px;';
+
+    sharedByMeRecords.forEach(record => {
+        const item = document.createElement('div');
+        item.style.cssText = [
+            'display:flex;align-items:center;justify-content:space-between;',
+            'padding:10px 14px;background:#fff;border:1px solid #E9ECEF;border-radius:10px;gap:8px;',
+        ].join('');
+        item.innerHTML = `
+            <div style="min-width:0;flex:1;">
+                <div style="font-size:13px;font-weight:700;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${record.case_name || '미지정'} 아동 사례</div>
+                <div style="font-size:11px;color:#8B95A1;margin-top:2px;">${record.dong || ''}</div>
+            </div>
+            ${record.share_token ? `
+            <button class="btn-share-shared-by-me" data-token="${record.share_token}" style="
+                display:inline-flex;align-items:center;gap:4px;padding:7px 12px;
+                background:#1A56DB;color:#fff;border:none;border-radius:8px;
+                font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;
+            ">🔗 공유</button>` : ''}
+        `;
+        // 공유 버튼 이벤트
+        const shareBtn = item.querySelector('.btn-share-shared-by-me');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const token = e.currentTarget.dataset.token;
+                const key = vaultKeys[token] || '';
+                const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
+                navigator.clipboard.writeText(url).then(() => {
+                    showToastNotification('공유 링크가 복사됐어요');
+                }).catch(() => alert(url));
+            });
+        }
+        list.appendChild(item);
+    });
+
+    // 처음엔 접혀있음
+    list.style.display = 'none';
+    toggle.addEventListener('click', () => {
+        const isOpen = list.style.display !== 'none';
+        list.style.display = isOpen ? 'none' : 'flex';
+        const arrow = document.getElementById('shared-by-me-arrow');
+        if (arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+    });
+
+    section.appendChild(toggle);
+    section.appendChild(list);
+    recordsContainer.appendChild(section);
 }
 
 function updateInjectButton() {

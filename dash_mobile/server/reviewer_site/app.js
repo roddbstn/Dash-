@@ -238,7 +238,7 @@ let isInfoExpanded = false;
 let isEditMode = true; // 항상 편집 모드
 let editHistory = []; // [{main, opinion}, ...]
 let historyIndex = -1;
-let hasEverSentNotify = false; // 최초 "수정 완료 알림 보내기" 클릭 여부
+let hasEverSentNotify = false; // 최초 "저장 알림 보내기" 클릭 여부
 
 // ── 편집 모드 (항상 활성) ──────────────────────────────────────
 // toggleEditMode 제거: 편집 버튼 없이 바로 편집 가능
@@ -503,7 +503,7 @@ async function confirmNotify() {
         _logEvent('review_submitted');
         closeModal();
         // 성공 토스트
-        showToast('담당자에게 수정 완료 알림을 보냈어요.');
+        showToast('담당자에게 저장 알림을 보냈어요.');
         // 히스토리 패널이 열려 있으면 즉시 갱신
         const histPanel = document.getElementById('history-panel');
         if (histPanel && histPanel.classList.contains('open')) loadHistory(token);
