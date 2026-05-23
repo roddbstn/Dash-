@@ -574,7 +574,7 @@ Widget _buildCounselorChip({
 
 Future<String?> _showAddCounselorDialog(BuildContext context) async {
   final controller = TextEditingController();
-  return showDialog<String>(
+  final result = await showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
       backgroundColor: Colors.white,
@@ -617,4 +617,6 @@ Future<String?> _showAddCounselorDialog(BuildContext context) async {
       ],
     ),
   );
+  controller.dispose();
+  return result;
 }
