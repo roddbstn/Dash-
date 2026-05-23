@@ -348,12 +348,9 @@ function markNotifySent() {
 let _typingTimer = null;
 
 function _getEncKey(token) {
-    const qp = new URLSearchParams(window.location.search);
-    let key = qp.get('key');
-    if (!key) {
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        key = hashParams.get('key') || '';
-    }
+    // [Security] 키는 fragment(#key=)에서만 읽음 — 서버 로그/히스토리에 기록 안 됨
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    let key = hashParams.get('key') || '';
     if (!key) key = sessionStorage.getItem('dash_key_' + token) || '';
     return key;
 }
@@ -581,20 +578,13 @@ function showEncryptionNotice(reason) {
 
 function loadRecord(token) {
     let encKey = "";
-    // 1) 쿼리 파라미터 ?key= 우선 (메시지 앱이 fragment를 제거하는 경우 대응)
-    const urlParams = new URLSearchParams(window.location.search);
-    const qKey = urlParams.get('key');
-    if (qKey) {
-        encKey = qKey;
-    } else {
-        // 2) URL fragment #key= 파싱 (URLSearchParams 방식)
-        const hashStr = window.location.hash.substring(1);
-        if (hashStr) {
-            const hashParams = new URLSearchParams(hashStr);
-            encKey = hashParams.get('key') || '';
-        }
+    // [Security] 키는 fragment(#key=)에서만 읽음
+    const hashStr = window.location.hash.substring(1);
+    if (hashStr) {
+        const hashParams = new URLSearchParams(hashStr);
+        encKey = hashParams.get('key') || '';
     }
-    // 3) 오너 로그인 시 서버에서 받아 세션에 저장된 키 (URL에 키가 없는 경우)
+    // 세션에 저장된 키 (URL에 키가 없는 경우)
     if (!encKey) {
         encKey = sessionStorage.getItem('dash_key_' + token) || "";
     }
@@ -1160,4 +1150,79 @@ function updateUI(data) {
     }
     updateUndoRedoButtons();
     updateCTAState();
+
+    // ── CTA 분기: is_shared_db 여부에 따라 버튼 전환
+    if (data.is_shared_db) {
+        _switchToSaveMode();
+    }
+}
+
+// ── "내 DB로 저장" 모드로 전환 (notify 버튼 숨기고 save 버튼 표시)
+function _switchToSaveMode() {
+    document.querySelectorAll('.notify-btn').forEach(btn => {
+        btn.style.display = 'none';
+    });
+    const saveHeader = document.getElementById('btn-save-to-my-db-header');
+    const saveMobile = document.getElementById('btn-save-to-my-db-mobile');
+    if (saveHeader) { saveHeader.style.display = ''; saveHeader.disabled = false; saveHeader.style.opacity = '1'; }
+    if (saveMobile) { saveMobile.style.display = ''; saveMobile.disabled = false; saveMobile.style.opacity = '1'; }
+}
+
+function openSaveToMyDbModal() {
+    const modal = document.getElementById('save-to-my-db-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeSaveToMyDbModal() {
+    const modal = document.getElementById('save-to-my-db-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function confirmSaveToMyDb() {
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (!token) return;
+
+    const confirmBtn = document.getElementById('btn-confirm-save-to-my-db');
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '저장 중...'; }
+
+    try {
+        const user = firebase.auth().currentUser;
+        if (!user) throw new Error('로그인이 필요합니다.');
+        const idToken = await user.getIdToken(true);
+
+        const res = await fetch(`/api/records/save-to-my-db/${token}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${idToken}` },
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            if (data.error === 'not_registered') {
+                showToast('DASH 앱에 가입된 계정만 저장할 수 있어요.');
+            } else if (data.error === 'own_record') {
+                showToast('자신이 작성한 DB는 저장할 수 없어요.');
+            } else {
+                showToast('저장에 실패했습니다. 다시 시도해 주세요.');
+            }
+            return;
+        }
+
+        closeSaveToMyDbModal();
+        const saveHeader = document.getElementById('btn-save-to-my-db-header');
+        const saveMobile = document.getElementById('btn-save-to-my-db-mobile');
+        [saveHeader, saveMobile].forEach(btn => {
+            if (!btn) return;
+            btn.disabled = true;
+            btn.textContent = '저장 완료 ✓';
+            btn.style.opacity = '0.6';
+            btn.style.cursor = 'not-allowed';
+        });
+        showToast('내 DB에 저장되었어요. 담당자에게도 알림을 보냈어요.', 4000);
+        _logEvent('save_to_my_db');
+    } catch (err) {
+        showToast('오류가 발생했습니다: ' + err.message);
+        console.error(err);
+    } finally {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '저장'; }
+    }
 }

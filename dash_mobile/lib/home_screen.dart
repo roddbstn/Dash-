@@ -19,6 +19,7 @@ import 'package:dash_mobile/screens/profile_tab.dart';
 import 'package:dash_mobile/screens/db_history_tab.dart';
 import 'package:dash_mobile/screens/home_tab.dart';
 import 'package:dash_mobile/screens/case_selection_modal.dart';
+import 'package:dash_mobile/screens/db_type_selection_sheet.dart';
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -605,6 +606,14 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
         );
+
+        // 사례담당자가 "내 DB로 저장" 완료 시 → 삭제 여부 안내 모달
+        if (message.data['type'] == 'db_saved_by_case_manager') {
+          final recordToken = message.data['record_token']?.toString();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _showDbSavedByManagerSheet(recordToken);
+          });
+        }
       }
     });
 
@@ -653,6 +662,78 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ── 사례담당자가 공유 DB 저장 완료 → 삭제 여부 안내 시트 ────────────
+  void _showDbSavedByManagerSheet(String? recordToken) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).padding.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('사례담당자가 DB를 저장했어요', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF222222))),
+            const SizedBox(height: 8),
+            const Text(
+              '이 DB는 이미 담당자에게 전달됐어요.\n더 이상 필요 없다면 내 목록에서 삭제할 수 있어요.\n(삭제해도 담당자의 DB에는 영향이 없어요)',
+              style: TextStyle(fontSize: 13, color: Color(0xFF8B95A1), height: 1.6),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      side: const BorderSide(color: Color(0xFFE0E0E0)),
+                    ),
+                    child: const Text('유지', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF4E5968))),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      if (recordToken != null) {
+                        await ApiService.deleteRecord(recordToken);
+                        final freshDrafts = await StorageService.getDrafts();
+                        if (mounted) setState(() => _drafts = freshDrafts);
+                        _showToast('DB를 삭제했어요');
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF4D4F),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: const Text('삭제', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Vault 복구 ──────────────────────────────────────────────────
 
   void _checkAndPromptVaultRecovery(
@@ -682,7 +763,7 @@ class _HomeScreenState extends State<HomeScreen>
           }
         }
       }
-      if (mounted) _navigateToVaultRecovery();
+      // 앱에서는 Vault 복구 화면 표시 안 함 (PIN은 확장프로그램에서만 요구)
     });
   }
 
@@ -742,6 +823,13 @@ class _HomeScreenState extends State<HomeScreen>
     required dynamic caseId,
     int? draftId,
   }) async {
+    // 신규 DB 생성 시 유형 선택
+    DbType? dbType;
+    if (draftId == null) {
+      dbType = await showDbTypeSelectionSheet(context);
+      if (dbType == null) return; // 유저가 시트 닫음
+    }
+
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -751,6 +839,7 @@ class _HomeScreenState extends State<HomeScreen>
           dong: dong,
           draftId: draftId,
           userName: _userName,
+          isSharedDb: dbType == DbType.shared,
           onSyncComplete: () {
             if (mounted) _loadData();
           },

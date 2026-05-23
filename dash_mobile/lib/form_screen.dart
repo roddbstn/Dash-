@@ -24,6 +24,7 @@ class FormScreen extends StatefulWidget {
   final bool isEmbedded;
   final VoidCallback? onSyncComplete;
   final String? userName;
+  final bool isSharedDb;
 
   const FormScreen({
     super.key,
@@ -34,6 +35,7 @@ class FormScreen extends StatefulWidget {
     this.isEmbedded = false,
     this.onSyncComplete,
     this.userName,
+    this.isSharedDb = false,
   });
 
   @override
@@ -243,13 +245,8 @@ class _FormScreenState extends State<FormScreen> {
     final userId = await StorageService.getUserId();
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
 
-    // [Security] PIN 확인 (로컬, 빠름)
+    // PIN은 확장프로그램에서만 요구, 앱에서는 불필요
     String? pin = await StorageService.getPin();
-    if (pin == null) {
-      pin = await _showPinSetupDialog();
-      if (pin != null) AnalyticsService.pinSet();
-      if (pin == null) return;
-    }
 
     final serverDraftData = {
       'case_id': widget.caseId,
@@ -273,6 +270,7 @@ class _FormScreenState extends State<FormScreen> {
       'agent_opinion': '',
       'encrypted_blob': encryptedBlob,
       'share_token': _currentDraft?['share_token'],
+      'is_shared_db': widget.isSharedDb,
     };
 
     // 로컬 저장 완료 → 즉시 홈으로 전환, 서버 동기화는 백그라운드에서 진행
@@ -294,7 +292,7 @@ class _FormScreenState extends State<FormScreen> {
 
   Future<void> _syncRecordInBackground({
     required String userId,
-    required String pin,
+    required String? pin,
     required int targetId,
     required Map<String, dynamic> serverDraftData,
     required String encryptionKey,
@@ -323,9 +321,13 @@ class _FormScreenState extends State<FormScreen> {
       }
       // [Security] 서버 sync 완료 후 share_token으로 keyMap에 키 저장
       await StorageService.saveKeyToMap(shareToken, encryptionKey);
-      await _syncKeyToVault(userId, shareToken, encryptionKey, pin);
+      if (pin != null) await _syncKeyToVault(userId, shareToken, encryptionKey, pin);
       // 동기화 완료 → 홈화면에서 _loadData() 트리거 (share_token 저장 후 호출)
       widget.onSyncComplete?.call();
+      // 공유할 DB로 선택한 경우 저장 직후 자동으로 링크 복사
+      if (widget.isSharedDb && mounted) {
+        await _copyShareLink();
+      }
     } else {
       AnalyticsService.recordSyncFailure('no_share_token');
       final pending = await StorageService.getPendingSyncs();
@@ -409,7 +411,8 @@ class _FormScreenState extends State<FormScreen> {
   }
 
   // [Security] Sync Encryption Key to User's Vault (E2EE)
-  Future<void> _syncKeyToVault(String userId, String recordId, String keyStr, String pin) async {
+  Future<void> _syncKeyToVault(String userId, String recordId, String keyStr, String? pin) async {
+    if (pin == null) return;
     const maxRetries = 3;
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -651,10 +654,10 @@ class _FormScreenState extends State<FormScreen> {
     }
     final String host = ApiService.baseUrl.replaceAll('/api', '');
     if (token != null && token.isNotEmpty) {
-      // [Security] 키는 SecureStorage keyMap에서 조회, ?key= query param으로 전달 (fragment는 메시징앱에서 제거됨)
+      // [Security] 키는 fragment(#key=)로 전달 — 서버 로그/브라우저 히스토리에 기록되지 않음
       final String? key = await StorageService.getKeyFromMap(token);
-      final keyParam = (key != null && key.isNotEmpty) ? '&key=$key' : '';
-      Clipboard.setData(ClipboardData(text: "$host/?token=$token$keyParam"));
+      final keyFragment = (key != null && key.isNotEmpty) ? '#key=$key' : '';
+      Clipboard.setData(ClipboardData(text: "$host/?token=$token$keyFragment"));
       AnalyticsService.linkCopied();
       _showToast('링크가 복사되었습니다.');
     } else {
@@ -709,8 +712,23 @@ class _FormScreenState extends State<FormScreen> {
           backgroundColor: AppColors.bg,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 20), onPressed: () => Navigator.pop(context)),
-          title: Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          title: widget.isSharedDb
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('공유', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                    ),
+                  ],
+                )
+              : Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           centerTitle: true,
           actions: [
             if (widget.draftId != null) IconButton(icon: const Icon(Icons.ios_share, size: 24), onPressed: _copyShareLink),
@@ -743,7 +761,6 @@ class _FormScreenState extends State<FormScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
         ),
         child: Row(
           children: [

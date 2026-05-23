@@ -348,6 +348,14 @@ pool.query("ALTER TABLE service_drafts ADD COLUMN share_expires_at DATETIME DEFA
 pool.query("ALTER TABLE service_drafts ADD COLUMN injected_by_name VARCHAR(100) DEFAULT NULL")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] injected_by_name 추가 실패:', err.message); });
 
+// 동행자가 공유받은 DB를 목록에서 숨길 수 있도록 (원본 보존, 담당자 데이터 무영향)
+pool.query("ALTER TABLE share_viewers ADD COLUMN dismissed_at DATETIME DEFAULT NULL")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] dismissed_at 추가 실패:', err.message); });
+
+// is_shared_db: DB 생성 시 공유 목적인지 여부 (0=내 DB, 1=공유할 DB)
+pool.query("ALTER TABLE service_drafts ADD COLUMN is_shared_db TINYINT(1) DEFAULT 0")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] is_shared_db 추가 실패:', err.message); });
+
 // Phase 4: 유저 활동 추적 컬럼 추가 (KPI 대시보드용)
 pool.query("ALTER TABLE dash_users ADD COLUMN last_login_at DATETIME DEFAULT NULL")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] last_login_at 추가 실패:', err.message); });
@@ -812,7 +820,8 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
   const {
     case_id, case_name, dong, user_id, user_email, user_name, target, provision_type, method, service_type, service_category, service_name,
     location, start_time, end_time, service_count, travel_time,
-    service_description, agent_opinion, encrypted_blob, encryption_key, share_token: client_share_token
+    service_description, agent_opinion, encrypted_blob, encryption_key, share_token: client_share_token,
+    is_shared_db
   } = req.body;
   
   console.log(`\n========================================`);
@@ -886,9 +895,10 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
             service_description=?,
             agent_opinion=?,
             encrypted_blob=?,
-            target=?
+            target=?,
+            is_shared_db=COALESCE(?, is_shared_db)
           WHERE id=?`,
-          [provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', recordId]
+          [provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', is_shared_db != null ? (is_shared_db ? 1 : 0) : null, recordId]
         );
         console.log(`🔄 Record updated successfully (DB ID: ${recordId})`);
       }
@@ -898,9 +908,9 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
       share_token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
       const [result] = await queryWithTimeout(
         `INSERT INTO service_drafts
-        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced')`,
-        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token]
+        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status, is_shared_db)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced', ?)`,
+        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token, is_shared_db ? 1 : 0]
       );
       recordId = result.insertId;
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);
@@ -1185,6 +1195,107 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
     }
   } catch (err) {
     console.error('❌ Review Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// [Web] 4. 사례담당자가 공유받은 DB를 자신의 계정에 저장 (save-to-my-db)
+app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, res) => {
+  const { token } = req.params;
+  const { uid, email } = req.firebaseUser;
+  console.log(`\n💾 [SAVE-TO-MY-DB] Token: ${token} | Requester: ${email}`);
+
+  try {
+    // 1. 요청자가 등록된 Dash 사용자인지 확인
+    const [userRows] = await queryWithTimeout('SELECT id, name FROM dash_users WHERE id = ?', [uid]);
+    if (userRows.length === 0) return res.status(403).json({ error: 'not_registered' });
+    const requesterName = userRows[0].name || email;
+
+    // 2. 원본 draft + case 정보 조회
+    const [draftRows] = await queryWithTimeout(
+      `SELECT sd.*, c.case_name, c.dong, c.target_system_code, c.user_id AS owner_user_id, u.name AS owner_name
+       FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       JOIN dash_users u ON c.user_id = u.id
+       WHERE sd.share_token = ?`,
+      [token]
+    );
+    if (draftRows.length === 0) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
+
+    const orig = draftRows[0];
+    // 자기 자신이 작성한 DB는 저장 불가
+    if (orig.owner_user_id === uid) return res.status(400).json({ error: 'own_record' });
+
+    // 3. 요청자 계정에서 동일 case_name 사례 찾기 (없으면 생성)
+    const caseId = require('crypto').randomUUID();
+    const [existingCase] = await queryWithTimeout(
+      'SELECT id FROM cases WHERE user_id = ? AND case_name = ?',
+      [uid, orig.case_name]
+    );
+    let targetCaseId;
+    if (existingCase.length > 0) {
+      targetCaseId = existingCase[0].id;
+    } else {
+      targetCaseId = caseId;
+      await queryWithTimeout(
+        'INSERT INTO cases (id, user_id, case_name, dong, target_system_code) VALUES (?, ?, ?, ?, ?)',
+        [targetCaseId, uid, orig.case_name, orig.dong || '', orig.target_system_code || 'NCADS_v2']
+      );
+    }
+
+    // 4. 새 share_token 발급 및 draft 복사 (원본과 독립된 사본)
+    const newToken = require('crypto').randomBytes(16).toString('hex');
+    await queryWithTimeout(
+      `INSERT INTO service_drafts
+        (case_id, provision_type, method, service_type, service_category, service_name, location,
+         start_time, end_time, service_count, travel_time, service_description, agent_opinion,
+         encrypted_blob, target, share_token, status, is_shared_db, injected_by_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced', 0, ?)`,
+      [
+        targetCaseId, orig.provision_type, orig.method, orig.service_type, orig.service_category,
+        orig.service_name, orig.location, orig.start_time, orig.end_time, orig.service_count,
+        orig.travel_time, orig.service_description, orig.agent_opinion, orig.encrypted_blob,
+        orig.target, newToken, orig.injected_by_name || requesterName
+      ]
+    );
+
+    // 5. 원본 소유자에게 알림 생성
+    const notifyMsg = `${requesterName} 상담원님이 DB를 저장했어요.`;
+    await queryWithTimeout(
+      'INSERT INTO notifications (user_id, case_name, record_token, message, is_read) VALUES (?, ?, ?, ?, 0)',
+      [orig.owner_user_id, orig.case_name, token, notifyMsg]
+    );
+
+    // 6. 원본 소유자에게 FCM Push
+    if (fcmInitialized) {
+      try {
+        const [ownerFcm] = await queryWithTimeout('SELECT fcm_token FROM dash_users WHERE id = ?', [orig.owner_user_id]);
+        if (ownerFcm.length > 0 && ownerFcm[0].fcm_token) {
+          await admin.messaging().send({
+            notification: {
+              title: `${orig.case_name} 아동 DB 저장 완료`,
+              body: notifyMsg,
+            },
+            data: {
+              type: 'db_saved_by_case_manager',
+              target_user_id: String(orig.owner_user_id),
+              record_token: token,
+            },
+            android: { priority: 'high', notification: { channelId: 'high_importance_channel' } },
+            apns: { payload: { aps: { 'content-available': 1 } }, headers: { 'apns-priority': '10' } },
+            token: ownerFcm[0].fcm_token,
+          });
+          console.log(`🚀 FCM 'db_saved_by_case_manager' sent to owner: ${orig.owner_user_id}`);
+        }
+      } catch (pushErr) {
+        console.error('❌ FCM Push Error (save-to-my-db):', pushErr.message);
+      }
+    }
+
+    console.log(`✅ DB saved to case manager's account. New token: ${newToken}`);
+    res.json({ ok: true, new_token: newToken });
+  } catch (err) {
+    console.error('❌ save-to-my-db error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1630,6 +1741,7 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
             SELECT 1 FROM share_viewers sv
             WHERE sv.share_token = r.share_token
               AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+              AND sv.dismissed_at IS NULL
           )
           AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
         ORDER BY start_time IS NULL ASC, start_time ASC
@@ -1696,18 +1808,42 @@ app.patch('/api/records/:id/share-expiry', verifyFirebaseAuth, async (req, res) 
   }
 });
 
-// [Mobile] 5-0. 공유받은 DB 수동 삭제 (reviewer_user_id 해제)
+// [Mobile] 5-0. 공유받은 DB 목록에서 숨기기 (동행자 전용)
+// - service_drafts 원본은 절대 건드리지 않음 → 사례 담당자 데이터 100% 보존
+// - share_viewers.dismissed_at 만 채워서 동행자 목록에서만 제거
 app.delete('/api/records/shared/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   const uid = req.firebaseUser?.uid;
   try {
-    const [result] = await queryWithTimeout(
-      `UPDATE service_drafts SET reviewer_user_id = NULL WHERE id = ? AND reviewer_user_id = (SELECT id FROM dash_users WHERE id = ? LIMIT 1)`,
+    // 1. 해당 draft의 share_token 조회 (권한 확인 겸)
+    const [draftRows] = await queryWithTimeout(
+      `SELECT sd.share_token FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       WHERE sd.id = ?
+         AND EXISTS (
+           SELECT 1 FROM share_viewers sv
+           WHERE sv.share_token = sd.share_token AND sv.user_id = ?
+         )
+       LIMIT 1`,
       [id, uid]
     );
-    if (result.affectedRows === 0) {
+    if (draftRows.length === 0) {
       return res.status(404).json({ error: 'Not found or not authorized' });
     }
+    const shareToken = draftRows[0].share_token;
+
+    // 2. 동행자의 share_viewers 행에만 dismissed_at 기록 (원본 보존)
+    await queryWithTimeout(
+      `UPDATE share_viewers SET dismissed_at = NOW() WHERE share_token = ? AND user_id = ?`,
+      [shareToken, uid]
+    );
+
+    // 3. reviewer_user_id도 해제 (하위 호환 — 다른 동행자 재공유 가능하도록)
+    await queryWithTimeout(
+      `UPDATE service_drafts SET reviewer_user_id = NULL WHERE id = ? AND reviewer_user_id = ?`,
+      [id, uid]
+    );
+
     res.json({ message: 'Removed from shared list' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1781,6 +1917,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
            SELECT 1 FROM share_viewers sv
            WHERE sv.share_token = r.share_token
              AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)
+             AND sv.dismissed_at IS NULL
          )
            AND c.user_id NOT IN (SELECT id FROM dash_users WHERE email = ?)
            AND r.status != 'Injected'
