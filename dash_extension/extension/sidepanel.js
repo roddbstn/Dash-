@@ -1114,9 +1114,6 @@ function renderRecords() {
         // 서비스 내용 / 상담원 소견 드롭다운 ID
         const dropdownId = `dropdown-${record.id}`;
 
-        const authorTag = record.author_name
-            ? `<span class="counselor-tag">담당: ${record.author_name}</span>`
-            : '';
         const isShared = record.record_type === 'shared';
         const dbTypeBadge = isShared
             ? `<span style="display:inline-block;padding:2px 8px;background:#EBF3FF;color:#1A56DB;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">공유받은 DB</span>`
@@ -1130,7 +1127,6 @@ function renderRecords() {
                     </div>
                     <div style="margin-top:4px;">${dbTypeBadge}</div>
                 </div>
-                ${authorTag}
             </div>
             <div class="record-info-list">
                 <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
