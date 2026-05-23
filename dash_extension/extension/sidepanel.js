@@ -234,7 +234,7 @@ function performLogout() {
     vaultKeys = {};
     pinAuthenticated = false;
     chrome.storage.local.remove(['dashUser']);
-    chrome.storage.session.remove(['cachedVaultKeys', 'cachedOAuthToken']);
+    chrome.storage.session.remove(['cachedVaultKeys', 'cachedOAuthToken', 'cachedDerivedKey']);
     pinInput = '';
 
     // 버튼 상태 초기화
@@ -434,11 +434,53 @@ async function verifyPinWithVault(pin) {
         console.log('[DEBUG] vault fetch OK, encrypted_vault len:', encrypted_vault?.length, 'salt len:', salt?.length);
         if (!encrypted_vault) return null;
 
+        // PIN 성공 시 derived key를 세션에 캐시 → vault 재복호화에 재사용
+        if (salt && salt.length > 10) {
+            try {
+                const keyBytes = await deriveVaultKey(pin, salt);
+                const keyB64 = btoa(String.fromCharCode(...keyBytes));
+                chrome.storage.session.set({ cachedDerivedKey: keyB64 });
+            } catch (_) {}
+        }
+
         const result = await attemptDecryptVault(pin, encrypted_vault, salt);
         return result;
     } catch (e) {
         console.error('PIN verification failed:', e);
         return null;
+    }
+}
+
+// Vault 갱신: fetchRecords 호출 시 새로 추가된 공유 DB 키를 반영
+async function refreshVaultKeys() {
+    if (!pinAuthenticated || !currentUser?.uid) return;
+    try {
+        const session = await new Promise(resolve => {
+            chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
+        });
+        if (!session.cachedDerivedKey) return;
+
+        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const { encrypted_vault } = await res.json();
+        if (!encrypted_vault) return;
+
+        const parts = encrypted_vault.split(':');
+        if (parts.length !== 2) return;
+        const iv = base64ToArrayBuffer(parts[0]);
+        const ciphertext = base64ToArrayBuffer(parts[1]);
+
+        const keyBytes = Uint8Array.from(atob(session.cachedDerivedKey), c => c.charCodeAt(0));
+        const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
+        const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
+        const freshVault = JSON.parse(new TextDecoder().decode(buf));
+
+        const merged = { ...vaultKeys, ...freshVault };
+        vaultKeys = merged;
+        chrome.storage.session.set({ cachedVaultKeys: merged });
+        console.log('[refreshVaultKeys] vault 갱신 완료, 토큰 수:', Object.keys(merged).length);
+    } catch (e) {
+        console.warn('[refreshVaultKeys] 갱신 실패 (무시):', e);
     }
 }
 
@@ -670,6 +712,7 @@ pinHelpModal.addEventListener('click', (e) => {
 // ==============================================
 
 async function fetchRecords() {
+    await refreshVaultKeys(); // 새로 추가된 공유 DB 암호화 키를 vault에서 갱신
     setStatus('loading', '기록을 불러오는 중...');
     showSkeleton();
 
@@ -1576,7 +1619,7 @@ function showToastNotification(msg) {
             } else {
                 // 세션 토큰 없음 = 브라우저 재시작 → 재로그인
                 chrome.storage.local.remove(['dashUser']);
-                chrome.storage.session.remove(['cachedVaultKeys', 'cachedOAuthToken']);
+                chrome.storage.session.remove(['cachedVaultKeys', 'cachedOAuthToken', 'cachedDerivedKey']);
                 vaultKeys = {};
                 currentUser = null;
                 showLoginView();
