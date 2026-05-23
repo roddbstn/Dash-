@@ -1118,6 +1118,9 @@ function renderRecords() {
         const dbTypeBadge = isShared
             ? `<span style="display:inline-block;padding:2px 8px;background:#EBF3FF;color:#1A56DB;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">공유받은 DB</span>`
             : `<span style="display:inline-block;padding:2px 8px;background:#F2F4F6;color:#8B95A1;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">내 DB</span>`;
+        const fromTag = isShared && record.author_name
+            ? `<span style="font-size:11px;color:#8B95A1;font-weight:500;">from ${record.author_name}</span>`
+            : '';
         card.innerHTML = `
             <div class="record-card-header">
                 <div class="record-card-header-left">
@@ -1125,7 +1128,7 @@ function renderRecords() {
                         <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
                         <span class="record-dong">${record.dong || ''}</span>
                     </div>
-                    <div style="margin-top:4px;">${dbTypeBadge}</div>
+                    <div style="margin-top:4px;display:flex;align-items:center;gap:8px;">${dbTypeBadge}${fromTag}</div>
                 </div>
             </div>
             <div class="record-info-list">
