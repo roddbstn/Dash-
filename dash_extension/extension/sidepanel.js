@@ -376,9 +376,10 @@ async function checkPinAndProceed() {
     // 1. 세션 스토리지에 캐시된 vaultKeys 확인 (브라우저 닫기 전까지 재입력 불필요)
     //    PIN 자체는 저장하지 않음 — 복호화된 키만 세션에 보관
     const session = await new Promise(resolve => {
-        chrome.storage.session.get(['cachedVaultKeys'], result => resolve(result));
+        chrome.storage.session.get(['cachedVaultKeys', 'cachedDerivedKey'], result => resolve(result));
     });
-    if (session.cachedVaultKeys && Object.keys(session.cachedVaultKeys).length > 0) {
+    // cachedDerivedKey도 있어야 vault 갱신 가능 → 없으면 PIN 재입력으로 캐시
+    if (session.cachedVaultKeys && session.cachedDerivedKey && Object.keys(session.cachedVaultKeys).length > 0) {
         vaultKeys = session.cachedVaultKeys;
         pinAuthenticated = true;
         showMainView();

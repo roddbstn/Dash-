@@ -937,13 +937,9 @@ function renderParticipants(ownerName, viewers) {
     if (mobileEl) { mobileEl.innerHTML = html; }
 }
 
-// ── 본인 DB: 알림 버튼 숨기고 저장 버튼 표시
+// ── 본인 DB: 알림 버튼 숨김 (저장 버튼 없음)
 function setOwnerReadOnlyMode() {
     document.querySelectorAll('.notify-btn').forEach(btn => btn.style.display = 'none');
-    const headerSave = document.getElementById('btn-owner-save');
-    const mobileSave = document.getElementById('btn-owner-save-mobile');
-    if (headerSave) headerSave.style.display = '';
-    if (mobileSave) mobileSave.style.display = '';
 }
 
 // ── 토스트 알림 (간단한 UI 피드백)
