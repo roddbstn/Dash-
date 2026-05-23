@@ -1120,7 +1120,7 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
 
     if (result.affectedRows > 0) {
       // 📝 Create Notification for the counselor
-      const message = `${reviewer_name} 상담원님이 DB를 수정 완료했어요.`;
+      const message = `${reviewer_name} 상담원님이 DB를 저장했어요.`;
       // 📝 Mark previous unread notifications for the same record as read (Requirement: Replace with latest for same DB)
       await queryWithTimeout(
         'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND record_token = ? AND is_read = 0',
@@ -1165,7 +1165,7 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
             const message = {
               notification: {
                 title: `${case_name} 아동 DB 수정 완료`,
-                body: `${reviewer_name} 상담원님이 DB를 수정했어요.`
+                body: `${reviewer_name} 상담원님이 DB를 저장했어요.`
               },
               data: {
                 type: 'review_completed',
@@ -1206,10 +1206,15 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
   console.log(`\n💾 [SAVE-TO-MY-DB] Token: ${token} | Requester: ${email}`);
 
   try {
-    // 1. 요청자가 등록된 Dash 사용자인지 확인
-    const [userRows] = await queryWithTimeout('SELECT id, name FROM dash_users WHERE id = ?', [uid]);
+    // 1. 요청자가 등록된 Dash 사용자인지 확인 (UID → 이메일 폴백)
+    let [userRows] = await queryWithTimeout('SELECT id, name FROM dash_users WHERE id = ?', [uid]);
+    if (userRows.length === 0 && email) {
+      [userRows] = await queryWithTimeout('SELECT id, name FROM dash_users WHERE email = ?', [email]);
+    }
     if (userRows.length === 0) return res.status(403).json({ error: 'not_registered' });
+    const requesterUid = userRows[0].id;
     const requesterName = userRows[0].name || email;
+    console.log(`[SAVE-TO-MY-DB] step1 ok: requesterUid=${requesterUid}`);
 
     // 2. 원본 draft + case 정보 조회
     const [draftRows] = await queryWithTimeout(
@@ -1223,14 +1228,15 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
     if (draftRows.length === 0) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
 
     const orig = draftRows[0];
+    console.log(`[SAVE-TO-MY-DB] step2 ok: case_name=${orig.case_name}, owner=${orig.owner_user_id}`);
     // 자기 자신이 작성한 DB는 저장 불가
-    if (orig.owner_user_id === uid) return res.status(400).json({ error: 'own_record' });
+    if (orig.owner_user_id === requesterUid) return res.status(400).json({ error: 'own_record' });
 
     // 3. 요청자 계정에서 동일 case_name 사례 찾기 (없으면 생성)
     const caseId = require('crypto').randomUUID();
     const [existingCase] = await queryWithTimeout(
       'SELECT id FROM cases WHERE user_id = ? AND case_name = ?',
-      [uid, orig.case_name]
+      [requesterUid, orig.case_name]
     );
     let targetCaseId;
     if (existingCase.length > 0) {
@@ -1239,9 +1245,10 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
       targetCaseId = caseId;
       await queryWithTimeout(
         'INSERT INTO cases (id, user_id, case_name, dong, target_system_code) VALUES (?, ?, ?, ?, ?)',
-        [targetCaseId, uid, orig.case_name, orig.dong || '', orig.target_system_code || 'NCADS_v2']
+        [targetCaseId, requesterUid, orig.case_name, orig.dong || '', orig.target_system_code || 'NCADS_v2']
       );
     }
+    console.log(`[SAVE-TO-MY-DB] step3 ok: targetCaseId=${targetCaseId}`);
 
     // 4. 새 share_token 발급 및 draft 복사 (원본과 독립된 사본)
     const newToken = require('crypto').randomBytes(16).toString('hex');
@@ -1258,6 +1265,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
         orig.target, newToken, orig.injected_by_name || requesterName
       ]
     );
+    console.log(`[SAVE-TO-MY-DB] step4 ok: newToken=${newToken}`);
 
     // 5. 원본 소유자에게 알림 생성
     const notifyMsg = `${requesterName} 상담원님이 DB를 저장했어요.`;
@@ -1265,6 +1273,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
       'INSERT INTO notifications (user_id, case_name, record_token, message, is_read) VALUES (?, ?, ?, ?, 0)',
       [orig.owner_user_id, orig.case_name, token, notifyMsg]
     );
+    console.log(`[SAVE-TO-MY-DB] step5 ok`);
 
     // 6. 원본 소유자에게 FCM Push
     if (fcmInitialized) {
