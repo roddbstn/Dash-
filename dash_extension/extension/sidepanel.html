@@ -113,6 +113,7 @@
         <!-- 탭 바 -->
         <div class="main-tab-bar">
             <button class="main-tab active" id="tab-pending">대기 중</button>
+            <button class="main-tab" id="tab-shared">공유할 DB<span id="tab-shared-badge" class="tab-badge hidden"></span></button>
             <button class="main-tab" id="tab-history">이전 기록</button>
         </div>
 
@@ -143,6 +144,16 @@
                     <span class="btn-icon-left">⚡</span>
                     삽입할 DB를 선택해주세요
                 </button>
+            </div>
+        </div>
+
+        <!-- 공유할 DB 탭 콘텐츠 -->
+        <div id="tab-content-shared" class="hidden">
+            <div id="shared-records-container" class="records-container"></div>
+            <div id="shared-empty-state" class="empty-state hidden">
+                <div class="empty-icon">📤</div>
+                <p class="empty-title">공유할 DB가 없어요</p>
+                <p class="empty-desc">모바일 앱에서 '공유할 DB'로 작성하세요</p>
             </div>
         </div>
 

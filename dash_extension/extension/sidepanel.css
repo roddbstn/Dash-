@@ -67,8 +67,6 @@ body {
 .login-logo {
     width: 72px;
     height: 72px;
-    background: var(--primary-light);
-    border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -682,10 +680,11 @@ body {
 }
 
 .circle-icon {
-    font-size: 15px;
+    font-size: 18px;
     line-height: 1;
     display: flex;
     align-items: center;
+    vertical-align: middle;
 }
 
 .card-select-number {
@@ -1258,6 +1257,30 @@ body {
 .main-tab.active {
     color: var(--primary);
     border-bottom-color: var(--primary);
+}
+
+.main-tab {
+    position: relative;
+}
+
+.tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.tab-badge.hidden {
+    display: none;
 }
 
 /* ── 이전 기록 카드 재기입 버튼 ──────────────────────────────── */

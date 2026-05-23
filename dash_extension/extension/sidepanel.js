@@ -138,7 +138,7 @@ let currentOAuthToken = null; // Google OAuth 토큰 (API 인증용)
 let records = [];          // 서버에서 가져온 기록 목록
 let historyRecords = [];   // 기입 완료(Injected) 기록
 let selectedRecordId = null; // 현재 선택된 기록 ID
-let currentMainTab = 'pending'; // 'pending' | 'history'
+let currentMainTab = 'pending'; // 'pending' | 'shared' | 'history'
 
 function authHeaders() {
     if (currentOAuthToken) return { 'Authorization': `Bearer ${currentOAuthToken}` };
@@ -156,6 +156,7 @@ const btnRefresh = document.getElementById('btn-refresh');
 
 // 탭 클릭 이벤트 (MV3 CSP: inline onclick 대신 addEventListener 사용)
 document.getElementById('tab-pending').addEventListener('click', () => switchMainTab('pending'));
+document.getElementById('tab-shared').addEventListener('click', () => switchMainTab('shared'));
 document.getElementById('tab-history').addEventListener('click', () => switchMainTab('history'));
 const btnInject = document.getElementById('btn-inject');
 const btnBackToList = document.getElementById('btn-back-to-list');
@@ -356,13 +357,14 @@ function showResultView() {
 function switchMainTab(tab) {
     currentMainTab = tab;
     document.getElementById('tab-pending').classList.toggle('active', tab === 'pending');
+    document.getElementById('tab-shared').classList.toggle('active', tab === 'shared');
     document.getElementById('tab-history').classList.toggle('active', tab === 'history');
     document.getElementById('tab-content-pending').classList.toggle('hidden', tab !== 'pending');
+    document.getElementById('tab-content-shared').classList.toggle('hidden', tab !== 'shared');
     document.getElementById('tab-content-history').classList.toggle('hidden', tab !== 'history');
 
-    if (tab === 'history') {
-        fetchHistory();
-    }
+    if (tab === 'history') fetchHistory();
+    if (tab === 'shared') renderSharedByMe();
 }
 
 // ==============================================
@@ -1238,61 +1240,82 @@ function renderRecords() {
         recordsContainer.appendChild(card);
     });
 
-    // ── "공유할 DB" 섹션 (하단 버튼으로만 접근)
-    _renderSharedByMeSection(sharedByMeRecords);
+    // 공유할 DB 탭 배지 업데이트
+    const badge = document.getElementById('tab-shared-badge');
+    if (badge) {
+        if (sharedByMeRecords.length > 0) {
+            badge.textContent = sharedByMeRecords.length;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+    // 공유할 DB 탭이 열려 있으면 즉시 재렌더
+    if (currentMainTab === 'shared') renderSharedByMe();
 }
 
-function _renderSharedByMeSection(sharedByMeRecords) {
-    // 기존 섹션 제거 후 재렌더
-    const existing = document.getElementById('shared-by-me-section');
-    if (existing) existing.remove();
+function renderSharedByMe() {
+    const container = document.getElementById('shared-records-container');
+    const emptyState = document.getElementById('shared-empty-state');
+    if (!container) return;
 
-    if (sharedByMeRecords.length === 0) return;
+    const sharedByMeRecords = records.filter(
+        r => r.status !== 'Injected' && r.record_type === 'owned' && r.is_shared_db == 1
+    );
 
-    const section = document.createElement('div');
-    section.id = 'shared-by-me-section';
-    section.style.cssText = 'margin-top:12px;';
+    container.innerHTML = '';
 
-    // 토글 버튼
-    const toggle = document.createElement('button');
-    toggle.id = 'btn-shared-by-me-toggle';
-    toggle.style.cssText = [
-        'width:100%;display:flex;align-items:center;justify-content:space-between;',
-        'padding:10px 14px;background:#F8F9FA;border:1px solid #E9ECEF;border-radius:10px;',
-        'font-size:12px;font-weight:700;color:#4E5968;cursor:pointer;font-family:inherit;',
-    ].join('');
-    toggle.innerHTML = `
-        <span style="display:flex;align-items:center;gap:6px;">
-            <span style="padding:2px 7px;background:#EBF3FF;color:#1A56DB;border-radius:5px;font-size:10px;font-weight:700;">공유할 DB</span>
-            <span>${sharedByMeRecords.length}건</span>
-        </span>
-        <svg id="shared-by-me-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4L6 8L10 4" stroke="#ADB5BD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    `;
+    if (sharedByMeRecords.length === 0) {
+        emptyState && emptyState.classList.remove('hidden');
+        return;
+    }
+    emptyState && emptyState.classList.add('hidden');
 
-    const list = document.createElement('div');
-    list.id = 'shared-by-me-list';
-    list.style.cssText = 'display:none;margin-top:8px;display:flex;flex-direction:column;gap:8px;';
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
     sharedByMeRecords.forEach(record => {
-        const item = document.createElement('div');
-        item.style.cssText = [
-            'display:flex;align-items:center;justify-content:space-between;',
-            'padding:10px 14px;background:#fff;border:1px solid #E9ECEF;border-radius:10px;gap:8px;',
-        ].join('');
-        item.innerHTML = `
-            <div style="min-width:0;flex:1;">
-                <div style="font-size:13px;font-weight:700;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${record.case_name || '미지정'} 아동 사례</div>
-                <div style="font-size:11px;color:#8B95A1;margin-top:2px;">${record.dong || ''}</div>
+        const card = document.createElement('div');
+        card.className = 'record-card';
+        card.dataset.id = record.id;
+
+        let dateTimeStr = '';
+        if (record.start_time && record.end_time) {
+            const start = new Date(record.start_time.replace(' ', 'T'));
+            const end = new Date(record.end_time.replace(' ', 'T'));
+            const dayName = dayNames[start.getDay()];
+            const startTime = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+            const endTime = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
+            dateTimeStr = `${start.getMonth()+1}.${start.getDate()} (${dayName}) ${startTime} ~ ${endTime}`;
+        }
+
+        card.innerHTML = `
+            <div class="record-card-header">
+                <div class="record-card-header-left">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="record-case-name">${record.case_name || '미지정'} 아동 사례</span>
+                        <span class="record-dong">${record.dong || ''}</span>
+                    </div>
+                    <div style="margin-top:4px;">
+                        <span style="display:inline-block;padding:2px 8px;background:#EBF3FF;color:#1A56DB;border-radius:6px;font-size:10px;font-weight:700;">공유할 DB</span>
+                    </div>
+                </div>
             </div>
-            ${record.share_token ? `
-            <button class="btn-share-shared-by-me" data-token="${record.share_token}" style="
-                display:inline-flex;align-items:center;gap:4px;padding:7px 12px;
-                background:#1A56DB;color:#fff;border:none;border-radius:8px;
-                font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;
-            ">🔗 공유</button>` : ''}
+            <div class="record-info-list">
+                <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
+                <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' :: ' + record.service_name : (record.service_name || '-')}</span></div>
+                <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
+            </div>
+            <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:4px;">
+                ${record.share_token ? `
+                <button class="btn-share-shared-by-me" data-token="${record.share_token}" style="
+                    display:inline-flex;align-items:center;gap:6px;width:100%;justify-content:center;
+                    padding:10px 14px;background:#1A56DB;color:#fff;border:none;border-radius:10px;
+                    font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+                ">🔗 공유 링크 보내기</button>` : ''}
+            </div>
         `;
-        // 공유 버튼 이벤트
-        const shareBtn = item.querySelector('.btn-share-shared-by-me');
+
+        const shareBtn = card.querySelector('.btn-share-shared-by-me');
         if (shareBtn) {
             shareBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1304,21 +1327,9 @@ function _renderSharedByMeSection(sharedByMeRecords) {
                 }).catch(() => alert(url));
             });
         }
-        list.appendChild(item);
-    });
 
-    // 처음엔 접혀있음
-    list.style.display = 'none';
-    toggle.addEventListener('click', () => {
-        const isOpen = list.style.display !== 'none';
-        list.style.display = isOpen ? 'none' : 'flex';
-        const arrow = document.getElementById('shared-by-me-arrow');
-        if (arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+        container.appendChild(card);
     });
-
-    section.appendChild(toggle);
-    section.appendChild(list);
-    recordsContainer.appendChild(section);
 }
 
 function updateInjectButton() {
