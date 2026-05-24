@@ -363,6 +363,16 @@ function switchMainTab(tab) {
     document.getElementById('tab-content-shared').classList.toggle('hidden', tab !== 'shared');
     document.getElementById('tab-content-history').classList.toggle('hidden', tab !== 'history');
 
+    // selection-bar: 이전 기록 탭에서는 숨김, 나머지는 PIN 인증 시 표시
+    const selBar = document.getElementById('selection-bar');
+    if (selBar) {
+        if (tab === 'history' || !pinAuthenticated) {
+            selBar.classList.add('hidden');
+        } else {
+            selBar.classList.remove('hidden');
+        }
+    }
+
     if (tab === 'history') fetchHistory();
     if (tab === 'shared') renderSharedByMe();
 }
@@ -497,7 +507,7 @@ async function refreshVaultKeys() {
         if (!session.cachedDerivedKey) return;
 
         const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
-        if (!res.ok) return;
+        if (!res.ok) return; // 네트워크/인증 오류 — 조용히 skip
         const { encrypted_vault } = await res.json();
         if (!encrypted_vault) return;
 
@@ -506,10 +516,22 @@ async function refreshVaultKeys() {
         const iv = base64ToArrayBuffer(parts[0]);
         const ciphertext = base64ToArrayBuffer(parts[1]);
 
-        const keyBytes = Uint8Array.from(atob(session.cachedDerivedKey), c => c.charCodeAt(0));
-        const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
-        const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
-        const freshVault = JSON.parse(new TextDecoder().decode(buf));
+        let freshVault;
+        try {
+            const keyBytes = Uint8Array.from(atob(session.cachedDerivedKey), c => c.charCodeAt(0));
+            const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
+            const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
+            freshVault = JSON.parse(new TextDecoder().decode(buf));
+        } catch (_) {
+            // 복호화 실패 = 모바일에서 PIN 변경 또는 vault 재초기화로 salt가 바뀐 것
+            // cachedDerivedKey가 무효하므로 세션 캐시를 지우고 PIN 재입력 유도
+            console.warn('[refreshVaultKeys] 복호화 실패 — vault 키 변경 감지, PIN 재입력 필요');
+            vaultKeys = {};
+            pinAuthenticated = false;
+            chrome.storage.session.remove(['cachedVaultKeys', 'cachedDerivedKey']);
+            showPinView();
+            return;
+        }
 
         const merged = { ...vaultKeys, ...freshVault };
         vaultKeys = merged;
@@ -801,16 +823,12 @@ async function fetchRecords() {
         if (pendingCount === 0) {
             recordsContainer.innerHTML = '';
             emptyState.classList.remove('hidden');
-            actionBar.classList.add('hidden');
             if (selectBar) selectBar.classList.add('hidden');
             hidePinSetupBanner();
             setStatus('success', '모든 기록이 처리되었습니다');
         } else {
             emptyState.classList.add('hidden');
-            actionBar.classList.remove('hidden');
             renderRecords();
-            // PIN 미인증 상태 → 민감 내용이 복호화 안 된 상태
-            // → 모바일에서 PIN 설정 안내 배너 표시, 선택 버튼 숨김
             if (!pinAuthenticated) {
                 if (selectBar) selectBar.classList.add('hidden');
                 showPinSetupBanner();
@@ -818,7 +836,7 @@ async function fetchRecords() {
             } else {
                 if (selectBar) selectBar.classList.remove('hidden');
                 hidePinSetupBanner();
-                setStatus('success', '삽입할 DB를 선택해주세요');
+                setStatus('success', '기록을 확인하고 삽입하세요');
             }
         }
 
@@ -1179,7 +1197,7 @@ function renderRecords() {
 
     pendingRecords.forEach(record => {
         const card = document.createElement('div');
-        card.className = `record-card ${record.id === selectedRecordId ? 'selected' : ''}`;
+        card.className = 'record-card';
         card.dataset.id = record.id;
 
         // 날짜/시간 포맷 (요일 포함, 다른 날짜 대응)
@@ -1321,28 +1339,15 @@ function renderRecords() {
             });
         }
 
-        // 카드 클릭 → 선택/해제 (단일 선택)
+        // 카드 클릭 → 선택 모드일 때만 처리 (삭제용 다중 선택)
         card.addEventListener('click', () => {
-            if (isSelectionMode) {
-                if (selectedForDelete.has(record.id)) {
-                    selectedForDelete.delete(record.id);
-                } else {
-                    const nextNum = selectedForDelete.size + 1;
-                    selectedForDelete.set(record.id, nextNum);
-                }
-                renderRecords(); // Re-render to update numbers
-                return;
-            }
-
-            if (record.status === 'Injected') return;
-
-            if (selectedRecordId === record.id) {
-                selectedRecordId = null;
+            if (!isSelectionMode) return;
+            if (selectedForDelete.has(record.id)) {
+                selectedForDelete.delete(record.id);
             } else {
-                selectedRecordId = record.id;
+                selectedForDelete.set(record.id, selectedForDelete.size + 1);
             }
             renderRecords();
-            updateInjectButton();
         });
 
         // 렌더링 시 현재 모드유지
@@ -1471,7 +1476,32 @@ function renderSharedByMe() {
                     font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
                 ">🔗 링크 복사</button>` : ''}
             </div>
+            <div class="card-select-number"></div>
         `;
+
+        // 카드 클릭 → 선택 모드일 때만 처리
+        card.addEventListener('click', () => {
+            if (!isSelectionMode) return;
+            if (selectedForDelete.has(record.id)) {
+                selectedForDelete.delete(record.id);
+            } else {
+                selectedForDelete.set(record.id, selectedForDelete.size + 1);
+            }
+            renderSharedByMe();
+        });
+
+        // 선택 모드 상태 반영
+        if (isSelectionMode) {
+            card.classList.add('selection-mode');
+            if (selectedForDelete.has(record.id)) {
+                card.classList.add('selected-for-delete');
+                const numEl = card.querySelector('.card-select-number');
+                if (numEl) {
+                    const keys = Array.from(selectedForDelete.keys());
+                    numEl.textContent = keys.indexOf(record.id) + 1;
+                }
+            }
+        }
 
         // 상세 보기 드롭다운 토글
         const sharedToggleBtn = card.querySelector('.record-dropdown-toggle');

@@ -112,22 +112,23 @@
 
         <!-- 탭 바 -->
         <div class="main-tab-bar">
-            <button class="main-tab active" id="tab-pending">대기 중</button>
+            <button class="main-tab active" id="tab-pending">나의 DB<span id="tab-pending-badge" class="tab-badge hidden"></span></button>
             <button class="main-tab" id="tab-shared">공유할 DB<span id="tab-shared-badge" class="tab-badge hidden"></span></button>
             <button class="main-tab" id="tab-history">이전 기록</button>
         </div>
 
+        <!-- 선택 모드 바 (나의 DB + 공유할 DB 탭 공용) -->
+        <div id="selection-bar" class="selection-bar hidden">
+            <button id="cancel-select-btn" class="text-btn hidden">취소</button>
+            <div style="flex: 1;"></div>
+            <button id="toggle-select-mode-btn" class="text-btn">
+                <span class="circle-icon">○</span>
+                <span id="select-mode-text">선택</span>
+            </button>
+        </div>
+
         <!-- 대기 중 탭 콘텐츠 -->
         <div id="tab-content-pending">
-            <div id="selection-bar" class="selection-bar hidden">
-                <button id="cancel-select-btn" class="text-btn hidden">취소</button>
-                <div style="flex: 1;"></div>
-                <button id="toggle-select-mode-btn" class="text-btn">
-                    <span class="circle-icon">○</span>
-                    <span id="select-mode-text">선택</span>
-                </button>
-            </div>
-
             <!-- 기록 목록 -->
             <div id="records-container" class="records-container"></div>
 
@@ -138,12 +139,9 @@
                 <p class="empty-desc">모바일 앱에서 DB를 생성하세요</p>
             </div>
 
-            <!-- 하단 액션 -->
-            <div id="action-bar" class="action-bar hidden">
-                <button id="btn-inject" class="btn btn-primary" disabled>
-                    <span class="btn-icon-left">⚡</span>
-                    삽입할 DB를 선택해주세요
-                </button>
+            <!-- 하단 삽입 버튼 (숨김 — 카드 내 버튼으로 대체) -->
+            <div id="action-bar" style="display:none;">
+                <button id="btn-inject" class="btn btn-primary" disabled></button>
             </div>
         </div>
 

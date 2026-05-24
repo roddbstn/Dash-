@@ -373,9 +373,7 @@ body {
 }
 
 
-.record-card.selected {
-    background: var(--primary-light);
-}
+/* .record-card.selected — 카드 내 삽입 버튼으로 대체하여 선택 하이라이트 제거 */
 
 .record-card.injected {
     opacity: 0.5;
@@ -1252,6 +1250,9 @@ body {
     font-family: inherit;
     transition: color 0.15s, border-color 0.15s;
     margin-bottom: -1.5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .main-tab.active {
@@ -1276,7 +1277,6 @@ body {
     font-size: 10px;
     font-weight: 700;
     margin-left: 4px;
-    vertical-align: middle;
 }
 
 .tab-badge.hidden {
