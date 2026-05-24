@@ -1155,7 +1155,11 @@ function setupSelectionLogic() {
                 try {
                     setStatus('loading', '삭제 중입니다...');
                     for (const id of selectedForDelete.keys()) {
-                        await fetch(`${API_BASE}/records/id/${id}`, { method: 'DELETE', headers: authHeaders() });
+                        const rec = records.find(r => r.id === id);
+                        const endpoint = rec?.record_type === 'shared'
+                            ? `${API_BASE}/records/shared/${id}`
+                            : `${API_BASE}/records/id/${id}`;
+                        await fetch(endpoint, { method: 'DELETE', headers: authHeaders() });
                     }
                     exitSelectionMode();
                     fetchRecords(); 
