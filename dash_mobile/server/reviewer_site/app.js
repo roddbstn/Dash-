@@ -240,6 +240,8 @@ let editHistory = []; // [{main, opinion}, ...]
 let historyIndex = -1;
 let hasEverSentNotify = false; // 최초 "저장 알림 보내기" 클릭 여부
 let _recordOwnerName = ''; // DB 생성자(공유자) 이름
+let _savedToMyDbDesc = null;    // 마지막 '내 DB로 저장' 시점의 service_description
+let _savedToMyDbOpinion = null; // 마지막 '내 DB로 저장' 시점의 agent_opinion
 
 // ── 편집 모드 (항상 활성) ──────────────────────────────────────
 // toggleEditMode 제거: 편집 버튼 없이 바로 편집 가능
@@ -332,6 +334,21 @@ function updateCTAState() {
             btn.style.background = hasChanges ? '' : '#ADB5BD';
         }
     });
+    // 내 DB로 저장 버튼: 마지막 저장 이후 내용이 변경됐으면 재활성화
+    if (_savedToMyDbDesc !== null) {
+        const curDesc = (document.getElementById('main-editor')?.value) ?? '';
+        const curOpinion = (document.getElementById('opinion-editor')?.value) ?? '';
+        const isDirty = curDesc !== _savedToMyDbDesc || curOpinion !== _savedToMyDbOpinion;
+        const saveHeader = document.getElementById('btn-save-to-my-db-header');
+        const saveMobile = document.getElementById('btn-save-to-my-db-mobile');
+        [saveHeader, saveMobile].forEach(btn => {
+            if (!btn) return;
+            btn.disabled = !isDirty;
+            btn.style.opacity = isDirty ? '1' : '0.6';
+            btn.style.cursor = isDirty ? 'pointer' : 'not-allowed';
+            if (isDirty) btn.textContent = '내 DB로 저장';
+        });
+    }
 }
 
 // 버튼 텍스트를 "저장 후 전송"으로 업데이트 (최초 알림 전송 후)
@@ -1189,14 +1206,30 @@ async function confirmSaveToMyDb() {
     const confirmBtn = document.getElementById('btn-confirm-save-to-my-db');
     if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '저장 중...'; }
 
+    const serviceDescription = document.getElementById('main-editor').value;
+    const agentOpinion = document.getElementById('opinion-editor').value || '';
+
     try {
         const user = firebase.auth().currentUser;
         if (!user) throw new Error('로그인이 필요합니다.');
         const idToken = await user.getIdToken(true);
 
+        const body = { service_description: serviceDescription, agent_opinion: agentOpinion };
+        const encKey = _getEncKey(token);
+        if (encKey && window.currentRecord) {
+            try {
+                const updatedData = { ...window.currentRecord, serviceDescription, agentOpinion };
+                const aesKey = CryptoJS.enc.Utf8.parse(encKey.padEnd(32).substring(0, 32));
+                const iv = CryptoJS.lib.WordArray.random(16);
+                const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedData), aesKey, { iv });
+                body.encrypted_blob = iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
+            } catch (e) { console.error('Encryption failed:', e); }
+        }
+
         const res = await fetch(`/api/records/save-to-my-db/${token}`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${idToken}` },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+            body: JSON.stringify(body),
         });
         const data = await res.json();
 
@@ -1210,6 +1243,10 @@ async function confirmSaveToMyDb() {
             }
             return;
         }
+
+        // 저장 시점 스냅샷 기록 (이후 변경 감지용)
+        _savedToMyDbDesc = serviceDescription;
+        _savedToMyDbOpinion = agentOpinion;
 
         closeSaveToMyDbModal();
         const saveHeader = document.getElementById('btn-save-to-my-db-header');

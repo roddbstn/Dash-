@@ -1203,6 +1203,7 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
 app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, res) => {
   const { token } = req.params;
   const { uid, email } = req.firebaseUser;
+  const { service_description, agent_opinion, encrypted_blob } = req.body || {};
   console.log(`\n💾 [SAVE-TO-MY-DB] Token: ${token} | Requester: ${email}`);
 
   try {
@@ -1254,7 +1255,25 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
     }
     console.log(`[SAVE-TO-MY-DB] step3 ok: targetCaseId=${targetCaseId}`);
 
-    // 4. 새 share_token 발급 및 draft 복사 (원본과 독립된 사본)
+    // 4. 원본 draft에 리뷰어 편집 내용 반영 (내용이 전달된 경우)
+    const finalDesc = (service_description !== undefined && service_description !== null) ? service_description : orig.service_description;
+    const finalOpinion = (agent_opinion !== undefined && agent_opinion !== null) ? agent_opinion : orig.agent_opinion;
+    const finalBlob = (encrypted_blob !== undefined && encrypted_blob !== null) ? encrypted_blob : orig.encrypted_blob;
+
+    if (service_description !== undefined || agent_opinion !== undefined || encrypted_blob !== undefined) {
+      let updateOrigQuery = 'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, updated_at = NOW()';
+      const updateOrigParams = [finalDesc, finalOpinion];
+      if (finalBlob !== orig.encrypted_blob) {
+        updateOrigQuery += ', encrypted_blob = ?';
+        updateOrigParams.push(finalBlob);
+      }
+      updateOrigQuery += ' WHERE share_token = ?';
+      updateOrigParams.push(token);
+      await queryWithTimeout(updateOrigQuery, updateOrigParams);
+      console.log(`[SAVE-TO-MY-DB] step4-orig updated: desc_len=${finalDesc?.length}`);
+    }
+
+    // 4-1. 새 share_token 발급 및 draft 복사 (원본과 독립된 사본, 편집 내용 적용)
     const newToken = require('crypto').randomBytes(16).toString('hex');
     await queryWithTimeout(
       `INSERT INTO service_drafts
@@ -1265,7 +1284,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
       [
         targetCaseId, orig.provision_type, orig.method, orig.service_type, orig.service_category,
         orig.service_name, orig.location, orig.start_time, orig.end_time, orig.service_count,
-        orig.travel_time, orig.service_description, orig.agent_opinion, orig.encrypted_blob,
+        orig.travel_time, finalDesc, finalOpinion, finalBlob,
         orig.target, newToken, orig.injected_by_name || requesterName
       ]
     );
@@ -1288,7 +1307,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
        VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?)`,
       [token, requesterUid, requesterName,
        orig.service_description || '', orig.agent_opinion || '',
-       orig.service_description || '', orig.agent_opinion || '', orig.encrypted_blob || null]
+       finalDesc || '', finalOpinion || '', finalBlob || null]
     ).catch(err => console.error('[history] save-to-my-db 기록 실패:', err.message));
 
     // 6. 원본 소유자에게 FCM Push
