@@ -1273,22 +1273,37 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
       console.log(`[SAVE-TO-MY-DB] step4-orig updated: desc_len=${finalDesc?.length}`);
     }
 
-    // 4-1. 새 share_token 발급 및 draft 복사 (원본과 독립된 사본, 편집 내용 적용)
-    const newToken = require('crypto').randomBytes(16).toString('hex');
-    await queryWithTimeout(
-      `INSERT INTO service_drafts
-        (case_id, provision_type, method, service_type, service_category, service_name, location,
-         start_time, end_time, service_count, travel_time, service_description, agent_opinion,
-         encrypted_blob, target, share_token, status, is_shared_db, injected_by_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced', 0, ?)`,
-      [
-        targetCaseId, orig.provision_type, orig.method, orig.service_type, orig.service_category,
-        orig.service_name, orig.location, orig.start_time, orig.end_time, orig.service_count,
-        orig.travel_time, finalDesc, finalOpinion, finalBlob,
-        orig.target, newToken, orig.injected_by_name || requesterName
-      ]
+    // 4-1. draft 복사 (중복 방지: 이미 저장된 사본이 있으면 UPDATE, 없으면 INSERT)
+    const [existingCopy] = await queryWithTimeout(
+      'SELECT id FROM service_drafts WHERE case_id = ? AND is_shared_db = 0 ORDER BY id DESC LIMIT 1',
+      [targetCaseId]
     );
-    console.log(`[SAVE-TO-MY-DB] step4 ok: newToken=${newToken}`);
+    if (existingCopy.length > 0) {
+      await queryWithTimeout(
+        `UPDATE service_drafts SET
+          service_description = ?, agent_opinion = ?, encrypted_blob = ?,
+          injected_by_name = ?, status = 'Synced', updated_at = NOW()
+         WHERE id = ?`,
+        [finalDesc, finalOpinion, finalBlob, orig.owner_name, existingCopy[0].id]
+      );
+      console.log(`[SAVE-TO-MY-DB] step4 ok (updated existing copy): id=${existingCopy[0].id}`);
+    } else {
+      const newToken = require('crypto').randomBytes(16).toString('hex');
+      await queryWithTimeout(
+        `INSERT INTO service_drafts
+          (case_id, provision_type, method, service_type, service_category, service_name, location,
+           start_time, end_time, service_count, travel_time, service_description, agent_opinion,
+           encrypted_blob, target, share_token, status, is_shared_db, injected_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced', 0, ?)`,
+        [
+          targetCaseId, orig.provision_type, orig.method, orig.service_type, orig.service_category,
+          orig.service_name, orig.location, orig.start_time, orig.end_time, orig.service_count,
+          orig.travel_time, finalDesc, finalOpinion, finalBlob,
+          orig.target, newToken, orig.owner_name
+        ]
+      );
+      console.log(`[SAVE-TO-MY-DB] step4 ok (inserted new copy): newToken=${newToken}`);
+    }
 
     // 5. 원본 소유자에게 알림 생성
     const notifyMsg = `${requesterName} 상담원님이 DB를 저장했어요.`;

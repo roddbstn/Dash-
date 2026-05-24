@@ -1232,8 +1232,9 @@ function renderRecords() {
         const dbTypeBadge = isShared
             ? `<span style="display:inline-block;padding:2px 8px;background:#EBF3FF;color:#1A56DB;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">공유받은 DB</span>`
             : `<span style="display:inline-block;padding:2px 8px;background:#F2F4F6;color:#8B95A1;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">나의 DB</span>`;
-        const fromTag = isShared && record.author_name
-            ? `<span style="font-size:11px;color:#8B95A1;font-weight:500;">from ${record.author_name}</span>`
+        const fromName = isShared ? record.author_name : record.injected_by_name;
+        const fromTag = fromName
+            ? `<span style="font-size:11px;color:#8B95A1;font-weight:500;">from ${fromName}</span>`
             : '';
         card.innerHTML = `
             <div class="record-card-header">
