@@ -727,8 +727,6 @@ async function loadHistory(token) {
                 return;
             }
             list.innerHTML = entries.map((e, i) => {
-                const actionLabel = e.action === 'reviewed' ? '수정 완료' : e.action === 'synced' ? '내 DB 저장' : '저장';
-                const actionClass = e.action === 'reviewed' ? 'reviewed' : e.action === 'synced' ? 'synced' : 'saved';
                 const timeStr = _relativeTime(e.created_at);
                 const previewHtml = _buildPreviewDiff(
                     e.service_description_before, e.service_description_snapshot,
@@ -737,7 +735,6 @@ async function loadHistory(token) {
                 );
                 return `<div class="history-entry" onclick="openHistoryDetail(${i})">
                     <div class="history-entry-top">
-                        <span class="history-action-badge ${actionClass}">${actionLabel}</span>
                         <span class="history-entry-time">${timeStr}</span>
                     </div>
                     <div class="history-editor">수정인: <span class="participant-tag" style="background:${_editorColor(e.editor_name)};font-size:11px;padding:2px 8px;">${_esc(e.editor_name || '알 수 없음')}</span></div>
@@ -759,8 +756,6 @@ function openHistoryDetail(idx) {
     const prev = hasBefore ? e : (entries[idx + 1] || null);
 
     const timeStr = _toUtcDate(e.created_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
-    const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
-    const actionClass = e.action === 'reviewed' ? 'reviewed' : 'saved';
     const isEncrypted = !e.service_description_snapshot && !!e.encrypted_blob_snapshot;
 
     function diffSection(label, before, after) {
@@ -807,7 +802,6 @@ function openHistoryDetail(idx) {
         <div class="history-detail-box">
             <div class="history-detail-header">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                    <span class="history-action-badge ${actionClass}" style="font-size:12px;padding:4px 10px;">${actionLabel}</span>
                     <span class="participant-tag" style="background:${_editorColor(e.editor_name)};font-size:12px;">${_esc(e.editor_name || '알 수 없음')}</span>
                     <span class="history-detail-meta">${timeStr}</span>
                 </div>
