@@ -1298,7 +1298,14 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
     );
     console.log(`[SAVE-TO-MY-DB] step5 ok`);
 
-    // 5-1. 수정 히스토리 기록
+    // 5-1. 저장 완료 → 리뷰어의 share_viewers dismissed_at 설정 (공유받은 DB 목록에서 숨김)
+    await queryWithTimeout(
+      'UPDATE share_viewers SET dismissed_at = NOW() WHERE share_token = ? AND user_id = ?',
+      [token, requesterUid]
+    );
+    console.log(`[SAVE-TO-MY-DB] step5-1 ok: share_viewers dismissed for requester`);
+
+    // 5-2. 수정 히스토리 기록
     queryWithTimeout(
       `INSERT INTO record_edit_history
          (share_token, editor_user_id, editor_name, action,
