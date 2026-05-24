@@ -144,9 +144,10 @@ class StorageService {
     await prefs.remove(_pendingSyncKey);
     await prefs.remove(_pendingVaultKeysKey);
     await prefs.remove(_nicknameKey);
-    await prefs.remove(_pinKey); // SharedPreferences backup PIN 삭제
+    await prefs.remove(_pinKey);
     await prefs.remove(_saltKey);
     await _secureStorage.delete(key: _pinKey);
+    await _secureStorage.delete(key: _saltKey);
     await clearKeyMap();
   }
 
@@ -162,6 +163,20 @@ class StorageService {
     await prefs.remove('fcm_permission_asked');
     await prefs.remove('last_logged_in_uid');
     if (uid != null) await prefs.remove('consent_done_$uid');
+    if (uid != null) await prefs.remove('$_registeredPrefix$uid');
+  }
+
+  // 온보딩(PIN 설정)까지 완료한 계정 여부 — 서버 호출 없이 기존/신규 구분에 사용
+  static const String _registeredPrefix = 'dash_registered_';
+
+  static Future<bool> isRegistered(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('$_registeredPrefix$uid') ?? false;
+  }
+
+  static Future<void> setRegistered(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('$_registeredPrefix$uid', true);
   }
 
   static const String _nicknameKey = 'dash_user_nickname';
@@ -193,34 +208,36 @@ class StorageService {
     }
   }
 
-  static Future<String?> getPin() async {
-    // SecureStorage 우선, 없으면 SharedPreferences에서 복원 (앱 재설치 후 Auto Backup 복구)
-    final securePin = await _secureStorage.read(key: _pinKey);
-    if (securePin != null) return securePin;
+  // 기존 SharedPreferences Salt → Secure Storage 1회 마이그레이션
+  static Future<void> migrateSaltIfNeeded() async {
     final prefs = await SharedPreferences.getInstance();
-    final backupPin = prefs.getString(_pinKey);
-    if (backupPin != null) {
-      // SecureStorage에도 복원해 두어 이후 조회는 빠르게
-      await _secureStorage.write(key: _pinKey, value: backupPin);
+    final legacySalt = prefs.getString(_saltKey);
+    if (legacySalt != null) {
+      await _secureStorage.write(key: _saltKey, value: legacySalt);
+      await prefs.remove(_saltKey);
     }
-    return backupPin;
+  }
+
+  static Future<String?> getPin() async {
+    // SecureStorage에서만 조회 (Keystore 보호)
+    return _secureStorage.read(key: _pinKey);
   }
 
   static Future<void> savePin(String pin) async {
-    // SecureStorage: 런타임 보안 (Keystore 연동, 앱 삭제 시 소멸)
+    // SecureStorage에만 저장 (Keystore 보호, 평문 백업 제거)
     await _secureStorage.write(key: _pinKey, value: pin);
-    // SharedPreferences: Android Auto Backup 대상 (앱 삭제·재설치 후에도 복원)
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_pinKey, pin);
   }
 
   static Future<String?> getSalt() async {
+    // SecureStorage 우선, 없으면 SharedPreferences 레거시 폴백
+    final secure = await _secureStorage.read(key: _saltKey);
+    if (secure != null) return secure;
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_saltKey);
   }
 
   static Future<void> saveSalt(String salt) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_saltKey, salt);
+    // SecureStorage에만 저장
+    await _secureStorage.write(key: _saltKey, value: salt);
   }
 }

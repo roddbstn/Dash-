@@ -111,6 +111,11 @@ const authLimiter = rateLimit({
 });
 app.use('/api/users/login', authLimiter);
 app.use('/api/users/fcm_token', authLimiter);
+app.use('/api/records/user/all', authLimiter); // 전체 삭제: 브루트포스 방어
+
+// 에러 메시지 — 프로덕션에서는 내부 상세 노출 차단
+const safeError = (err) =>
+  process.env.NODE_ENV === 'production' ? '서버 오류가 발생했습니다.' : err.message;
 
 // ── 보안 설정 ────────────────────────────────────────────────────────────────
 // 허용할 이메일 도메인 목록 (쉼표 구분, 비어있으면 제한 없음)
@@ -644,7 +649,7 @@ app.get('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
       res.status(404).json({ error: 'User not found' });
     }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -698,7 +703,7 @@ app.post('/api/users/public_key', verifyFirebaseAuth, async (req, res) => {
     await queryWithTimeout('UPDATE dash_users SET public_key = ? WHERE id = ?', [public_key, id]);
     res.json({ message: 'Public key saved' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -712,7 +717,7 @@ app.get('/api/users/:id/public_key', verifyFirebaseAuth, async (req, res) => {
       res.status(404).json({ error: 'User not found' });
     }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -729,7 +734,7 @@ app.get('/api/counselors/:userId', verifyFirebaseAuth, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -746,7 +751,7 @@ app.post('/api/counselors', verifyFirebaseAuth, async (req, res) => {
     );
     res.json({ id, message: 'Counselor saved' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -761,7 +766,7 @@ app.delete('/api/counselors/:counselorId', verifyFirebaseAuth, async (req, res) 
     await queryWithTimeout('DELETE FROM counselors WHERE id = ?', [counselorId]);
     res.json({ message: 'Counselor deleted' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -775,7 +780,7 @@ app.put('/api/counselors/reorder', verifyFirebaseAuth, async (req, res) => {
     }
     res.json({ message: 'Reordered' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -803,7 +808,7 @@ app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
     res.json({ id: id, message: 'Case created or updated' });
   } catch (err) {
     console.error('❌ Case creation error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -818,7 +823,7 @@ app.get('/api/cases/user/:userId', verifyFirebaseAuth, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -831,13 +836,21 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
     is_shared_db
   } = req.body;
   
+  // 입력 길이 검증
+  if (service_description != null && String(service_description).length > 100000) {
+    return res.status(400).json({ error: '서비스 내용이 너무 깁니다.' });
+  }
+  if (agent_opinion != null && String(agent_opinion).length > 50000) {
+    return res.status(400).json({ error: '상담원 소견이 너무 깁니다.' });
+  }
+
   console.log(`\n========================================`);
   console.log(`📝 [NEW RECORD RECEIVED]`);
   console.log(`----------------------------------------`);
   console.log(`🆔 사례ID      : ${case_id}`);
   console.log(`👤 유저ID      : ${user_id || '-'}`);
   console.log(`📧 이메일      : ${user_email || '-'}`);
-  
+
   try {
     let resolvedUserId = user_id;
     // 1. 해당 사례(Case)가 DB에 있는지 확인
@@ -934,7 +947,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
     res.json({ id: recordId, share_token, message: 'Record synced' });
   } catch (err) {
     console.error('❌ Record sync error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -954,7 +967,7 @@ app.delete('/api/records/token/:token', verifyFirebaseAuth, async (req, res) => 
     }
   } catch (err) {
     console.error('❌ Record delete error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -977,7 +990,7 @@ app.delete('/api/records/id/:id', verifyFirebaseAuth, async (req, res) => {
     }
   } catch (err) {
     console.error('❌ Record delete error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1003,7 +1016,7 @@ app.delete('/api/records/user/all', verifyFirebaseAuth, async (req, res) => {
     res.json({ message: 'All records deleted', deleted_count: result.affectedRows });
   } catch (err) {
     console.error('❌ PIN reset delete error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1037,7 +1050,7 @@ app.post('/api/records/sync_active', verifyFirebaseAuth, async (req, res) => {
     res.json({ message: 'Sync complete', deleted_count: result.affectedRows });
   } catch (err) {
     console.error('❌ Active sync error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1052,7 +1065,7 @@ app.get('/api/notifications/:userId', verifyFirebaseAuth, async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error('❌ Fetch Notifications Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1062,7 +1075,7 @@ app.put('/api/notifications/:id/read', verifyFirebaseAuth, async (req, res) => {
     await queryWithTimeout('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1202,7 +1215,7 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
     }
   } catch (err) {
     console.error('❌ Review Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1369,7 +1382,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
     res.json({ ok: true, new_token: newToken });
   } catch (err) {
     console.error('❌ save-to-my-db error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1437,7 +1450,7 @@ app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, r
     return res.json({ ok: true, isOwner: true });
   } catch (err) {
     console.error('Reviewer login error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1496,7 +1509,7 @@ app.post('/api/records/verify-name/:token', verifyFirebaseAuth, async (req, res)
     return res.json({ ok: true });
   } catch (err) {
     console.error('verify-name error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1545,7 +1558,7 @@ app.post('/api/records/auth/:token', async (req, res) => {
     authAttempts.set(token, attempts);
     return res.status(401).json({ error: '이름이 일치하지 않습니다.', remaining: 5 - attempts.count });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1590,7 +1603,7 @@ app.get('/api/records/share/:token', async (req, res) => {
     console.log(`✅ Data fetched for ${rows[0].case_name} | share_viewers=${JSON.stringify(shareViewerNames)}`);
     res.json({ ...rows[0], share_viewers: shareViewerNames });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1642,7 +1655,7 @@ app.put('/api/records/share/:token', async (req, res) => {
       res.status(404).json({ error: 'Not found' });
     }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1692,7 +1705,7 @@ app.get('/api/records/share/:token/participants', async (req, res) => {
     console.log(`📋 [PARTICIPANTS] token=${token} viewers=${JSON.stringify(viewers.map(v=>v.name))}`);
     res.json({ owner_name: rows[0]?.owner_name || '', viewers: viewers.map(v => v.name) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1738,7 +1751,7 @@ app.get('/api/records/history/:token', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1761,12 +1774,12 @@ app.put('/api/records/:id/review', async (req, res) => {
     const values = safeKeys.map(k => updateData[k]);
     const newStatus = isInjected ? 'Injected' : 'Reviewed';
     const setClause = extraClause
-      ? `${extraClause}, status = '${newStatus}', reviewed_at = NOW(), updated_at = NOW()`
-      : `status = '${newStatus}', reviewed_at = NOW(), updated_at = NOW()`;
+      ? `${extraClause}, status = ?, reviewed_at = NOW(), updated_at = NOW()`
+      : `status = ?, reviewed_at = NOW(), updated_at = NOW()`;
 
     await queryWithTimeout(
       `UPDATE service_drafts SET ${setClause} WHERE id = ?`,
-      [...values, id]
+      [...values, newStatus, id]
     );
 
     // Get user email to notify
@@ -1783,7 +1796,7 @@ app.put('/api/records/:id/review', async (req, res) => {
     res.json({ message: 'Review completed and data updated' });
   } catch (err) {
     console.error('❌ Review update error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1854,7 +1867,7 @@ app.get('/api/records/ready', verifyFirebaseAuth, async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error('❌ Extension fetch error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1877,7 +1890,7 @@ app.patch('/api/records/:id/share-expiry', verifyFirebaseAuth, async (req, res) 
     }
     res.json({ message: 'Updated', expires_at: expiresAt });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1919,7 +1932,7 @@ app.delete('/api/records/shared/:id', verifyFirebaseAuth, async (req, res) => {
 
     res.json({ message: 'Removed from shared list' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1957,7 +1970,7 @@ app.get('/api/records/history', verifyFirebaseAuth, async (req, res) => {
     const [rows] = await queryWithTimeout(query, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -2004,7 +2017,7 @@ app.get('/api/records/user/:userId', verifyFirebaseAuth, async (req, res) => {
     }
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -2050,7 +2063,7 @@ app.get('/api/users/vault/:userId', verifyFirebaseAuth, async (req, res) => {
     }
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -2071,7 +2084,7 @@ app.post('/api/users/vault', verifyFirebaseAuth, async (req, res) => {
     res.json({ success: true, message: 'Vault updated successfully' });
   } catch (err) {
     console.error('❌ Vault update error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -2118,7 +2131,7 @@ app.delete('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
     res.json({ success: true, message: 'User data deleted successfully' });
   } catch (err) {
     console.error('❌ User deletion error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 

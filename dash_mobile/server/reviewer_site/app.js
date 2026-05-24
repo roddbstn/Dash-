@@ -1097,7 +1097,7 @@ function updateUI(data) {
     const mobileTag = document.getElementById('mobile-child-tag');
     if (mobileTag) {
         mobileTag.innerHTML = `
-            <span style="font-size: 13px; font-weight: 600; color: #4e5968;">${data.user_name || '담당자'} 작성</span>
+            <span style="font-size: 13px; font-weight: 600; color: #4e5968;">${_esc(data.user_name || '담당자')} 작성</span>
         `;
     }
     
@@ -1182,7 +1182,7 @@ function openSaveToMyDbModal() {
     if (!modal) return;
     const msgEl = modal.querySelector('p');
     if (msgEl) {
-        const name = _recordOwnerName ? `${_recordOwnerName} 상담원` : '담당 상담원';
+        const name = _recordOwnerName ? `${_esc(_recordOwnerName)} 상담원` : '담당 상담원';
         msgEl.innerHTML = `이 DB를 내 계정에 저장할까요?<br>저장하면 ${name}에게 알림이 전송돼요.`;
     }
     modal.style.display = 'flex';

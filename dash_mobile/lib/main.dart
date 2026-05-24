@@ -31,8 +31,9 @@ void main() async {
   // 백그라운드 메시지 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // SharedPreferences에 남아있던 PIN을 Secure Storage로 1회 마이그레이션
+  // SharedPreferences에 남아있던 PIN/Salt를 Secure Storage로 1회 마이그레이션
   await StorageService.migratePinIfNeeded();
+  await StorageService.migrateSaltIfNeeded();
 
   // Crashlytics: Flutter 프레임워크 내 오류 수집
   if (!kDebugMode) {
@@ -78,7 +79,7 @@ class MyApp extends StatelessWidget {
             return const _SplashScreen();
           }
           if (snapshot.hasData) {
-            return const _PostLoginRouter();
+            return _PostLoginRouter(uid: snapshot.data!.uid);
           }
           return const _PreLoginRouter();
         },
@@ -133,65 +134,104 @@ class _PreLoginRouter extends StatelessWidget {
 // ── 로그인 후 동의 완료 여부에 따른 라우터 ──────────────────────────────
 // 닉네임·PIN 설정은 신규 회원가입(ConsentScreen 통과) 직후에만 실행됩니다.
 // 로그아웃 후 재로그인한 사용자는 동의가 이미 완료되어 있으므로 바로 홈으로 이동합니다.
-class _PostLoginRouter extends StatelessWidget {
-  const _PostLoginRouter();
+class _PostLoginRouter extends StatefulWidget {
+  final String uid;
+  const _PostLoginRouter({required this.uid});
+
+  @override
+  State<_PostLoginRouter> createState() => _PostLoginRouterState();
+}
+
+class _PostLoginRouterState extends State<_PostLoginRouter> {
+  // authStateChanges가 여러 번 emit되어도 _resolveRoute()는 한 번만 실행
+  late final Future<String> _routeFuture = _resolveRoute();
 
   Future<String> _resolveRoute() async {
+    debugPrint('🔍 [ROUTE] _resolveRoute START');
     final prefs = await SharedPreferences.getInstance();
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    // StreamBuilder의 snapshot.data에서 직접 받아서 사용 → null 타이밍 이슈 방지
+    final currentUid = widget.uid;
+    debugPrint('🔍 [ROUTE] uid=$currentUid');
 
     // 다른 계정으로 전환된 경우 이전 유저의 로컬 데이터 초기화 (consent 제외 — 유저별 저장)
     final lastUid = prefs.getString('last_logged_in_uid');
     final consentUid = prefs.getString('consent_user_uid');
-    final isDifferentUser = currentUid != null && (
-      (lastUid != null && lastUid != currentUid) ||
-      (lastUid == null && consentUid != null && consentUid != currentUid)
-    );
+    final isDifferentUser =
+        (lastUid != null && lastUid != currentUid) ||
+        (lastUid == null && consentUid != null && consentUid != currentUid);
     if (isDifferentUser) {
       await StorageService.clearSessionData();
       // consent 플래그는 유저별(consent_done_<uid>)로 관리하므로 삭제하지 않음
     }
-    if (currentUid != null) {
-      await prefs.setString('last_logged_in_uid', currentUid);
+    await prefs.setString('last_logged_in_uid', currentUid);
+
+    // ① 이 기기에서 온보딩(PIN 설정)까지 완료한 계정 → 서버 호출 없이 바로 홈
+    final isReg = await StorageService.isRegistered(currentUid);
+    debugPrint('🔍 [ROUTE] isRegistered=$isReg');
+    if (isReg) {
+      final pinSetupRequired = prefs.getBool('pin_setup_required') ?? false;
+      if (pinSetupRequired) return 'pin_setup';
+      debugPrint('🔍 [ROUTE] → home (isRegistered)');
+      return 'home';
     }
 
-    // 유저별 consent 확인 (consent_done_<uid> 우선, 레거시 consent_user_uid 폴백)
-    final perUserConsent = currentUid != null
-        ? (prefs.getBool('consent_done_$currentUid') ?? false)
-        : false;
+    // ② 유저별 consent 확인 (consent_done_<uid> 우선, 레거시 consent_user_uid 폴백)
+    final perUserConsent = prefs.getBool('consent_done_$currentUid') ?? false;
     final legacyConsent = (prefs.getBool('consent_v1_completed') ?? false) &&
-        currentUid != null &&
         currentUid == prefs.getString('consent_user_uid');
+    debugPrint('🔍 [ROUTE] perUserConsent=$perUserConsent legacyConsent=$legacyConsent');
     if (!perUserConsent && !legacyConsent) {
-      // 로컬에 consent 플래그가 없더라도 서버에 이미 등록된 계정이면 재동의 불필요
-      // (다른 기기 또는 앱 재설치 후 재로그인 시나리오)
-      if (currentUid != null) {
-        try {
-          final serverUser = await ApiService.fetchUser(currentUid);
-          if (serverUser != null) {
-            // 서버에 등록된 사용자 → 로컬 consent 플래그 복원 후 홈으로
-            await prefs.setBool('consent_done_$currentUid', true);
-            // fall through to PIN check below
-          } else {
+      // ③ 로컬 플래그 없음 → 서버에서 기존/신규 사용자 구분
+      try {
+        final serverUser = await ApiService.fetchUser(currentUid);
+        debugPrint('🔍 [ROUTE] fetchUser result: ${serverUser != null ? "found" : "404 not found"}');
+        if (serverUser != null) {
+          // 서버에 등록된 사용자 → 로컬 플래그 복원 (이전 버전 사용자 포함)
+          await prefs.setBool('consent_done_$currentUid', true);
+          await StorageService.setRegistered(currentUid); // 이후 재설치 시에도 서버 호출 불필요
+          // 새 기기/재설치: PIN은 기기 Keystore에 저장되므로 재설정 필요
+          await prefs.setBool('pin_setup_required', true);
+          debugPrint('🔍 [ROUTE] server user found → fall through to PIN check');
+          // fall through to PIN check below
+        } else {
+          // 404: 서버 DB에 사용자 없음
+          // Firebase Auth 계정 생성 시각이 24시간 이내면 진짜 신규 사용자
+          // 그 이상이면 기존 계정 재설치/신규기기 → 홈으로 (DB 누락 방어)
+          final createdAt = FirebaseAuth.instance.currentUser?.metadata.creationTime;
+          debugPrint('🔍 [ROUTE] uid=$currentUid createdAt=$createdAt now=${DateTime.now()}');
+          // creationTime이 null이면 판별 불가 → 기존 유저로 간주 (fail-open to home)
+          final isNewSignup = createdAt != null &&
+              DateTime.now().difference(createdAt) < const Duration(hours: 24);
+          debugPrint('🔍 [ROUTE] isNewSignup=$isNewSignup → ${isNewSignup ? "consent" : "home"}');
+          if (isNewSignup) {
             return 'consent';
+          } else {
+            await prefs.setBool('consent_done_$currentUid', true);
+            await StorageService.setRegistered(currentUid);
+            return 'home';
           }
-        } catch (_) {
-          return 'consent';
         }
-      } else {
-        return 'consent';
+      } catch (e) {
+        // 네트워크/서버 오류 → 기존 사용자로 간주하고 홈으로 (fail open)
+        debugPrint('🔍 [ROUTE] fetchUser exception: $e → home');
+        return 'home';
       }
     }
+
     // PIN 초기화 후 재설정이 필요한 경우
     final pinSetupRequired = prefs.getBool('pin_setup_required') ?? false;
-    if (pinSetupRequired) return 'pin_setup';
+    if (pinSetupRequired) {
+      debugPrint('🔍 [ROUTE] → pin_setup');
+      return 'pin_setup';
+    }
+    debugPrint('🔍 [ROUTE] → home (final)');
     return 'home';
   }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String>(
-      future: _resolveRoute(),
+      future: _routeFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _SplashScreen();
