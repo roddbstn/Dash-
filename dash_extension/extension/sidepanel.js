@@ -782,7 +782,22 @@ async function fetchRecords() {
         }));
 
         const selectBar = document.getElementById('selection-bar');
-        const pendingCount = records.filter(r => r.status !== 'Injected').length;
+        const allPendingCount = records.filter(r => r.status !== 'Injected');
+        // 공유할 DB(owned + is_shared_db)를 제외한 나의 DB 개수
+        const myDbCount = allPendingCount.filter(r => !(r.record_type === 'owned' && r.is_shared_db == 1)).length;
+        const pendingCount = allPendingCount.length;
+
+        // 나의 DB 탭 배지 업데이트
+        const pendingBadge = document.getElementById('tab-pending-badge');
+        if (pendingBadge) {
+            if (myDbCount > 0) {
+                pendingBadge.textContent = myDbCount;
+                pendingBadge.classList.remove('hidden');
+            } else {
+                pendingBadge.classList.add('hidden');
+            }
+        }
+
         if (pendingCount === 0) {
             recordsContainer.innerHTML = '';
             emptyState.classList.remove('hidden');
@@ -1213,14 +1228,8 @@ function renderRecords() {
                 <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">${dbTypeBadge}${fromTag}</div>
             </div>
             <div class="record-info-list">
-                <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
-                <div class="record-info-row"><span class="info-label">제공구분</span><span class="info-value">${record.provision_type || '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">제공방법</span><span class="info-value">${record.method || '-'}</span></div>
-                <div class="record-info-row"><span class="info-label">서비스제공유형</span><span class="info-value">${record.service_type === '아보전' ? '아보전서비스' : (record.service_type || '-')}</span></div>
                 <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' :: ' + record.service_name : (record.service_name || '-')}</span></div>
-                <div class="record-info-row"><span class="info-label">제공장소</span><span class="info-value">${record.location || '-'}</span></div>
-                <div class="record-info-row"><span class="info-label">서비스제공횟수</span><span class="info-value">${record.service_count != null ? record.service_count + '회' : '-'}</span></div>
-                <div class="record-info-row"><span class="info-label">이동소요시간</span><span class="info-value">${record.travel_time != null ? record.travel_time + '분' : '-'}</span></div>
                 <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
             </div>
             <div class="record-dropdown-toggle" data-target="${dropdownId}">
@@ -1229,7 +1238,15 @@ function renderRecords() {
                 <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 4L6 8L10 4" stroke="#ADB5BD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div class="record-dropdown-content hidden" id="${dropdownId}">
-                <div class="dropdown-section" style="margin-bottom: 24px;">
+                <div class="record-info-list" style="margin-bottom:16px;">
+                    <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">제공구분</span><span class="info-value">${record.provision_type || '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">서비스제공유형</span><span class="info-value">${record.service_type === '아보전' ? '아보전서비스' : (record.service_type || '-')}</span></div>
+                    <div class="record-info-row"><span class="info-label">제공장소</span><span class="info-value">${record.location || '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">서비스제공횟수</span><span class="info-value">${record.service_count != null ? record.service_count + '회' : '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">이동소요시간</span><span class="info-value">${record.travel_time != null ? record.travel_time + '분' : '-'}</span></div>
+                </div>
+                <div class="dropdown-section" style="margin-bottom: 16px;">
                     <div style="font-weight: 700; color: #4e5968; font-size: 13px; margin-bottom: 6px;">서비스 내용</div>
                     <div class="dropdown-text" style="background: transparent; padding: 0;">${record.service_description || '(내용 없음)'}</div>
                 </div>
@@ -1238,14 +1255,19 @@ function renderRecords() {
                     <div class="dropdown-text" style="background: transparent; padding: 0;">${record.agent_opinion || '(소견 없음)'}</div>
                 </div>
             </div>
-            ${record.share_token ? `
             <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:4px;">
+                ${record.share_token ? `
                 <button class="btn-share-pending" data-token="${record.share_token}" style="
-                    display:inline-flex;align-items:center;gap:4px;padding:7px 14px;
-                    background:#F2F4F6;color:#4E5968;border:none;border-radius:8px;
+                    display:inline-flex;align-items:center;justify-content:center;gap:4px;
+                    flex:1;padding:9px 0;background:#EBF3FF;color:#1A56DB;border:none;border-radius:10px;
                     font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
-                ">🔗 공유</button>
-            </div>` : ''}
+                ">🔗 공유</button>` : ''}
+                <button class="btn-inject-card" data-id="${record.id}" style="
+                    display:inline-flex;align-items:center;justify-content:center;gap:4px;
+                    flex:${record.share_token ? '2' : '1'};padding:9px 0;background:#1A56DB;color:#fff;border:none;border-radius:10px;
+                    font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+                ">⚡ DB 삽입</button>
+            </div>
             <div class="card-select-number"></div>
         `;
 
@@ -1283,6 +1305,19 @@ function renderRecords() {
                     btn.textContent = origText;
                     btn.disabled = false;
                 }
+            });
+        }
+
+        // 카드 내 삽입 버튼 → 바로 inject 실행
+        const injectCardBtn = card.querySelector('.btn-inject-card');
+        if (injectCardBtn) {
+            injectCardBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isSelectionMode) return;
+                if (record.status === 'Injected') return;
+                selectedRecordId = record.id;
+                updateInjectButton();
+                btnInject.click();
             });
         }
 
@@ -1353,6 +1388,17 @@ function renderSharedByMe() {
 
     container.innerHTML = '';
 
+    // 공유할 DB 탭 배지 업데이트
+    const sharedBadge = document.getElementById('tab-shared-badge');
+    if (sharedBadge) {
+        if (sharedByMeRecords.length > 0) {
+            sharedBadge.textContent = sharedByMeRecords.length;
+            sharedBadge.classList.remove('hidden');
+        } else {
+            sharedBadge.classList.add('hidden');
+        }
+    }
+
     if (sharedByMeRecords.length === 0) {
         emptyState && emptyState.classList.remove('hidden');
         return;
@@ -1376,6 +1422,7 @@ function renderSharedByMe() {
             dateTimeStr = `${start.getMonth()+1}.${start.getDate()} (${dayName}) ${startTime} ~ ${endTime}`;
         }
 
+        const sharedDropdownId = `shared-dropdown-${record.id}`;
         card.innerHTML = `
             <div class="record-card-header">
                 <div class="record-card-header-left">
@@ -1393,15 +1440,51 @@ function renderSharedByMe() {
                 <div class="record-info-row"><span class="info-label">제공서비스</span><span class="info-value">${(record.service_category && record.service_name) ? record.service_category + ' :: ' + record.service_name : (record.service_name || '-')}</span></div>
                 <div class="record-info-row"><span class="info-label">제공일시</span><span class="info-value">${dateTimeStr || '-'}</span></div>
             </div>
+            <div class="record-dropdown-toggle" data-target="${sharedDropdownId}">
+                <div style="flex: 1;"></div>
+                <span class="dropdown-label">상세 보기</span>
+                <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 4L6 8L10 4" stroke="#ADB5BD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="record-dropdown-content hidden" id="${sharedDropdownId}">
+                <div class="record-info-list" style="margin-bottom:16px;">
+                    <div class="record-info-row"><span class="info-label">대상자</span><span class="info-value">${record.target || '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">제공구분</span><span class="info-value">${record.provision_type || '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">서비스제공유형</span><span class="info-value">${record.service_type === '아보전' ? '아보전서비스' : (record.service_type || '-')}</span></div>
+                    <div class="record-info-row"><span class="info-label">제공장소</span><span class="info-value">${record.location || '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">서비스제공횟수</span><span class="info-value">${record.service_count != null ? record.service_count + '회' : '-'}</span></div>
+                    <div class="record-info-row"><span class="info-label">이동소요시간</span><span class="info-value">${record.travel_time != null ? record.travel_time + '분' : '-'}</span></div>
+                </div>
+                <div class="dropdown-section" style="margin-bottom: 16px;">
+                    <div style="font-weight: 700; color: #4e5968; font-size: 13px; margin-bottom: 6px;">서비스 내용</div>
+                    <div class="dropdown-text" style="background: transparent; padding: 0;">${record.service_description || '(내용 없음)'}</div>
+                </div>
+                <div class="dropdown-section">
+                    <div style="font-weight: 700; color: #4e5968; font-size: 13px; margin-bottom: 6px;">상담원 소견</div>
+                    <div class="dropdown-text" style="background: transparent; padding: 0;">${record.agent_opinion || '(소견 없음)'}</div>
+                </div>
+            </div>
             <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:4px;">
                 ${record.share_token ? `
                 <button class="btn-share-shared-by-me" data-token="${record.share_token}" style="
                     display:inline-flex;align-items:center;gap:6px;width:100%;justify-content:center;
                     padding:10px 14px;background:#1A56DB;color:#fff;border:none;border-radius:10px;
                     font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
-                ">🔗 공유 링크 보내기</button>` : ''}
+                ">🔗 링크 복사</button>` : ''}
             </div>
         `;
+
+        // 상세 보기 드롭다운 토글
+        const sharedToggleBtn = card.querySelector('.record-dropdown-toggle');
+        sharedToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const content = card.querySelector(`#${sharedDropdownId}`);
+            const arrow = sharedToggleBtn.querySelector('.dropdown-arrow');
+            const label = sharedToggleBtn.querySelector('.dropdown-label');
+            content.classList.toggle('hidden');
+            const isHidden = content.classList.contains('hidden');
+            arrow.classList.toggle('open', !isHidden);
+            label.textContent = isHidden ? '상세 보기' : '접기';
+        });
 
         const shareBtn = card.querySelector('.btn-share-shared-by-me');
         if (shareBtn) {
