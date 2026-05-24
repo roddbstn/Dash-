@@ -938,12 +938,12 @@ function renderParticipants(ownerName, viewers) {
     // 공통 HTML 조각 생성
     let html = `<div class="participant-group">
         <span class="participant-label">DB 생성자</span>
-        <span class="participant-tag" style="background:#6366F1;">${ownerName || '알 수 없음'}</span>
+        <span class="participant-tag" style="background:${_editorColor(ownerName)};">${ownerName || '알 수 없음'}</span>
     </div>`;
     if (viewers && viewers.length > 0) {
         html += `<div class="participant-group"><span class="participant-label">공유받은 사람</span>`;
-        viewers.forEach((name, i) => {
-            html += `<span class="participant-tag" style="background:${_VIEWER_COLORS[i % _VIEWER_COLORS.length]};">${name || '알 수 없음'}</span>`;
+        viewers.forEach((name) => {
+            html += `<span class="participant-tag" style="background:${_editorColor(name)};">${name || '알 수 없음'}</span>`;
         });
         html += `</div>`;
     }
