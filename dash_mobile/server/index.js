@@ -369,7 +369,7 @@ pool.query("ALTER TABLE dash_users ADD COLUMN login_count INT DEFAULT 0")
 
 // Phase 3-B: Vault 접근 Rate Limiting (메모리 기반, 서버 재시작 시 초기화)
 const vaultAttempts = new Map(); // uid → { count, windowStart }
-const VAULT_MAX_REQUESTS = 10;  // 10분당 최대 10회
+const VAULT_MAX_REQUESTS = 30;  // 10분당 최대 30회 (extension 5분 throttle 고려)
 const VAULT_WINDOW_MS = 10 * 60 * 1000;
 
 // --- API Endpoints ---

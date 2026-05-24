@@ -181,6 +181,7 @@ let pinInput = '';           // 현재 입력 중인 PIN
 let pinLocked = false;       // PIN 검증 중 잠금
 let vaultKeys = {};          // { share_token: encryptionKey } — 메모리에만 보관, 영구 저장 안 함
 let pinAuthenticated = false; // PIN 인증 성공 여부 (vault가 빈 {}이어도 인증된 상태 추적)
+let lastVaultRefreshTime = 0; // refreshVaultKeys 마지막 호출 시각 (rate limit 보호)
 let pinFailCount = 0;        // PIN 연속 실패 횟수
 let pinLockUntil = 0;        // 잠금 해제 시각 (Date.now() 기준)
 
@@ -209,23 +210,6 @@ btnGoogleLogin.addEventListener('click', async () => {
     }
 });
 
-// "다른 계정으로 로그인" — launchWebAuthFlow로 계정 선택 창 열기
-const btnOtherAccount = document.getElementById('btn-other-account');
-btnOtherAccount.addEventListener('click', async () => {
-    btnOtherAccount.disabled = true;
-    btnOtherAccount.textContent = '로그인 중...';
-    hideLoginError();
-
-    try {
-        const token = await getGoogleAccessToken(true);
-        await handleGoogleLogin(token);
-    } catch (error) {
-        console.error('다른 계정 로그인 실패:', error);
-        btnOtherAccount.disabled = false;
-        btnOtherAccount.textContent = '다른 계정으로 로그인';
-        showLoginError(error.message);
-    }
-});
 
 function performLogout() {
     currentUser = null;
@@ -241,8 +225,6 @@ function performLogout() {
     btnGoogleLogin.disabled = false;
     const contentsSpan = btnGoogleLogin.querySelector('.gsi-material-button-contents');
     if (contentsSpan) contentsSpan.textContent = 'Google 계정으로 로그인';
-    btnOtherAccount.disabled = false;
-    btnOtherAccount.textContent = '다른 계정으로 로그인';
 
     showLoginView();
 }
@@ -271,8 +253,6 @@ function showLoginView() {
     btnGoogleLogin.disabled = false;
     const contentsSpan = btnGoogleLogin.querySelector('.gsi-material-button-contents');
     if (contentsSpan) contentsSpan.textContent = 'Google 계정으로 로그인';
-    btnOtherAccount.disabled = false;
-    btnOtherAccount.textContent = '다른 계정으로 로그인';
     hideLoginError();
 }
 
@@ -462,44 +442,58 @@ async function verifyPinWithVault(pin) {
     }
 }
 
-// 공유 링크 클릭 시 vault를 실시간으로 복호화해 key를 반환
-// cachedDerivedKey가 없으면 vaultKeys 캐시에서 폴백
+// 공유 링크 클릭 시 key 반환
+// vaultKeys 캐시에 있으면 바로 반환, 없을 때만 서버 vault 재fetch (rate limit 보호)
 async function getShareKeyForToken(token) {
+    // 1. 캐시에 이미 있으면 바로 반환
+    if (vaultKeys[token]) {
+        console.log('[getShareKey] 캐시 히트:', token.slice(0, 8));
+        return vaultKeys[token];
+    }
+
+    // 2. 캐시 미스 → 서버 vault 실시간 fetch
     try {
         const session = await new Promise(resolve => {
             chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
         });
-        if (session.cachedDerivedKey && currentUser?.uid) {
-            const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
-            if (res.ok) {
-                const { encrypted_vault } = await res.json();
-                if (encrypted_vault) {
-                    const parts = encrypted_vault.split(':');
-                    if (parts.length === 2) {
-                        const iv = base64ToArrayBuffer(parts[0]);
-                        const ciphertext = base64ToArrayBuffer(parts[1]);
-                        const keyBytes = Uint8Array.from(atob(session.cachedDerivedKey), c => c.charCodeAt(0));
-                        const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
-                        const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, ciphertext);
-                        const freshVault = JSON.parse(new TextDecoder().decode(buf));
-                        // 최신 vault로 vaultKeys 갱신 후 반환
-                        vaultKeys = { ...vaultKeys, ...freshVault };
-                        chrome.storage.session.set({ cachedVaultKeys: vaultKeys });
-                        console.log('[getShareKey] vault 실시간 갱신, token key 있음:', !!freshVault[token]);
-                        return freshVault[token] || vaultKeys[token] || '';
-                    }
-                }
-            }
+        if (!session.cachedDerivedKey || !currentUser?.uid) {
+            console.warn('[getShareKey] cachedDerivedKey 없음 → PIN 재인증 필요');
+            return '';
         }
+
+        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
+        if (!res.ok) {
+            console.warn('[getShareKey] vault fetch 실패:', res.status);
+            return '';
+        }
+        const { encrypted_vault } = await res.json();
+        if (!encrypted_vault) return '';
+
+        const parts = encrypted_vault.split(':');
+        if (parts.length !== 2) return '';
+        const iv = base64ToArrayBuffer(parts[0]);
+        const ciphertext = base64ToArrayBuffer(parts[1]);
+        const keyBytes = Uint8Array.from(atob(session.cachedDerivedKey), c => c.charCodeAt(0));
+        const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
+        const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, ciphertext);
+        const freshVault = JSON.parse(new TextDecoder().decode(buf));
+
+        vaultKeys = { ...vaultKeys, ...freshVault };
+        lastVaultRefreshTime = Date.now();
+        chrome.storage.session.set({ cachedVaultKeys: vaultKeys });
+        console.log('[getShareKey] vault 재fetch 완료, key 있음:', !!freshVault[token]);
+        return freshVault[token] || '';
     } catch (e) {
-        console.warn('[getShareKey] vault 실시간 fetch 실패, 캐시 사용:', e);
+        console.warn('[getShareKey] vault 복호화 실패:', e);
+        return '';
     }
-    return vaultKeys[token] || '';
 }
 
-// Vault 갱신: fetchRecords 호출 시 새로 추가된 공유 DB 키를 반영
+// Vault 갱신: fetchRecords 호출 시 새로 추가된 공유 DB 키를 반영 (5분 throttle)
 async function refreshVaultKeys() {
     if (!pinAuthenticated || !currentUser?.uid) return;
+    const THROTTLE_MS = 5 * 60 * 1000; // 5분
+    if (Date.now() - lastVaultRefreshTime < THROTTLE_MS) return;
     try {
         const session = await new Promise(resolve => {
             chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
@@ -535,6 +529,7 @@ async function refreshVaultKeys() {
 
         const merged = { ...vaultKeys, ...freshVault };
         vaultKeys = merged;
+        lastVaultRefreshTime = Date.now();
         chrome.storage.session.set({ cachedVaultKeys: merged });
         console.log('[refreshVaultKeys] vault 갱신 완료, 토큰 수:', Object.keys(merged).length);
     } catch (e) {
@@ -1323,7 +1318,11 @@ function renderRecords() {
                 btn.disabled = true;
                 try {
                     const key = await getShareKeyForToken(token);
-                    const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
+                    if (!key) {
+                        showToastNotification('암호화 키를 가져오지 못했어요. PIN을 재입력하거나 새로고침 후 시도해주세요.');
+                        return;
+                    }
+                    const url = `https://dash.qpon/?token=${token}#key=${key}`;
                     await navigator.clipboard.writeText(url);
                     showToastNotification('공유 링크가 복사됐어요');
                 } catch (_) {
@@ -1536,7 +1535,11 @@ function renderSharedByMe() {
                 btn.disabled = true;
                 try {
                     const key = await getShareKeyForToken(token);
-                    const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
+                    if (!key) {
+                        showToastNotification('암호화 키를 가져오지 못했어요. PIN을 재입력하거나 새로고침 후 시도해주세요.');
+                        return;
+                    }
+                    const url = `https://dash.qpon/?token=${token}#key=${key}`;
                     await navigator.clipboard.writeText(url);
                     showToastNotification('공유 링크가 복사됐어요');
                 } catch (_) {
