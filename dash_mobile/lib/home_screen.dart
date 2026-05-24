@@ -21,6 +21,7 @@ import 'package:dash_mobile/screens/db_history_tab.dart';
 import 'package:dash_mobile/screens/home_tab.dart';
 import 'package:dash_mobile/screens/case_selection_modal.dart';
 import 'package:dash_mobile/screens/db_type_selection_sheet.dart';
+import 'package:intl/intl.dart';
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -140,10 +141,12 @@ class _HomeScreenState extends State<HomeScreen>
     int retries = 0;
     while (user == null && retries < 5) {
       await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) { _isInitializingSse = false; return; }
       user = FirebaseAuth.instance.currentUser;
       retries++;
     }
 
+    if (!mounted) { _isInitializingSse = false; return; }
     final email = user?.email;
     if (email != null) {
       debugPrint('🚀 Initializing SSE for email: $email');
@@ -151,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen>
         (event) {
           final String? ev = event['event'];
           debugPrint('🔔 Server Event Received: $ev');
-          if (ev != 'connected') _loadData();
+          if (ev != 'connected' && mounted) _loadData();
         },
         onDone: () => _eventSub = null,
         onError: (_) => _eventSub = null,
@@ -413,6 +416,7 @@ class _HomeScreenState extends State<HomeScreen>
               'agentOpinion': finalOpinion,
               'reviewed_at': s['reviewed_at'],
               'updated_at': s['updated_at'],
+              'is_shared_db': s['is_shared_db'] == 1 || s['is_shared_db'] == true,
               'service_type':
                   s['service_type'] ?? local['service_type'],
               'service_category':
@@ -610,12 +614,9 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
 
-        // 사례담당자가 "내 DB로 저장" 완료 시 → 삭제 여부 안내 모달
+        // 사례담당자가 "내 DB로 저장" 완료 시 → 알림 탭 갱신
         if (message.data['type'] == 'db_saved_by_case_manager') {
-          final recordToken = message.data['record_token']?.toString();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _showDbSavedByManagerSheet(recordToken);
-          });
+          if (mounted) _loadData();
         }
       }
     });
@@ -666,77 +667,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ── 사례담당자가 공유 DB 저장 완료 → 삭제 여부 안내 시트 ────────────
-  void _showDbSavedByManagerSheet(String? recordToken) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).padding.bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text('사례담당자가 DB를 저장했어요', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF222222))),
-            const SizedBox(height: 8),
-            const Text(
-              '이 DB는 이미 담당자에게 전달됐어요.\n더 이상 필요 없다면 내 목록에서 삭제할 수 있어요.\n(삭제해도 담당자의 DB에는 영향이 없어요)',
-              style: TextStyle(fontSize: 13, color: Color(0xFF8B95A1), height: 1.6),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      side: const BorderSide(color: Color(0xFFE0E0E0)),
-                    ),
-                    child: const Text('유지', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF4E5968))),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      if (recordToken != null) {
-                        await ApiService.deleteRecord(recordToken);
-                        final freshDrafts = await StorageService.getDrafts();
-                        if (mounted) setState(() => _drafts = freshDrafts);
-                        _showToast('DB를 삭제했어요');
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF4D4F),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
-                    child: const Text('삭제', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ── Vault 복구 ──────────────────────────────────────────────────
 
   void _checkAndPromptVaultRecovery(
@@ -825,6 +755,7 @@ class _HomeScreenState extends State<HomeScreen>
     String dong, {
     required dynamic caseId,
     int? draftId,
+    bool dismissModalOnSave = false,
   }) async {
     // 신규 DB 생성 시 유형 선택
     DbType? dbType;
@@ -832,6 +763,10 @@ class _HomeScreenState extends State<HomeScreen>
       dbType = await showDbTypeSelectionSheet(context);
       if (dbType == null) return; // 유저가 시트 닫음
     }
+
+    final isShared = dbType == DbType.shared;
+    // 공유할 DB: FormScreen 닫히자마자 dialog를 즉시 띄우기 위한 Completer
+    final urlCompleter = isShared ? Completer<String>() : null;
 
     final result = await Navigator.push(
       context,
@@ -842,16 +777,20 @@ class _HomeScreenState extends State<HomeScreen>
           dong: dong,
           draftId: draftId,
           userName: _userName,
-          isSharedDb: dbType == DbType.shared,
+          isSharedDb: isShared,
           onSyncComplete: () {
             if (mounted) _loadData();
           },
-          onSharedDbReady: (token, key) {
-            if (mounted) _showShareDialog(token, key);
-          },
+          onSharedDbReady: isShared
+              ? (token, key) {
+                  final url = '${ApiService.serverUrl}/?token=$token#key=$key';
+                  if (!(urlCompleter!.isCompleted)) urlCompleter.complete(url);
+                }
+              : null,
         ),
       ),
     );
+
     final freshDrafts = await StorageService.getDrafts();
     final freshCases = await StorageService.getCases();
     if (mounted) {
@@ -862,6 +801,16 @@ class _HomeScreenState extends State<HomeScreen>
     }
     if (result == true && draftId != null && mounted) {
       _showToast('$maskedName 아동 DB가 수정되었습니다');
+    }
+
+    // 저장 버튼으로 돌아온 경우 사례 선택 모달 닫기
+    if (result == true && dismissModalOnSave && mounted && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+
+    // 공유할 DB 저장 시 즉시 공유 dialog 표시 (URL은 sync 완료 후 채워짐)
+    if (result == true && isShared && urlCompleter != null && mounted) {
+      _showShareDialogWithFuture(urlCompleter.future);
     }
   }
 
@@ -876,7 +825,10 @@ class _HomeScreenState extends State<HomeScreen>
       onCasesChanged: (list) => setState(() => _cases = List.from(list)),
       onCounselorIdChanged: (id) =>
           setState(() => _selectedCounselorId = id),
-      onGoToForm: _goToForm,
+      onGoToForm: (name, maskedName, dong, {required caseId, draftId}) {
+        _goToForm(name, maskedName, dong,
+            caseId: caseId, draftId: draftId, dismissModalOnSave: true);
+      },
       onShowToast: _showToast,
       onReloadData: _loadData,
     );
@@ -982,10 +934,8 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // ── 공유할 DB 즉시 공유 다이얼로그 ────────────────────────────────
-  void _showShareDialog(String shareToken, String encryptionKey) {
-    final String host = ApiService.serverUrl;
-    final String shareUrl = '$host/?token=$shareToken#key=$encryptionKey';
+  // ── 공유할 DB 즉시 공유 다이얼로그 (URL은 sync 완료 후 채워짐) ───────
+  void _showShareDialogWithFuture(Future<String> urlFuture) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -996,70 +946,82 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 상단 핸들 + 나중에 버튼
-            Row(
+        child: FutureBuilder<String>(
+          future: urlFuture,
+          builder: (context, snapshot) {
+            final url = snapshot.data;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Spacer(),
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDDE1E7),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(ctx),
-                      child: const Text(
-                        '나중에',
-                        style: TextStyle(fontSize: 14, color: Color(0xFF868E96), fontWeight: FontWeight.w500),
+                Row(
+                  children: [
+                    const Spacer(),
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDDE1E7),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Text('방금 저장한 DB 공유하세요!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-            const SizedBox(height: 6),
-            const Text('링크를 복사해 사례 담당자에게 전달하세요.', style: TextStyle(fontSize: 14, color: Color(0xFF868E96))),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: shareUrl));
-                  AnalyticsService.linkCopied();
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  _showToast('링크가 복사되었습니다.');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.ios_share_rounded, size: 20),
-                    SizedBox(width: 8),
-                    Text('링크 복사해서 공유하기', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(ctx),
+                          child: const Text(
+                            '나중에',
+                            style: TextStyle(fontSize: 14, color: Color(0xFF868E96), fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ),
-          ],
+                const SizedBox(height: 24),
+                const Text('방금 저장한 DB 공유하기', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+                const SizedBox(height: 6),
+                const Text('링크를 복사해 사례 담당자에게 전달하세요.', style: TextStyle(fontSize: 14, color: Color(0xFF868E96))),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: url == null
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                          ),
+                        )
+                      : ElevatedButton(
+                          onPressed: () async {
+                            await Clipboard.setData(ClipboardData(text: url));
+                            AnalyticsService.linkCopied();
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            _showToast('링크가 복사되었습니다.');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.ios_share_rounded, size: 20),
+                              SizedBox(width: 8),
+                              Text('링크 복사', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1101,10 +1063,15 @@ class _HomeScreenState extends State<HomeScreen>
         toolbarHeight: 0,
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white,
-          border: Border(
-              top: BorderSide(color: Color(0xFFE5E7EB), width: 0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
         child: SafeArea(
           child: SizedBox(
