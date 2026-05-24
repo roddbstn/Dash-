@@ -1233,14 +1233,18 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
     if (orig.owner_user_id === requesterUid) return res.status(400).json({ error: 'own_record' });
 
     // 3. 요청자 계정에서 동일 case_name 사례 찾기 (없으면 생성)
-    const caseId = require('crypto').randomUUID();
+    // cases.id: 실제 DB 컬럼이 INT(max ~21억)일 수 있으므로 초 단위 Unix timestamp 사용 (10자리)
+    // Date.now()는 13자리라 INT overflow 발생 → Math.floor(Date.now()/1000)은 INT/BIGINT 모두 안전
+    const caseId = Math.floor(Date.now() / 1000);
     const [existingCase] = await queryWithTimeout(
       'SELECT id FROM cases WHERE user_id = ? AND case_name = ?',
       [requesterUid, orig.case_name]
     );
     let targetCaseId;
-    if (existingCase.length > 0) {
-      targetCaseId = existingCase[0].id;
+    // UUID로 잘못 생성된 잔류 레코드(id가 숫자가 아닌 경우)는 무시하고 새 numeric id로 생성
+    const numericCase = existingCase.find(row => !isNaN(Number(row.id)) && String(row.id).trim() !== '');
+    if (numericCase) {
+      targetCaseId = numericCase.id;
     } else {
       targetCaseId = caseId;
       await queryWithTimeout(

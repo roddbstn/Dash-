@@ -239,6 +239,7 @@ let isEditMode = true; // 항상 편집 모드
 let editHistory = []; // [{main, opinion}, ...]
 let historyIndex = -1;
 let hasEverSentNotify = false; // 최초 "저장 알림 보내기" 클릭 여부
+let _recordOwnerName = ''; // DB 생성자(공유자) 이름
 
 // ── 편집 모드 (항상 활성) ──────────────────────────────────────
 // toggleEditMode 제거: 편집 버튼 없이 바로 편집 가능
@@ -1076,6 +1077,7 @@ function updateUI(data) {
     document.getElementById('page-title').textContent = `${data.case_name || '미지정'} 아동 사례`;
     
     // Update Author Name
+    _recordOwnerName = data.user_name || '';
     const authorEl = document.getElementById('author-name');
     if (authorEl) {
         authorEl.textContent = `${data.user_name || '관리자'} 상담원 작성`;
@@ -1166,7 +1168,13 @@ function _switchToSaveMode() {
 
 function openSaveToMyDbModal() {
     const modal = document.getElementById('save-to-my-db-modal');
-    if (modal) modal.style.display = 'flex';
+    if (!modal) return;
+    const msgEl = modal.querySelector('p');
+    if (msgEl) {
+        const name = _recordOwnerName ? `${_recordOwnerName} 상담원` : '담당 상담원';
+        msgEl.innerHTML = `이 DB를 내 계정에 저장할까요?<br>저장하면 ${name}에게 알림이 전송돼요.`;
+    }
+    modal.style.display = 'flex';
 }
 
 function closeSaveToMyDbModal() {
