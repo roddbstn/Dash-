@@ -452,6 +452,41 @@ async function verifyPinWithVault(pin) {
     }
 }
 
+// 공유 링크 클릭 시 vault를 실시간으로 복호화해 key를 반환
+// cachedDerivedKey가 없으면 vaultKeys 캐시에서 폴백
+async function getShareKeyForToken(token) {
+    try {
+        const session = await new Promise(resolve => {
+            chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
+        });
+        if (session.cachedDerivedKey && currentUser?.uid) {
+            const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
+            if (res.ok) {
+                const { encrypted_vault } = await res.json();
+                if (encrypted_vault) {
+                    const parts = encrypted_vault.split(':');
+                    if (parts.length === 2) {
+                        const iv = base64ToArrayBuffer(parts[0]);
+                        const ciphertext = base64ToArrayBuffer(parts[1]);
+                        const keyBytes = Uint8Array.from(atob(session.cachedDerivedKey), c => c.charCodeAt(0));
+                        const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
+                        const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, ciphertext);
+                        const freshVault = JSON.parse(new TextDecoder().decode(buf));
+                        // 최신 vault로 vaultKeys 갱신 후 반환
+                        vaultKeys = { ...vaultKeys, ...freshVault };
+                        chrome.storage.session.set({ cachedVaultKeys: vaultKeys });
+                        console.log('[getShareKey] vault 실시간 갱신, token key 있음:', !!freshVault[token]);
+                        return freshVault[token] || vaultKeys[token] || '';
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[getShareKey] vault 실시간 fetch 실패, 캐시 사용:', e);
+    }
+    return vaultKeys[token] || '';
+}
+
 // Vault 갱신: fetchRecords 호출 시 새로 추가된 공유 DB 키를 반영
 async function refreshVaultKeys() {
     if (!pinAuthenticated || !currentUser?.uid) return;
@@ -1230,15 +1265,24 @@ function renderRecords() {
         // 공유 버튼 (share_token 있을 때만 렌더됨)
         const shareBtn = card.querySelector('.btn-share-pending');
         if (shareBtn) {
-            shareBtn.addEventListener('click', (e) => {
+            shareBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const token = e.currentTarget.dataset.token;
-                // [Security] Phase 2-B: 클릭 시점에 vaultKeys에서 키 조회 (렌더 타이밍 문제 방지)
-                const key = vaultKeys[token] || '';
-                const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
-                navigator.clipboard.writeText(url).then(() => {
+                const btn = e.currentTarget;
+                const token = btn.dataset.token;
+                const origText = btn.textContent;
+                btn.textContent = '링크 생성 중...';
+                btn.disabled = true;
+                try {
+                    const key = await getShareKeyForToken(token);
+                    const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
+                    await navigator.clipboard.writeText(url);
                     showToastNotification('공유 링크가 복사됐어요');
-                }).catch(() => alert(url));
+                } catch (_) {
+                    showToastNotification('복사에 실패했어요. 다시 시도해주세요.');
+                } finally {
+                    btn.textContent = origText;
+                    btn.disabled = false;
+                }
             });
         }
 
@@ -1361,14 +1405,24 @@ function renderSharedByMe() {
 
         const shareBtn = card.querySelector('.btn-share-shared-by-me');
         if (shareBtn) {
-            shareBtn.addEventListener('click', (e) => {
+            shareBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const token = e.currentTarget.dataset.token;
-                const key = vaultKeys[token] || '';
-                const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
-                navigator.clipboard.writeText(url).then(() => {
+                const btn = e.currentTarget;
+                const token = btn.dataset.token;
+                const origText = btn.textContent;
+                btn.textContent = '링크 생성 중...';
+                btn.disabled = true;
+                try {
+                    const key = await getShareKeyForToken(token);
+                    const url = `https://dash.qpon/?token=${token}${key ? '#key=' + key : ''}`;
+                    await navigator.clipboard.writeText(url);
                     showToastNotification('공유 링크가 복사됐어요');
-                }).catch(() => alert(url));
+                } catch (_) {
+                    showToastNotification('복사에 실패했어요. 다시 시도해주세요.');
+                } finally {
+                    btn.textContent = origText;
+                    btn.disabled = false;
+                }
             });
         }
 
