@@ -160,7 +160,7 @@ class HomeTab extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           '기입할 DB가 $totalCount개 있어요',
-          style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
+          style: const TextStyle(fontSize: 15, color: Color(0xFF888888)),
         ),
       ],
     );
@@ -391,6 +391,16 @@ class HomeTab extends StatelessWidget {
       animation: dbTabController,
       builder: (context, _) {
         final isMyDb = dbTabController.index == 0;
+
+        // 개인 DB / 공유할 DB 분리 (bool true 또는 int 1 모두 처리)
+        bool isSharedDb(d) => d['is_shared_db'] == true || d['is_shared_db'] == 1;
+        final personalDrafts = pendingDrafts
+            .where((d) => !isSharedDb(d))
+            .toList();
+        final sharedDbDrafts = pendingDrafts
+            .where((d) => isSharedDb(d))
+            .toList();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -402,12 +412,54 @@ class HomeTab extends StatelessWidget {
                   color: Color(0xFF222222)),
             ),
             const SizedBox(height: 15),
-            _buildSegmentControl(pendingDrafts.length, sharedDrafts.length),
+            _buildSegmentControl(
+              personalDrafts.length + sharedDrafts.length,
+              sharedDbDrafts.length,
+            ),
             const SizedBox(height: 15),
             if (isMyDb) ...[
-              if (pendingDrafts.isNotEmpty)
+              // 개인 DB + 공유받은 DB
+              if (personalDrafts.isEmpty && sharedDrafts.isEmpty)
+                _buildEmptyHint('사례를 선택해 DB를 만들어주세요')
+              else
                 Column(
-                  children: pendingDrafts.asMap().entries.map<Widget>((entry) {
+                  children: [
+                    ...personalDrafts.asMap().entries.map<Widget>((entry) {
+                      final idx = entry.key;
+                      final d = entry.value;
+                      final foundCase =
+                          cases.cast<Map<String, dynamic>?>().firstWhere(
+                                (c) =>
+                                    c?['realName'] == d['caseName'] ||
+                                    c?['maskedName'] == d['caseName'],
+                                orElse: () => null,
+                              );
+                      final dong =
+                          foundCase != null ? foundCase['dong'] : '미지정';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _buildDraftCardInBox(context, d, dong,
+                            index: idx),
+                      );
+                    }),
+                    ...sharedDrafts.asMap().entries.map<Widget>((entry) {
+                      final idx = entry.key;
+                      final d = entry.value;
+                      return Padding(
+                        padding: EdgeInsets.only(
+                            bottom: idx == sharedDrafts.length - 1 ? 0 : 8),
+                        child: _buildSharedDraftCardInBox(context, d),
+                      );
+                    }),
+                  ],
+                ),
+            ] else ...[
+              // 공유할 DB
+              if (sharedDbDrafts.isEmpty)
+                _buildEmptyHint('동행자 사례 DB를 만들어 공유해보세요')
+              else
+                Column(
+                  children: sharedDbDrafts.asMap().entries.map<Widget>((entry) {
                     final idx = entry.key;
                     final d = entry.value;
                     final foundCase =
@@ -421,32 +473,12 @@ class HomeTab extends StatelessWidget {
                         foundCase != null ? foundCase['dong'] : '미지정';
                     return Padding(
                       padding: EdgeInsets.only(
-                          bottom:
-                              idx == pendingDrafts.length - 1 ? 0 : 8),
+                          bottom: idx == sharedDbDrafts.length - 1 ? 0 : 8),
                       child: _buildDraftCardInBox(context, d, dong,
                           index: idx),
                     );
                   }).toList(),
-                )
-              else
-                _buildEmptyHint('사례를 선택해 DB를 만들어주세요'),
-            ] else ...[
-              if (sharedDrafts.isNotEmpty)
-                Column(
-                  children:
-                      sharedDrafts.asMap().entries.map<Widget>((entry) {
-                    final idx = entry.key;
-                    final d = entry.value;
-                    return Padding(
-                      padding: EdgeInsets.only(
-                          bottom:
-                              idx == sharedDrafts.length - 1 ? 0 : 8),
-                      child: _buildSharedDraftCardInBox(context, d),
-                    );
-                  }).toList(),
-                )
-              else
-                _buildEmptyHint('동행자에게 DB 공유를 요청하세요'),
+                ),
             ],
             const SizedBox(height: 30),
           ],
@@ -495,8 +527,8 @@ class HomeTab extends StatelessWidget {
                 Positioned.fill(
                   child: Row(
                     children: [
-                      _buildSegmentTab('나의 DB', 0, myCount),
-                      _buildSegmentTab('공유받은 DB', 1, sharedCount),
+                      _buildSegmentTab('나의 DB', 0, 0),
+                      _buildSegmentTab('공유할 DB', 1, 0),
                     ],
                   ),
                 ),
@@ -514,39 +546,15 @@ class HomeTab extends StatelessWidget {
       child: GestureDetector(
         onTap: () => dbTabController.animateTo(index),
         behavior: HitTestBehavior.opaque,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight:
-                    isActive ? FontWeight.w600 : FontWeight.w500,
-                color: isActive
-                    ? const Color(0xFF222222)
-                    : const Color(0xFF888888),
-              ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+              color: isActive ? const Color(0xFF222222) : const Color(0xFF888888),
             ),
-            const SizedBox(width: 4),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -634,21 +642,30 @@ class HomeTab extends StatelessWidget {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16)),
-            title: const Text('목록에서 삭제',
-                style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            content: const Text('공유받은 DB를 목록에서 삭제할까요?',
-                style: TextStyle(fontSize: 14)),
+                borderRadius: BorderRadius.circular(20)),
+            title: const Text('공유받은 DB 삭제',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            content: const Text(
+              '내 목록에서만 삭제돼요.\n사례 담당자의 DB에는 영향이 없어요.',
+              style: TextStyle(
+                  fontSize: 14, color: AppColors.textSub, height: 1.6),
+            ),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('취소')),
+                  child: const Text('취소',
+                      style: TextStyle(
+                          color: Color(0xFFADB5BD),
+                          fontWeight: FontWeight.w600))),
               TextButton(
                   onPressed: () => Navigator.pop(ctx, true),
                   child: const Text('삭제',
-                      style: TextStyle(color: AppColors.danger))),
+                      style: TextStyle(
+                          color: AppColors.danger,
+                          fontWeight: FontWeight.w700))),
             ],
           ),
         );

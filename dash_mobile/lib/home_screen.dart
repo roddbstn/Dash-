@@ -466,6 +466,7 @@ class _HomeScreenState extends State<HomeScreen>
               'reviewed_at': s['reviewed_at'],
               'updated_at': s['updated_at'],
               'is_server_only': true,
+              'is_shared_db': s['is_shared_db'] == 1 || s['is_shared_db'] == true,
             });
           }
         }
