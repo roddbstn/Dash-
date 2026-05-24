@@ -758,7 +758,7 @@ function openHistoryDetail(idx) {
     const hasBefore = e.service_description_before !== null && e.service_description_before !== undefined;
     const prev = hasBefore ? e : (entries[idx + 1] || null);
 
-    const timeStr = _toUtcDate(e.created_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const timeStr = _toUtcDate(e.created_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
     const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
     const actionClass = e.action === 'reviewed' ? 'reviewed' : 'saved';
     const isEncrypted = !e.service_description_snapshot && !!e.encrypted_blob_snapshot;
@@ -905,7 +905,7 @@ function _relativeTime(dateStr) {
     if (h < 24) return `${h}시간 전`;
     const d = Math.floor(h / 24);
     if (d < 30) return `${d}일 전`;
-    return _toUtcDate(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    return _toUtcDate(dateStr).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
 }
 function _esc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
