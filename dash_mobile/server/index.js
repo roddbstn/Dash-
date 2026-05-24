@@ -630,7 +630,14 @@ app.get('/api/events', verifyFirebaseAuth, (req, res) => {
 app.get('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   try {
-    const [users] = await queryWithTimeout('SELECT * FROM dash_users WHERE id = ?', [id]);
+    let [users] = await queryWithTimeout('SELECT * FROM dash_users WHERE id = ?', [id]);
+    if (users.length === 0) {
+      // UID 불일치 대응: 이메일로 폴백 조회 (save-to-my-db와 동일 패턴)
+      const email = req.firebaseUser?.email;
+      if (email) {
+        [users] = await queryWithTimeout('SELECT * FROM dash_users WHERE email = ?', [email]);
+      }
+    }
     if (users.length > 0) {
       res.json(users[0]);
     } else {
