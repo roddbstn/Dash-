@@ -898,7 +898,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
             target=?,
             is_shared_db=COALESCE(?, is_shared_db)
           WHERE id=?`,
-          [provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', is_shared_db != null ? (is_shared_db ? 1 : 0) : null, recordId]
+          [provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', (is_shared_db ? 1 : null), recordId]
         );
         console.log(`🔄 Record updated successfully (DB ID: ${recordId})`);
       }
