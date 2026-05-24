@@ -710,8 +710,8 @@ async function loadHistory(token) {
                 return;
             }
             list.innerHTML = entries.map((e, i) => {
-                const actionLabel = e.action === 'reviewed' ? '수정 완료' : '저장';
-                const actionClass = e.action === 'reviewed' ? 'reviewed' : 'saved';
+                const actionLabel = e.action === 'reviewed' ? '수정 완료' : e.action === 'synced' ? '내 DB 저장' : '저장';
+                const actionClass = e.action === 'reviewed' ? 'reviewed' : e.action === 'synced' ? 'synced' : 'saved';
                 const timeStr = _relativeTime(e.created_at);
                 const previewHtml = _buildPreviewDiff(
                     e.service_description_before, e.service_description_snapshot,

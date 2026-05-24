@@ -1279,6 +1279,18 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
     );
     console.log(`[SAVE-TO-MY-DB] step5 ok`);
 
+    // 5-1. 수정 히스토리 기록
+    queryWithTimeout(
+      `INSERT INTO record_edit_history
+         (share_token, editor_user_id, editor_name, action,
+          service_description_before, agent_opinion_before,
+          service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
+       VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?)`,
+      [token, requesterUid, requesterName,
+       orig.service_description || '', orig.agent_opinion || '',
+       orig.service_description || '', orig.agent_opinion || '', orig.encrypted_blob || null]
+    ).catch(err => console.error('[history] save-to-my-db 기록 실패:', err.message));
+
     // 6. 원본 소유자에게 FCM Push
     if (fcmInitialized) {
       try {

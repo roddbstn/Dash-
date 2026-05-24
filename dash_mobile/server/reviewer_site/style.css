@@ -188,6 +188,7 @@ body {
 }
 .history-action-badge.reviewed { background: #ECFDF5; color: #059669; }
 .history-action-badge.saved    { background: #EFF6FF; color: #2563EB; }
+.history-action-badge.synced   { background: #FFF7ED; color: #C2410C; }
 .history-entry-time {
     font-size: 11px;
     color: #ADB5BD;
