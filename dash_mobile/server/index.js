@@ -827,6 +827,19 @@ app.get('/api/cases/user/:userId', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
+// [Mobile] 사례 삭제
+app.delete('/api/cases/:caseId', verifyFirebaseAuth, async (req, res) => {
+  const { caseId } = req.params;
+  try {
+    const [result] = await queryWithTimeout('DELETE FROM cases WHERE id = ?', [caseId]);
+    console.log(`[DELETE CASE] id=${caseId} affectedRows=${result.affectedRows}`);
+    res.json({ ok: true, affectedRows: result.affectedRows });
+  } catch (err) {
+    console.error(`[DELETE CASE ERROR] id=${caseId}`, err.message);
+    res.status(500).json({ error: safeError(err) });
+  }
+});
+
 // [Mobile] 2. 상담 기록(Draft) 서버로 동기화
 app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
   const {
@@ -2059,8 +2072,12 @@ app.get('/api/users/vault/:userId', verifyFirebaseAuth, async (req, res) => {
       }
     }
     if (rows.length === 0) {
+      console.log(`[VAULT GET] userId=${userId} → not found`);
       return res.status(404).json({ message: 'Vault not found' });
     }
+    const hasVault = !!rows[0].encrypted_vault;
+    const hasSalt = !!rows[0].salt;
+    console.log(`[VAULT GET] userId=${userId} → encrypted_vault=${hasVault}, salt=${hasSalt}`);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: safeError(err) });
