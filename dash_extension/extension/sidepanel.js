@@ -452,22 +452,25 @@ async function getShareKeyForToken(token) {
     }
 
     // 2. 캐시 미스 → 서버 vault 실시간 fetch
-    try {
-        const session = await new Promise(resolve => {
-            chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
-        });
-        if (!session.cachedDerivedKey || !currentUser?.uid) {
-            console.warn('[getShareKey] cachedDerivedKey 없음 → PIN 재인증 필요');
-            return '';
-        }
+    const session = await new Promise(resolve => {
+        chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
+    });
+    if (!session.cachedDerivedKey || !currentUser?.uid) {
+        console.warn('[getShareKey] cachedDerivedKey 없음 → PIN 재인증 필요');
+        return 'PIN_REQUIRED';
+    }
 
+    try {
         const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
         if (!res.ok) {
             console.warn('[getShareKey] vault fetch 실패:', res.status);
             return '';
         }
         const { encrypted_vault } = await res.json();
-        if (!encrypted_vault) return '';
+        if (!encrypted_vault) {
+            console.warn('[getShareKey] vault가 비어있음');
+            return '';
+        }
 
         const parts = encrypted_vault.split(':');
         if (parts.length !== 2) return '';
@@ -481,11 +484,24 @@ async function getShareKeyForToken(token) {
         vaultKeys = { ...vaultKeys, ...freshVault };
         lastVaultRefreshTime = Date.now();
         chrome.storage.session.set({ cachedVaultKeys: vaultKeys });
-        console.log('[getShareKey] vault 재fetch 완료, key 있음:', !!freshVault[token]);
-        return freshVault[token] || '';
-    } catch (e) {
-        console.warn('[getShareKey] vault 복호화 실패:', e);
+        const found = !!freshVault[token];
+        console.log('[getShareKey] vault 재fetch 완료, key 있음:', found,
+            '| vault 키 수:', Object.keys(freshVault).length,
+            '| 찾는 token:', token.slice(0, 8));
+        if (freshVault[token]) return freshVault[token];
+
+        // vault에 없을 때: records 배열의 레거시 encryption_key 폴백
+        const fallbackRec = records.find(r => r.share_token === token);
+        if (fallbackRec?.encryption_key) {
+            console.log('[getShareKey] vault 미등록 → encryption_key 폴백 사용');
+            return fallbackRec.encryption_key;
+        }
         return '';
+    } catch (e) {
+        console.warn('[getShareKey] vault 복호화 실패 (cachedDerivedKey 무효 가능성):', e.message);
+        // cachedDerivedKey가 무효(PIN 변경/새 salt) → 세션 초기화하여 PIN 재입력 강제
+        chrome.storage.session.remove(['cachedVaultKeys', 'cachedDerivedKey']);
+        return 'PIN_REQUIRED';
     }
 }
 
@@ -783,8 +799,12 @@ async function fetchRecords() {
 
         // encrypted_blob을 vaultKeys로 복호화 (없으면 레거시 encryption_key 폴백)
         records = await Promise.all(rawRecords.map(async (record) => {
-            const decryptKey = (record.share_token && vaultKeys[record.share_token])
-                || record.encryption_key || null;
+            const vaultKey = record.share_token ? vaultKeys[record.share_token] : null;
+            const decryptKey = vaultKey || record.encryption_key || null;
+            // 레거시 encryption_key로 복호화 성공 시 vaultKeys에 채워 share 버튼이 사용할 수 있게 함
+            if (!vaultKey && decryptKey && record.share_token) {
+                vaultKeys[record.share_token] = decryptKey;
+            }
             if (record.encrypted_blob && decryptKey) {
                 const decrypted = await decryptBlob(record.encrypted_blob, decryptKey);
                 if (decrypted) {
@@ -1318,8 +1338,12 @@ function renderRecords() {
                 btn.disabled = true;
                 try {
                     const key = await getShareKeyForToken(token);
+                    if (key === 'PIN_REQUIRED') {
+                        showToastNotification('보안 PIN을 다시 입력해주세요. 확장프로그램을 새로고침 후 PIN을 입력하세요.');
+                        return;
+                    }
                     if (!key) {
-                        showToastNotification('암호화 키를 가져오지 못했어요. PIN을 재입력하거나 새로고침 후 시도해주세요.');
+                        showToastNotification('암호화 키를 찾지 못했어요. 모바일 앱에서 해당 DB를 다시 공유해주세요.');
                         return;
                     }
                     const url = `https://dash.qpon/?token=${token}#key=${key}`;
@@ -1535,8 +1559,12 @@ function renderSharedByMe() {
                 btn.disabled = true;
                 try {
                     const key = await getShareKeyForToken(token);
+                    if (key === 'PIN_REQUIRED') {
+                        showToastNotification('보안 PIN을 다시 입력해주세요. 확장프로그램을 새로고침 후 PIN을 입력하세요.');
+                        return;
+                    }
                     if (!key) {
-                        showToastNotification('암호화 키를 가져오지 못했어요. PIN을 재입력하거나 새로고침 후 시도해주세요.');
+                        showToastNotification('암호화 키를 찾지 못했어요. 모바일 앱에서 해당 DB를 다시 공유해주세요.');
                         return;
                     }
                     const url = `https://dash.qpon/?token=${token}#key=${key}`;
@@ -1758,12 +1786,20 @@ async function setupRealtimeSync() {
         const data = JSON.parse(e.data);
         if (data.status === 'connected') return;
     };
-    eventSource.onerror = (err) => {
+    eventSource.onerror = async (err) => {
         console.error('SSE Error:', err);
         eventSource.close();
-        // 로그인된 상태에서만 재연결 (토큰 없으면 무한 루프 방지)
-        if (currentOAuthToken) {
+        if (!currentOAuthToken) return;
+
+        // 재연결 전 토큰 갱신 시도 — 실패 시 만료 토큰으로 무한 재시도하지 않고 로그아웃
+        try {
+            const freshToken = await getFreshTokenSilent();
+            currentOAuthToken = freshToken;
+            chrome.storage.session.set({ cachedOAuthToken: freshToken });
             setTimeout(setupRealtimeSync, 5000);
+        } catch (e) {
+            console.warn('SSE 재연결 포기: 토큰 갱신 불가', e.message);
+            performLogout();
         }
     };
 }
