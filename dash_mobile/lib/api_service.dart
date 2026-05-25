@@ -331,19 +331,20 @@ class ApiService {
     }
   }
 
+  // 예외를 throw해야 syncKey → _syncKeyToVault → enqueueFailedKey 재시도 체인이 작동함
+  // 조용히 삼키면 vault 저장 실패 시 키가 keymap에만 남고 vault엔 없는 상태로 위장 성공 처리됨
   static Future<void> saveVault(String userId, String encryptedVault, String? salt) async {
-    try {
-      await http.post(
-        Uri.parse('$baseUrl/users/vault'),
-        headers: await _authHeaders(),
-        body: jsonEncode({
-          'user_id': userId,
-          'encrypted_vault': encryptedVault,
-          'salt': salt,
-        }),
-      );
-    } catch (e) {
-      debugPrint('❌ Error saving vault: $e');
+    final response = await http.post(
+      Uri.parse('$baseUrl/users/vault'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'user_id': userId,
+        'encrypted_vault': encryptedVault,
+        'salt': salt,
+      }),
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('saveVault HTTP ${response.statusCode}');
     }
   }
 
@@ -406,12 +407,12 @@ class ApiService {
 
   static Future<void> deleteCase(dynamic caseId) async {
     try {
-      await http.delete(
+      final response = await http.delete(
         Uri.parse('$baseUrl/cases/$caseId'),
         headers: await _authGetHeaders(),
       ).timeout(const Duration(seconds: 8));
     } catch (e) {
-      debugPrint('❌ Error deleting case: $e');
+      debugPrint('❌ Error deleting case($caseId): $e');
     }
   }
 

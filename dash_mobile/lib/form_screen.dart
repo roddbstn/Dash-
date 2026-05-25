@@ -23,6 +23,7 @@ class FormScreen extends StatefulWidget {
   final int? draftId;
   final bool isEmbedded;
   final VoidCallback? onSyncComplete;
+  final void Function(String shareToken, String encryptionKey)? onSharedDbReady;
   final String? userName;
   final bool isSharedDb;
 
@@ -34,6 +35,7 @@ class FormScreen extends StatefulWidget {
     this.draftId,
     this.isEmbedded = false,
     this.onSyncComplete,
+    this.onSharedDbReady,
     this.userName,
     this.isSharedDb = false,
   });
@@ -207,6 +209,7 @@ class _FormScreenState extends State<FormScreen> {
       'id': widget.draftId ?? DateTime.now().millisecondsSinceEpoch,
       'caseName': widget.caseName,
       'dong': widget.dong,
+      'is_shared_db': widget.isSharedDb,
       'target': targetValue,
       'provision_type': _selectedProvisionType,
       'method': _selectedMethod,
@@ -324,9 +327,9 @@ class _FormScreenState extends State<FormScreen> {
       if (pin != null) await _syncKeyToVault(userId, shareToken, encryptionKey, pin);
       // 동기화 완료 → 홈화면에서 _loadData() 트리거 (share_token 저장 후 호출)
       widget.onSyncComplete?.call();
-      // 공유할 DB로 선택한 경우 저장 직후 자동으로 링크 복사
-      if (widget.isSharedDb && mounted) {
-        await _copyShareLink();
+      // 공유할 DB: 홈 화면 콜백으로 share token 전달 (FormScreen은 이미 unmounted)
+      if (widget.isSharedDb) {
+        widget.onSharedDbReady?.call(shareToken, encryptionKey);
       }
     } else {
       AnalyticsService.recordSyncFailure('no_share_token');
@@ -403,6 +406,65 @@ class _FormScreenState extends State<FormScreen> {
                 }
               },
               child: const Text('설정 완료', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // PIN 분실 복구용 다이얼로그 (SecureStorage 초기화 대응)
+  Future<String?> _askPinForLinkCopy() async {
+    final controller = TextEditingController();
+    bool obscure = true;
+    return await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('보안 PIN 입력', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('공유 링크 암호화 키를 복구하려면\n기존에 설정한 PIN을 입력해주세요.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5)),
+              const SizedBox(height: 20),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                maxLength: 4,
+                obscureText: obscure,
+                style: const TextStyle(fontSize: 24, letterSpacing: 10, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.left,
+                decoration: InputDecoration(
+                  counterText: '',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F4F6),
+                  contentPadding: const EdgeInsets.only(left: 20, right: 10, top: 20, bottom: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, color: const Color(0xFFADB5BD)),
+                    onPressed: () => setState(() => obscure = !obscure),
+                  ),
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('취소', style: TextStyle(color: Color(0xFFADB5BD), fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: () {
+                if (controller.text.length == 4) Navigator.pop(context, controller.text);
+              },
+              child: const Text('확인', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
             ),
           ],
         ),
@@ -655,9 +717,33 @@ class _FormScreenState extends State<FormScreen> {
     final String host = ApiService.baseUrl.replaceAll('/api', '');
     if (token != null && token.isNotEmpty) {
       // [Security] 키는 fragment(#key=)로 전달 — 서버 로그/브라우저 히스토리에 기록되지 않음
-      final String? key = await StorageService.getKeyFromMap(token);
-      final keyFragment = (key != null && key.isNotEmpty) ? '#key=$key' : '';
-      Clipboard.setData(ClipboardData(text: "$host/?token=$token$keyFragment"));
+      String? key = await StorageService.getKeyFromMap(token);
+
+      // SecureStorage 미스 → Vault에서 복구 시도
+      if (key == null || key.isEmpty) {
+        String? pin = await StorageService.getPin();
+        // PIN도 없으면 사용자에게 직접 입력 요청
+        if ((pin == null || pin.isEmpty) && mounted) {
+          pin = await _askPinForLinkCopy();
+        }
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (pin != null && userId != null) {
+          final vault = await VaultService.decryptVault(pin, userId);
+          final recovered = vault?[token] as String?;
+          if (recovered != null && recovered.isNotEmpty) {
+            key = recovered;
+            await StorageService.saveKeyToMap(token, key!);
+            await StorageService.savePin(pin); // 복구된 PIN 저장
+            debugPrint('🔑 _copyShareLink: vault에서 키 복구 성공 ($token)');
+          }
+        }
+      }
+
+      if (key == null || key.isEmpty) {
+        _showToast('이 DB의 키 정보가 없어요. DB를 한 번 더 저장하면 공유 링크를 만들 수 있어요.');
+        return;
+      }
+      Clipboard.setData(ClipboardData(text: '$host/?token=$token#key=$key'));
       AnalyticsService.linkCopied();
       _showToast('링크가 복사되었습니다.');
     } else {
