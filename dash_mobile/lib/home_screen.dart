@@ -89,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen>
     _initRealtime();
     _setupFCM();
     _fetchUserProfile();
-    _backfillVaultKeys();
+    _checkPinAndBackfill();
 
     // 다른 기기에서 계정 삭제 시 이 기기도 즉시 로그아웃 처리
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
@@ -105,10 +105,17 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  Future<void> _backfillVaultKeys() async {
+  Future<void> _checkPinAndBackfill() async {
     final pin = await StorageService.getPin();
+    if (pin == null || pin.isEmpty) {
+      // PIN이 없으면 홈에서도 PIN 설정 화면으로 이동
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/pin_setup');
+      }
+      return;
+    }
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (pin == null || uid == null) return;
+    if (uid == null) return;
     await VaultService.backfillMissingKeys(uid, pin);
   }
 
