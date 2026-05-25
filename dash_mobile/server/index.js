@@ -1311,6 +1311,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
       'SELECT id FROM service_drafts WHERE case_id = ? AND is_shared_db = 0 ORDER BY id DESC LIMIT 1',
       [targetCaseId]
     );
+    let newToken = null;
     if (existingCopy.length > 0) {
       await queryWithTimeout(
         `UPDATE service_drafts SET
@@ -1321,7 +1322,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
       );
       console.log(`[SAVE-TO-MY-DB] step4 ok (updated existing copy): id=${existingCopy[0].id}`);
     } else {
-      const newToken = require('crypto').randomBytes(16).toString('hex');
+      newToken = require('crypto').randomBytes(16).toString('hex');
       await queryWithTimeout(
         `INSERT INTO service_drafts
           (case_id, provision_type, method, service_type, service_category, service_name, location,
