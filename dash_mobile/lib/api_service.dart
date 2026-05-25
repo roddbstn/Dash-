@@ -245,19 +245,19 @@ class ApiService {
     return null;
   }
 
+  /// 사용자 조회. 404이면 null 반환(신규 사용자). 네트워크/서버 오류면 예외 throw.
   static Future<Map<String, dynamic>?> fetchUser(String userId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/users/$userId'),
-        headers: await _authGetHeaders(),
-      );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-    } catch (e) {
-      debugPrint('❌ Error fetching user: $e');
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/$userId'),
+      headers: await _authGetHeaders(),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
     }
-    return null;
+    if (response.statusCode == 404) {
+      return null; // 신규 사용자
+    }
+    throw Exception('fetchUser HTTP ${response.statusCode}');
   }
 
   static Future<bool> updateUserProfile(String userId, String name, String? email) async {
@@ -319,13 +319,16 @@ class ApiService {
         Uri.parse('$baseUrl/users/vault/$userId'),
         headers: await _authGetHeaders(),
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      if (response.statusCode == 200) return jsonDecode(response.body);
+      // 404 = 볼트 미존재 → 빈 맵 반환. syncKey가 새 salt로 초기화할 수 있도록
+      // null은 "진짜 에러"를 의미 — 기존 볼트 보존 원칙 유지
+      if (response.statusCode == 404) return {};
+      debugPrint('❌ fetchVault HTTP ${response.statusCode}');
+      return null;
     } catch (e) {
       debugPrint('❌ Error fetching vault: $e');
+      return null;
     }
-    return null;
   }
 
   static Future<void> saveVault(String userId, String encryptedVault, String? salt) async {
@@ -398,6 +401,17 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Error syncing counselor: $e');
       return false;
+    }
+  }
+
+  static Future<void> deleteCase(dynamic caseId) async {
+    try {
+      await http.delete(
+        Uri.parse('$baseUrl/cases/$caseId'),
+        headers: await _authGetHeaders(),
+      ).timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('❌ Error deleting case: $e');
     }
   }
 

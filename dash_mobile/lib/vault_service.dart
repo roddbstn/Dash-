@@ -54,10 +54,10 @@ class VaultService {
   ) async {
     final vaultResponse = await ApiService.fetchVault(userId);
 
-    // fetchVault 실패(null) 시 새 salt 생성을 절대 하지 않는다.
-    // 새 salt로 vault를 덮어쓰면 확장프로그램의 cachedDerivedKey가 무효화되어
-    // 기존 모든 레코드를 복호화할 수 없게 되는 치명적 버그를 유발한다.
-    // 대신 throw해서 호출부의 재시도 큐(_syncKeyToVault retry + enqueueFailedKey)가 처리하도록 한다.
+    // fetchVault가 null이면 서버/네트워크 오류 → throw해서 재시도 큐가 처리
+    // fetchVault가 {} (빈 맵, 404)이면 볼트 미존재 → 아래 로직에서 새 salt 생성 후 초기화
+    // null과 {} 구분: null = 기존 볼트가 있을 수 있으므로 salt 생성 금지
+    //               {} = 볼트 없음 확인 → 안전하게 새 salt 생성 가능
     if (vaultResponse == null) {
       throw Exception('fetchVault failed — aborting syncKey to preserve vault integrity');
     }
