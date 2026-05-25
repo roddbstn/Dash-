@@ -81,20 +81,21 @@ function signInWithGoogle() {
     }
 
     let handled = false;
-    function onOAuthMessage(event) {
-        if (event.origin !== window.location.origin) return;
-        if (!event.data || event.data.type !== 'google_oauth_result') return;
+
+    function handleOAuthResult(data) {
+        if (handled) return;
         handled = true;
         clearInterval(pollTimer);
         window.removeEventListener('message', onOAuthMessage);
+        if (bc) { try { bc.close(); } catch (_) {} bc = null; }
 
-        if (event.data.error) {
-            errorEl.textContent = '오류: ' + event.data.error;
+        if (data.error) {
+            errorEl.textContent = '오류: ' + data.error;
             btn.disabled = false;
             btn.textContent = 'Google 계정으로 로그인';
             return;
         }
-        const credential = firebase.auth.GoogleAuthProvider.credential(null, event.data.access_token);
+        const credential = firebase.auth.GoogleAuthProvider.credential(null, data.access_token);
         firebase.auth().signInWithCredential(credential).then(async (result) => {
             if (!_loginHandled) {
                 _loginHandled = true;
@@ -107,13 +108,30 @@ function signInWithGoogle() {
             btn.textContent = 'Google 계정으로 로그인';
         });
     }
+
+    // postMessage (팝업 경로)
+    function onOAuthMessage(event) {
+        if (event.origin !== window.location.origin) return;
+        if (!event.data || event.data.type !== 'google_oauth_result') return;
+        handleOAuthResult(event.data);
+    }
     window.addEventListener('message', onOAuthMessage);
 
-    // 유저가 팝업을 직접 닫은 경우 버튼 복원
+    // BroadcastChannel (새 탭 경로) — 탭이 닫히지 않고 리다이렉트된 경우 중복 방지
+    let bc = null;
+    try {
+        bc = new BroadcastChannel('dash_oauth');
+        bc.onmessage = (event) => {
+            if (event.data?.type === 'google_oauth_result') handleOAuthResult(event.data);
+        };
+    } catch (_) {}
+
+    // 유저가 팝업/탭을 직접 닫은 경우 버튼 복원
     const pollTimer = setInterval(() => {
         if (popup.closed && !handled) {
             clearInterval(pollTimer);
             window.removeEventListener('message', onOAuthMessage);
+            if (bc) { try { bc.close(); } catch (_) {} bc = null; }
             btn.disabled = false;
             btn.textContent = 'Google 계정으로 로그인';
         }
