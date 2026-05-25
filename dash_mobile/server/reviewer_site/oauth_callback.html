@@ -18,17 +18,7 @@
         return;
     }
 
-    // 새 탭으로 열린 경우 — BroadcastChannel로 원래 탭에 전달 후 이 탭 닫기
-    // (리다이렉트 방식은 두 탭 모두 로그인되는 중복 문제 발생)
-    try {
-        var bc = new BroadcastChannel('dash_oauth');
-        bc.postMessage({ type: 'google_oauth_result', access_token: accessToken || null, error: error || null });
-        bc.close();
-        window.close();
-        return;
-    } catch (_) {}
-
-    // BroadcastChannel 미지원 환경 폴백 — sessionStorage 후 리다이렉트
+    // 새 탭으로 열린 경우 — sessionStorage에 저장 후 원래 페이지로 복귀
     var returnUrl = sessionStorage.getItem('oauth_return_url') || '/';
     sessionStorage.removeItem('oauth_return_url');
     if (accessToken) {
