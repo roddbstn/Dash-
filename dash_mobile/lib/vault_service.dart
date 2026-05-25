@@ -181,6 +181,68 @@ class VaultService {
     }
   }
 
+  /// SecureStorage keyMap에 있는 키 중 Vault에 없는 것을 자동으로 추가합니다.
+  /// 앱 실행 시 1회 호출 — PIN 변경/재설치 후 누락된 키를 복구합니다.
+  static Future<void> backfillMissingKeys(String userId, String pin) async {
+    try {
+      final localKeyMap = await StorageService.getKeyMap();
+      if (localKeyMap.isEmpty) return;
+
+      final vaultResponse = await ApiService.fetchVault(userId);
+      if (vaultResponse == null) return; // 서버 오류 → 재시도하지 않음
+
+      Map<String, dynamic> vaultKeyMap = {};
+      String salt;
+
+      if (vaultResponse['salt'] != null &&
+          (vaultResponse['salt'] as String).length > 10 &&
+          vaultResponse['encrypted_vault'] != null) {
+        salt = vaultResponse['salt'] as String;
+        try {
+          final derivedKey = _deriveKey(pin, salt);
+          final vaultKey = enc.Key(derivedKey);
+          final encrypter = enc.Encrypter(enc.AES(vaultKey, mode: enc.AESMode.cbc));
+          final parts = (vaultResponse['encrypted_vault'] as String).split(':');
+          final decrypted = encrypter.decrypt(
+            enc.Encrypted.fromBase64(parts[1]),
+            iv: enc.IV.fromBase64(parts[0]),
+          );
+          vaultKeyMap = jsonDecode(decrypted) as Map<String, dynamic>;
+        } catch (_) {
+          // PIN 불일치 등으로 복호화 실패 → backfill 중단 (덮어쓰면 안 됨)
+          debugPrint('⚠️ VaultService.backfillMissingKeys: vault 복호화 실패 — 중단');
+          return;
+        }
+      } else {
+        // Vault 미존재 → 전체 localKeyMap으로 초기화
+        salt = _generateSalt();
+      }
+
+      // 누락된 키만 추가
+      bool changed = false;
+      for (final entry in localKeyMap.entries) {
+        if (!vaultKeyMap.containsKey(entry.key)) {
+          vaultKeyMap[entry.key] = entry.value;
+          changed = true;
+        }
+      }
+      if (!changed) {
+        debugPrint('✅ VaultService.backfillMissingKeys: 누락 키 없음');
+        return;
+      }
+
+      final derivedKey = _deriveKey(pin, salt);
+      final vaultKey = enc.Key(derivedKey);
+      final iv = enc.IV.fromLength(16);
+      final encrypter = enc.Encrypter(enc.AES(vaultKey, mode: enc.AESMode.cbc));
+      final encrypted = encrypter.encrypt(jsonEncode(vaultKeyMap), iv: iv);
+      await ApiService.saveVault(userId, '${iv.base64}:${encrypted.base64}', salt);
+      debugPrint('✅ VaultService.backfillMissingKeys: ${localKeyMap.length}개 키 중 누락분 vault에 추가 완료');
+    } catch (e) {
+      debugPrint('❌ VaultService.backfillMissingKeys failed: $e');
+    }
+  }
+
   /// PIN으로 Vault를 복호화하여 keyMap 반환. 실패 시 null.
   static Future<Map<String, dynamic>?> decryptVault(String pin, String userId) async {
     try {

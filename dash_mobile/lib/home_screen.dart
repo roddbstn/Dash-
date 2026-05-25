@@ -89,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen>
     _initRealtime();
     _setupFCM();
     _fetchUserProfile();
+    _backfillVaultKeys();
 
     // 다른 기기에서 계정 삭제 시 이 기기도 즉시 로그아웃 처리
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
@@ -102,6 +103,13 @@ class _HomeScreenState extends State<HomeScreen>
         StorageService.intentionalLogout = false;
       }
     });
+  }
+
+  Future<void> _backfillVaultKeys() async {
+    final pin = await StorageService.getPin();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (pin == null || uid == null) return;
+    await VaultService.backfillMissingKeys(uid, pin);
   }
 
   @override
@@ -830,7 +838,6 @@ class _HomeScreenState extends State<HomeScreen>
             caseId: caseId, draftId: draftId, dismissModalOnSave: true);
       },
       onShowToast: _showToast,
-      onReloadData: _loadData,
     );
   }
 
