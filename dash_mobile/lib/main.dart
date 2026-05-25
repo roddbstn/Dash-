@@ -171,6 +171,12 @@ class _PostLoginRouterState extends State<_PostLoginRouter> {
     if (isReg) {
       final pinSetupRequired = prefs.getBool('pin_setup_required') ?? false;
       if (pinSetupRequired) return 'pin_setup';
+      // 재설치/기기변경으로 SecureStorage가 초기화된 경우 PIN 재설정 필요
+      final existingPin = await StorageService.getPin();
+      if (existingPin == null || existingPin.isEmpty) {
+        debugPrint('🔍 [ROUTE] → pin_setup (PIN missing after reinstall)');
+        return 'pin_setup';
+      }
       debugPrint('🔍 [ROUTE] → home (isRegistered)');
       return 'home';
     }

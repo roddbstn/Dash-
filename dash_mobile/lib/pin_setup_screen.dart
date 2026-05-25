@@ -36,6 +36,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
       // PIN 재설정 완료 플래그 삭제
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('pin_setup_required');
+      // 온보딩 완전 완료 표시 — 재설치/다기기 로그인 시 서버 호출 없이 기존 사용자 식별
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) await StorageService.setRegistered(uid);
       await _syncPinToVault(pin);
     } catch (_) {}
     if (mounted) {
@@ -50,16 +53,23 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
       final keyMap = await StorageService.getKeyMap();
       if (keyMap.isNotEmpty) {
         // 기존 키가 있으면 모두 새 PIN으로 재암호화하여 Vault 갱신
-        final firstEntry = keyMap.entries.first;
-        await VaultService.syncKey(user.uid, firstEntry.key, firstEntry.value, newPin);
-        for (final entry in keyMap.entries.skip(1)) {
+        for (final entry in keyMap.entries) {
           await VaultService.syncKey(user.uid, entry.key, entry.value, newPin);
         }
       } else {
-        // keyMap이 비어있음 → 서버 Vault를 새 PIN으로 강제 초기화
-        // (기존 Vault가 있어도 덮어씀 — keyMap이 없으므로 보존할 키 없음)
-        // force:true 없으면 기존 Vault가 있을 때 early-return되어 PIN 불일치 발생
-        await VaultService.initEmptyVault(user.uid, newPin, force: true);
+        // keyMap 비어있음 (재설치/기기변경) → 입력한 PIN으로 vault 복호화 시도
+        // 같은 PIN을 재사용한 경우: vault에서 키 복원 → SecureStorage 재구성
+        final restored = await VaultService.decryptVault(newPin, user.uid);
+        if (restored != null && restored.isNotEmpty) {
+          for (final entry in restored.entries) {
+            await StorageService.saveKeyToMap(entry.key, entry.value as String);
+          }
+          debugPrint('✅ PinSetupScreen: vault에서 ${restored.length}개 키 복원 완료');
+          // vault 내용은 이미 정상이므로 재저장 불필요
+        } else {
+          // 새 PIN이거나 vault 없음 → 빈 vault로 초기화
+          await VaultService.initEmptyVault(user.uid, newPin, force: true);
+        }
       }
     } catch (e) {
       debugPrint('❌ PinSetupScreen: vault sync error: $e');
@@ -95,7 +105,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'PC의 확장 프로그램에서 로그인할 때 필요해요.\n작성한 DB 내용은 서버가 읽을 수 없도록 암호화되기 때문에, 상담원님만의 고유 PIN 번호로 인증해야 해요',
+                'PC의 확장 프로그램에서 로그인할 때 필요해요. 앱을 재설치하면 보안을 위해 PIN을 다시 설정해야 해요.',
                 style: TextStyle(
                   fontSize: 15,
                   color: AppColors.textSub,
