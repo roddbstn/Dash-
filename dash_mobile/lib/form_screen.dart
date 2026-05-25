@@ -183,9 +183,22 @@ class _FormScreenState extends State<FormScreen> {
     }
     final targetValue = finalTargets.join(', ');
 
-    // [Security] 키는 SecureStorage keyMap에서 조회, 없으면 새로 생성
+    // [Security] 키는 SecureStorage keyMap에서 조회
+    // 없으면 vault에서 복구 시도 → 그래도 없으면 새로 생성 (기존 공유링크 무효화됨)
     final String? existingShareToken = _currentDraft?['share_token'];
     String? encryptionKey = await StorageService.getKeyFromMap(existingShareToken);
+    if (encryptionKey == null && existingShareToken != null) {
+      final pin = await StorageService.getPin();
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (pin != null && uid != null) {
+        final vaultMap = await VaultService.decryptVault(pin, uid);
+        encryptionKey = vaultMap?[existingShareToken] as String?;
+        if (encryptionKey != null) {
+          await StorageService.saveKeyToMap(existingShareToken, encryptionKey);
+          debugPrint('🔑 sync: vault에서 키 복구 성공 ($existingShareToken)');
+        }
+      }
+    }
     if (encryptionKey == null) {
       final random = math.Random.secure();
       final values = List<int>.generate(16, (i) => random.nextInt(256));

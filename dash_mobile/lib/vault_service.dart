@@ -181,13 +181,12 @@ class VaultService {
     }
   }
 
-  /// SecureStorage keyMap에 있는 키 중 Vault에 없는 것을 자동으로 추가합니다.
+  /// SecureStorage keyMap ↔ Vault 양방향 동기화.
+  /// - SecureStorage에 있는 키 중 Vault에 없는 것 → Vault에 추가
+  /// - Vault에 있는 키 중 SecureStorage에 없는 것 → SecureStorage에 복원
   /// 앱 실행 시 1회 호출 — PIN 변경/재설치 후 누락된 키를 복구합니다.
   static Future<void> backfillMissingKeys(String userId, String pin) async {
     try {
-      final localKeyMap = await StorageService.getKeyMap();
-      if (localKeyMap.isEmpty) return;
-
       final vaultResponse = await ApiService.fetchVault(userId);
       if (vaultResponse == null) return; // 서버 오류 → 재시도하지 않음
 
@@ -209,7 +208,7 @@ class VaultService {
           );
           vaultKeyMap = jsonDecode(decrypted) as Map<String, dynamic>;
         } catch (_) {
-          // PIN 불일치 등으로 복호화 실패 → backfill 중단 (덮어쓰면 안 됨)
+          // PIN 불일치 등으로 복호화 실패 → 중단 (덮어쓰면 안 됨)
           debugPrint('⚠️ VaultService.backfillMissingKeys: vault 복호화 실패 — 중단');
           return;
         }
@@ -218,26 +217,42 @@ class VaultService {
         salt = _generateSalt();
       }
 
-      // 누락된 키만 추가
-      bool changed = false;
+      final localKeyMap = await StorageService.getKeyMap();
+      debugPrint('🔑 backfill: vault 키 수=${vaultKeyMap.length}, local 키 수=${localKeyMap.length}');
+
+      // ① vault → SecureStorage 복원 (vault에 있지만 local에 없는 키)
+      int restoredCount = 0;
+      for (final entry in vaultKeyMap.entries) {
+        if (!localKeyMap.containsKey(entry.key)) {
+          await StorageService.saveKeyToMap(entry.key, entry.value as String);
+          restoredCount++;
+        }
+      }
+      if (restoredCount > 0) {
+        debugPrint('✅ backfill: vault → SecureStorage 복원 $restoredCount개');
+      }
+
+      // ② SecureStorage → vault 추가 (local에 있지만 vault에 없는 키)
+      bool vaultChanged = false;
       for (final entry in localKeyMap.entries) {
         if (!vaultKeyMap.containsKey(entry.key)) {
           vaultKeyMap[entry.key] = entry.value;
-          changed = true;
+          vaultChanged = true;
         }
       }
-      if (!changed) {
+      if (!vaultChanged && restoredCount == 0) {
         debugPrint('✅ VaultService.backfillMissingKeys: 누락 키 없음');
         return;
       }
-
-      final derivedKey = _deriveKey(pin, salt);
-      final vaultKey = enc.Key(derivedKey);
-      final iv = enc.IV.fromLength(16);
-      final encrypter = enc.Encrypter(enc.AES(vaultKey, mode: enc.AESMode.cbc));
-      final encrypted = encrypter.encrypt(jsonEncode(vaultKeyMap), iv: iv);
-      await ApiService.saveVault(userId, '${iv.base64}:${encrypted.base64}', salt);
-      debugPrint('✅ VaultService.backfillMissingKeys: ${localKeyMap.length}개 키 중 누락분 vault에 추가 완료');
+      if (vaultChanged) {
+        final derivedKey = _deriveKey(pin, salt);
+        final vaultKey = enc.Key(derivedKey);
+        final iv = enc.IV.fromLength(16);
+        final encrypter = enc.Encrypter(enc.AES(vaultKey, mode: enc.AESMode.cbc));
+        final encrypted = encrypter.encrypt(jsonEncode(vaultKeyMap), iv: iv);
+        await ApiService.saveVault(userId, '${iv.base64}:${encrypted.base64}', salt);
+        debugPrint('✅ backfill: SecureStorage → vault 추가 완료');
+      }
     } catch (e) {
       debugPrint('❌ VaultService.backfillMissingKeys failed: $e');
     }
