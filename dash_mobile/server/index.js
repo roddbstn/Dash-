@@ -1132,22 +1132,9 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
     const descBefore = beforeRows[0]?.service_description || '';
     const opinionBefore = beforeRows[0]?.agent_opinion || '';
 
-    let updateQuery = `UPDATE service_drafts SET status = 'Reviewed', service_description = ?, agent_opinion = ?, updated_at = NOW()`;
-    let queryParams = [service_description || '', agent_opinion || ''];
-
-    if (encrypted_blob) {
-      // plaintext가 있으면 함께 저장, 없으면 기존 값 유지 (COALESCE)
-      if (service_description || agent_opinion) {
-        updateQuery = `UPDATE service_drafts SET status = 'Reviewed', encrypted_blob = ?, service_description = ?, agent_opinion = ?, updated_at = NOW()`;
-        queryParams = [encrypted_blob, service_description || '', agent_opinion || ''];
-      } else {
-        updateQuery = `UPDATE service_drafts SET status = 'Reviewed', encrypted_blob = ?, updated_at = NOW()`;
-        queryParams = [encrypted_blob];
-      }
-    }
-
-    updateQuery += ` WHERE share_token = ?`;
-    queryParams.push(token);
+    // encrypted_blob이 없으면 NULL로 덮어써서 확장프로그램이 stale blob 대신 plaintext를 사용하게 함
+    const updateQuery = `UPDATE service_drafts SET status = 'Reviewed', encrypted_blob = ?, service_description = ?, agent_opinion = ?, updated_at = NOW() WHERE share_token = ?`;
+    const queryParams = [encrypted_blob || null, service_description || '', agent_opinion || '', token];
 
     const [result] = await queryWithTimeout(updateQuery, queryParams);
 
@@ -1184,8 +1171,11 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
       console.log(`✅ Record reviewed & Notified (Token: ${token})`);
       res.json({ message: 'Reviewed' });
       
-      // Notify extension and mobile app (SSE)
-      broadcastEvent('new_record', { user_email, reason: 'reviewed', record_token: token }); 
+      // Notify extension and mobile app (SSE) — owner + reviewer 모두에게 전송
+      broadcastEvent('new_record', { user_email, reason: 'reviewed', record_token: token });
+      if (email && email !== user_email) {
+        broadcastEvent('new_record', { user_email: email, reason: 'reviewed', record_token: token });
+      }
 
       // 📧 Send Push Notification (FCM)
       if (fcmInitialized) {
@@ -1635,14 +1625,9 @@ app.put('/api/records/share/:token', async (req, res) => {
   }
 
   try {
-    let query, params;
-    if (encrypted_blob) {
-      query = 'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, encrypted_blob = ?, updated_at = NOW() WHERE share_token = ?';
-      params = [service_description || '', agent_opinion || '', encrypted_blob, token];
-    } else {
-      query = 'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, updated_at = NOW() WHERE share_token = ?';
-      params = [service_description || '', agent_opinion || '', token];
-    }
+    // encrypted_blob이 없으면 NULL로 덮어써서 확장프로그램이 stale blob 대신 plaintext를 사용하게 함
+    const query = 'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, encrypted_blob = ?, updated_at = NOW() WHERE share_token = ?';
+    const params = [service_description || '', agent_opinion || '', encrypted_blob || null, token];
 
     const [result] = await queryWithTimeout(query, params);
     if (result.affectedRows > 0) {
