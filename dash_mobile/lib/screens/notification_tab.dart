@@ -182,7 +182,6 @@ class NotificationTab extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFF2F4F6)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -214,7 +213,7 @@ class NotificationTab extends StatelessWidget {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                "${_cleanNotifMessage(n['message'])}\n수정 사항을 확인해 보세요.",
+                                _cleanNotifMessage(n['message']),
                                 style: const TextStyle(
                                   fontSize: 14,
                                   height: 1.5,

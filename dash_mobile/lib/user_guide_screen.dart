@@ -654,21 +654,13 @@ class _MockupNotification extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 const Text(
-                  '수정 완료 🗒',
+                  'OOO 상담원님이 DB를 저장했어요.',
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     color: Color(0xFF111827),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'OOO 상담원이 강O수 아동 사례 DB를 일부 수정했어요',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF4B5563),
                     height: 1.4,
                   ),
                 ),
@@ -980,29 +972,20 @@ class _MockupExtensionPopup extends StatelessWidget {
                                 ),
                                 const Divider(height: 8, color: Color(0xFFE5E7EB)),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(vertical: 5),
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                                    borderRadius: BorderRadius.circular(8),
+                                    color: const Color(0xFF2563EB),
+                                    borderRadius: BorderRadius.circular(6),
                                   ),
-                                  child: const Text('🔗 공유', style: TextStyle(fontSize: 6, color: Color(0xFF374151))),
+                                  child: const Center(
+                                    child: Text('⚡ DB 삽입', style: TextStyle(fontSize: 6.5, color: Colors.white, fontWeight: FontWeight.w700)),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                           const Spacer(),
-                          // 하단 버튼
-                          Container(
-                            margin: const EdgeInsets.fromLTRB(5, 0, 5, 4),
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFD1D5DB),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Center(
-                              child: Text('삽입할 DB를 선택해주세요', style: TextStyle(fontSize: 6, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -1073,14 +1056,15 @@ class _MockupCtaAndModal extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: const Color(0xFFE5E8EB)),
                   ),
                   child: const Center(
                     child: Text(
-                      '동행 파트너 추가',
+                      '상담원 추가',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Color(0xFF111827),
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -1089,19 +1073,22 @@ class _MockupCtaAndModal extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: const Color(0xFFE5E8EB)),
-                ),
-                child: const Text(
-                  '사례 추가',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    color: Color(0xFF111827),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '사례 추가',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1141,7 +1128,7 @@ class _MockupDbCreation extends StatelessWidget {
                 Expanded(
                   child: Center(
                     child: Text(
-                      'DB 생성',
+                      'DB 추가',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
                     ),
                   ),

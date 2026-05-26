@@ -1187,8 +1187,7 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
             const fcmToken = userRows[0].fcm_token;
             const message = {
               notification: {
-                title: `${case_name} 아동 DB 수정 완료`,
-                body: `${reviewer_name} 상담원님이 DB를 저장했어요.`
+                title: `${reviewer_name} 상담원님이 DB를 저장했어요.`,
               },
               data: {
                 type: 'review_completed',
@@ -1363,8 +1362,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
         if (ownerFcm.length > 0 && ownerFcm[0].fcm_token) {
           await admin.messaging().send({
             notification: {
-              title: `${orig.case_name} 아동 DB 저장 완료`,
-              body: notifyMsg,
+              title: notifyMsg,
             },
             data: {
               type: 'db_saved_by_case_manager',
