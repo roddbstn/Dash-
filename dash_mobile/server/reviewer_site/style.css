@@ -310,6 +310,17 @@ body {
     pointer-events: none;
 }
 
+/* 터치 기기: 아이콘 항상 표시 */
+@media (hover: none) {
+    .ext-expand-btn {
+        opacity: 1;
+        transform: scale(1);
+    }
+    .ext-preview-wrap:hover .ext-preview {
+        filter: none;
+    }
+}
+
 /* ── 라이트박스 ──────────────────────────────────────────────── */
 .lightbox {
     display: none;
