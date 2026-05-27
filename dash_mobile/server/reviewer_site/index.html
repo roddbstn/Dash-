@@ -80,40 +80,55 @@
         <!-- CTA 섹션 -->
         <div class="cta-section" id="cta-section" style="display:none;">
             <div class="cta-inner">
-                <div class="cta-message">
-                    <img src="/public/logo.png" class="cta-logo" alt="DASH">
-                    <div class="cta-text">
-                        <p class="cta-title">내 계정에 저장하고 바로 활용하세요</p>
-                        <p class="cta-sub">저장 즉시 담당자에게 알림이 전송되고,<br>확장프로그램으로 기록에 자동 삽입돼요.</p>
-                    </div>
-                </div>
-                <div class="store-buttons">
-                    <a href="#" class="btn-store" target="_blank" rel="noopener">
-                        <!-- TODO: replace # with Play Store URL when published -->
-                        <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.33.19.7.24 1.06.14l11.08-11.08L12 9.5 3.18 23.76zM20.65 10.4l-2.5-1.44-3.43 3.43 3.43 3.43 2.52-1.45c.72-.41.72-1.56-.02-1.97zM2.01 1.37C1.7 1.69 1.5 2.17 1.5 2.79v18.42c0 .62.2 1.1.52 1.42L2.12 22.7l10.32-10.32v-.24L2.01 1.37zM15.31 4.58 4.24.82c-.36-.1-.73-.05-1.06.14L12 9.5l3.31-4.92z"/></svg>
-                        <div class="store-text">
-                            <span class="store-sub">Google Play에서</span>
-                            <span class="store-name">다운로드</span>
+                <div class="cta-cols">
+
+                    <!-- 왼쪽: 앱 -->
+                    <div class="cta-col">
+                        <div class="cta-col-header">
+                            <img src="/public/logo.png" class="cta-logo" alt="DASH">
+                            <div>
+                                <p class="cta-title">내 계정에 저장하고<br>바로 활용하세요</p>
+                                <p class="cta-sub">저장 즉시 담당자에게 알림이 전송돼요.</p>
+                            </div>
                         </div>
-                    </a>
-                    <a href="#" class="btn-store" target="_blank" rel="noopener">
-                        <!-- TODO: replace # with App Store URL when published -->
-                        <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-                        <div class="store-text">
-                            <span class="store-sub">App Store에서</span>
-                            <span class="store-name">다운로드</span>
+                        <div class="store-buttons">
+                            <a href="#" class="btn-store" target="_blank" rel="noopener">
+                                <!-- TODO: replace # with Play Store URL when published -->
+                                <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.33.19.7.24 1.06.14l11.08-11.08L12 9.5 3.18 23.76zM20.65 10.4l-2.5-1.44-3.43 3.43 3.43 3.43 2.52-1.45c.72-.41.72-1.56-.02-1.97zM2.01 1.37C1.7 1.69 1.5 2.17 1.5 2.79v18.42c0 .62.2 1.1.52 1.42L2.12 22.7l10.32-10.32v-.24L2.01 1.37zM15.31 4.58 4.24.82c-.36-.1-.73-.05-1.06.14L12 9.5l3.31-4.92z"/></svg>
+                                <div class="store-text">
+                                    <span class="store-sub">Google Play에서</span>
+                                    <span class="store-name">다운로드</span>
+                                </div>
+                            </a>
+                            <a href="#" class="btn-store" target="_blank" rel="noopener">
+                                <!-- TODO: replace # with App Store URL when published -->
+                                <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                                <div class="store-text">
+                                    <span class="store-sub">App Store에서</span>
+                                    <span class="store-name">다운로드</span>
+                                </div>
+                            </a>
                         </div>
-                    </a>
-                </div>
-                <!-- 확장프로그램 -->
-                <a href="#" class="btn-extension" target="_blank" rel="noopener">
-                    <!-- TODO: replace # with Chrome Web Store URL when published -->
-                    <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" style="display:none"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4h2v-4h-2zm0-6h2V8h-2z" style="display:none"/><path d="M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0zm0 4a4 4 0 0 1 4 4H8a4 4 0 0 1 4-4zm0 16.5a8.517 8.517 0 0 1-7.356-4.244L8.142 12A3.994 3.994 0 0 0 12 16a3.994 3.994 0 0 0 3.858-4h6.498A8.517 8.517 0 0 1 12 20.5z"/></svg>
-                    <div class="store-text">
-                        <span class="store-sub">Chrome 웹 스토어에서</span>
-                        <span class="store-name">확장프로그램 설치</span>
                     </div>
-                </a>
+
+                    <!-- 구분선 (데스크탑만) -->
+                    <div class="cta-divider"></div>
+
+                    <!-- 오른쪽: 확장프로그램 -->
+                    <div class="cta-col">
+                        <p class="cta-title">저장한 DB는<br>1초만에 기입돼요</p>
+                        <img src="/public/ext_preview.png" class="ext-preview" alt="확장프로그램 미리보기">
+                        <a href="#" class="btn-extension" target="_blank" rel="noopener">
+                            <!-- TODO: replace # with Chrome Web Store URL when published -->
+                            <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0zm0 4a4 4 0 0 1 4 4H8a4 4 0 0 1 4-4zm0 16.5a8.517 8.517 0 0 1-7.356-4.244L8.142 12A3.994 3.994 0 0 0 12 16a3.994 3.994 0 0 0 3.858-4h6.498A8.517 8.517 0 0 1 12 20.5z"/></svg>
+                            <div class="store-text">
+                                <span class="store-sub">Chrome 웹 스토어에서</span>
+                                <span class="store-name">확장프로그램 설치</span>
+                            </div>
+                        </a>
+                    </div>
+
+                </div>
             </div>
         </div>
 

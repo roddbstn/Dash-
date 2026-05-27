@@ -39,7 +39,7 @@ body {
     z-index: 1;
     max-width: 640px;
     margin: 0 auto;
-    padding-bottom: 180px; /* 모바일 sticky CTA 공간 */
+    padding-bottom: 40px;
 }
 
 .landing-header {
@@ -201,42 +201,51 @@ body {
     margin-top: 12px;
 }
 
-/* ── CTA 섹션 (모바일 fixed) ─────────────────────────────────── */
+/* ── CTA 섹션 (모바일: 스크롤 내 카드) ──────────────────────── */
 .cta-section {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: #fff;
-    padding: 16px 20px;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.09);
-    z-index: 100;
+    background: transparent;
+    padding: 16px 16px 0;
+    z-index: 1;
+    position: relative;
 }
 
 .cta-inner {
-    max-width: 640px;
-    margin: 0 auto;
+    background: #fff;
+    border-radius: 20px;
+    padding: 24px 20px 28px;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
 }
 
-.cta-message {
+/* ── 두 컬럼 레이아웃 ────────────────────────────────────────── */
+.cta-cols {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.cta-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cta-col-header {
     display: flex;
     align-items: center;
     gap: 14px;
-    margin-bottom: 14px;
+}
+
+.cta-divider {
+    height: 1px;
+    background: #f0f2f5;
 }
 
 .cta-logo {
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
+    width: 52px;
+    height: 52px;
+    border-radius: 13px;
     flex-shrink: 0;
     object-fit: cover;
-}
-
-.cta-text {
-    flex: 1;
-    min-width: 0;
 }
 
 .cta-title {
@@ -254,6 +263,18 @@ body {
     line-height: 1.6;
 }
 
+/* ── 확장프로그램 미리보기 이미지 ────────────────────────────── */
+.ext-preview {
+    width: 100%;
+    border-radius: 12px;
+    object-fit: cover;
+    object-position: right top;
+    max-height: 200px;
+    border: 1px solid #f0f2f5;
+    display: block;
+}
+
+/* ── 스토어 버튼 ─────────────────────────────────────────────── */
 .store-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -309,7 +330,6 @@ body {
     text-decoration: none;
     border-radius: 12px;
     padding: 13px 16px;
-    margin-top: 8px;
     transition: background 0.15s;
 }
 
@@ -318,7 +338,7 @@ body {
 .btn-extension .store-sub { color: #8b95a1; }
 .btn-extension .store-name { color: #191f28; font-size: 13px; }
 
-.cta-spacer { height: 180px; }
+.cta-spacer { height: 40px; }
 
 /* ── 인앱 브라우저 모달 ──────────────────────────────────────── */
 .fullscreen-overlay {
@@ -401,19 +421,32 @@ body {
         padding: 32px 28px 36px;
     }
 
-    /* CTA를 카드처럼 인라인 배치 */
-    .cta-section {
-        position: static;
-        background: transparent;
-        box-shadow: none;
-        padding: 16px 16px 0;
+    .cta-inner {
+        padding: 28px 28px 32px;
     }
 
-    .cta-inner {
-        background: #fff;
-        border-radius: 20px;
-        padding: 24px 24px 28px;
-        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
+    /* 두 컬럼 → 가로 배치 */
+    .cta-cols {
+        flex-direction: row;
+        gap: 0;
+        align-items: flex-start;
+    }
+
+    .cta-col {
+        flex: 1;
+    }
+
+    .cta-divider {
+        width: 1px;
+        height: auto;
+        align-self: stretch;
+        background: #f0f2f5;
+        margin: 0 24px;
+        flex: 0 0 1px;
+    }
+
+    .ext-preview {
+        max-height: 180px;
     }
 
     .cta-spacer { display: none !important; }
