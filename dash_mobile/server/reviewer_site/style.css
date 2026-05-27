@@ -211,22 +211,50 @@ body {
     line-height: 1.6;
 }
 
-.btn-cta {
-    width: 100%;
-    background: #1A56DB;
+.store-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.btn-store {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #1a1a2e;
     color: #fff;
-    border: none;
-    border-radius: 14px;
-    padding: 16px 20px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    letter-spacing: -0.2px;
+    text-decoration: none;
+    border-radius: 12px;
+    padding: 13px 16px;
     transition: background 0.15s;
 }
 
-.btn-cta:active { background: #1340aa; }
+.btn-store:active { background: #111; }
+
+.store-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.store-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.store-sub {
+    font-size: 10px;
+    color: rgba(255,255,255,0.6);
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.store-name {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.2px;
+}
 
 .cta-spacer { height: 180px; }
 

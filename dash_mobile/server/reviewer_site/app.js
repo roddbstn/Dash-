@@ -36,28 +36,6 @@ function toggleMeta() {
     if (icon) icon.textContent = _metaOpen ? '▴' : '▾';
 }
 
-// ── 앱에서 열기 ───────────────────────────────────────────────
-function openInApp() {
-    const token = new URLSearchParams(window.location.search).get('token');
-    if (!token) { showToast('링크 정보가 없습니다.'); return; }
-
-    const encKey = _getEncKey(token);
-    const isAndroid = /Android/.test(navigator.userAgent);
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-
-    const deepLinkBase = `https://dash.qpon/share/${token}`;
-    const deepLinkUrl = encKey ? `${deepLinkBase}#key=${encKey}` : deepLinkBase;
-
-    if (isAndroid) {
-        const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.dash.mobile.yunsoo';
-        window.location.href = `intent://dash.qpon/share/${token}#Intent;scheme=https;package=com.dash.mobile.yunsoo;S.browser_fallback_url=${encodeURIComponent(playStoreUrl)};end`;
-    } else if (isIOS) {
-        window.location.href = deepLinkUrl;
-    } else {
-        showToast('모바일 기기에서 Dash 앱을 설치해 이용해주세요.');
-    }
-}
-
 // ── 날짜 포매팅 ───────────────────────────────────────────────
 function formatDayOfWeek(dateString) {
     if (!dateString) return '';
