@@ -33,20 +33,16 @@ body {
     100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
 }
 
-/* ── 페이지 그리드 ─────────────────────────────────────────── */
-.page-grid {
+/* ── 랜딩 레이아웃 ─────────────────────────────────────────── */
+.landing-wrap {
     position: relative;
     z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding-bottom: 48px;
+    max-width: 640px;
+    margin: 0 auto;
+    padding-bottom: 40px;
 }
 
-/* ── 헤더 ───────────────────────────────────────────────────── */
 .landing-header {
-    width: 100%;
-    max-width: 520px;
     padding: 20px 20px 16px;
 }
 
@@ -57,45 +53,15 @@ body {
     letter-spacing: -0.5px;
 }
 
-/* ── 가운데: DB 카드 ────────────────────────────────────────── */
-.center-col {
-    width: 100%;
-    max-width: 520px;
-    padding: 0 16px;
-}
-
+/* ── DB 카드 ────────────────────────────────────────────────── */
 .db-card {
     background: #fff;
     border-radius: 20px;
+    margin: 0 16px;
     padding: 24px 20px 28px;
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
     min-height: 200px;
 }
-
-/* ── 사이드 패널 (모바일: 카드 아래에 나란히) ─────────────── */
-.side-panel {
-    width: 100%;
-    max-width: 520px;
-    padding: 16px 16px 0;
-}
-
-.side-card {
-    background: #fff;
-    border-radius: 20px;
-    padding: 22px 20px 24px;
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.side-header {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-}
-
-.page-bottom-spacer { height: 8px; }
 
 /* ── 상태 (로딩 / 오류) ────────────────────────────────────── */
 .state-center {
@@ -122,9 +88,7 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── DB 제목 ────────────────────────────────────────────────── */
-.db-title-row {
-    margin-bottom: 16px;
-}
+.db-title-row { margin-bottom: 16px; }
 
 .db-title {
     font-size: 22px;
@@ -141,7 +105,7 @@ body {
     font-weight: 500;
 }
 
-/* ── 서비스 상세정보 아코디언 ──────────────────────────────── */
+/* ── 메타 아코디언 ──────────────────────────────────────────── */
 .meta-toggle {
     width: 100%;
     background: #f8f9fa;
@@ -189,9 +153,7 @@ body {
     line-height: 1.4;
 }
 
-.meta-date-val {
-    font-size: 12px !important;
-}
+.meta-date-val { font-size: 12px !important; }
 
 /* ── 구분선 ─────────────────────────────────────────────────── */
 .divider {
@@ -201,9 +163,7 @@ body {
 }
 
 /* ── 내용 블록 ──────────────────────────────────────────────── */
-.content-block {
-    margin-bottom: 20px;
-}
+.content-block { margin-bottom: 20px; }
 
 .content-label {
     font-size: 11px;
@@ -235,45 +195,89 @@ body {
     margin-top: 12px;
 }
 
-/* ── CTA 공통 텍스트 ─────────────────────────────────────────── */
+/* ── CTA 섹션 ────────────────────────────────────────────────── */
+.cta-section {
+    padding: 16px 16px 0;
+}
+
+.cta-inner {
+    background: #fff;
+    border-radius: 20px;
+    padding: 22px 20px 24px;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
+}
+
+/* 두 컬럼: 앱(좌) | 확장프로그램(우) */
+.cta-cols {
+    display: flex;
+    flex-direction: row;
+    gap: 0;
+    align-items: stretch;
+}
+
+.cta-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.cta-col-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cta-divider {
+    width: 1px;
+    background: #f0f2f5;
+    flex: 0 0 1px;
+    margin: 0 20px;
+    align-self: stretch;
+}
+
+/* ── CTA 텍스트 ─────────────────────────────────────────────── */
 .cta-logo {
-    width: 52px;
-    height: 52px;
-    border-radius: 13px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
     flex-shrink: 0;
     object-fit: cover;
 }
 
 .cta-title {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     color: #191f28;
-    margin: 0 0 4px;
+    margin: 0 0 3px;
     line-height: 1.4;
 }
 
 .cta-sub {
-    font-size: 12px;
+    font-size: 11px;
     color: #8b95a1;
     margin: 0;
-    line-height: 1.6;
+    line-height: 1.5;
 }
 
 /* ── 확장프로그램 미리보기 ────────────────────────────────────── */
 .ext-preview {
     width: 100%;
-    border-radius: 12px;
+    border-radius: 10px;
     object-fit: cover;
     object-position: right top;
     border: 1px solid #f0f2f5;
     display: block;
+    flex: 1;
+    min-height: 0;
 }
 
 /* ── 스토어 버튼 (세로 스택) ─────────────────────────────────── */
 .store-buttons {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .btn-store {
@@ -283,16 +287,16 @@ body {
     background: #1a1a2e;
     color: #fff;
     text-decoration: none;
-    border-radius: 12px;
-    padding: 13px 16px;
+    border-radius: 10px;
+    padding: 11px 14px;
     transition: background 0.15s;
 }
 
 .btn-store:active { background: #111; }
 
 .store-icon {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
 }
 
@@ -302,35 +306,20 @@ body {
 }
 
 .store-sub {
-    font-size: 10px;
+    font-size: 9px;
     color: rgba(255,255,255,0.6);
     font-weight: 500;
     line-height: 1.2;
 }
 
 .store-name {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     line-height: 1.3;
     letter-spacing: -0.2px;
 }
 
-/* 확장프로그램 버튼 */
-.btn-extension {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: #1a1a2e;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 12px;
-    padding: 13px 16px;
-    transition: background 0.15s;
-}
-
-.btn-extension:active { background: #111; }
-.btn-extension .store-sub { color: rgba(255,255,255,0.6); }
-.btn-extension .store-name { color: #fff; font-size: 14px; font-weight: 700; }
+.cta-spacer { height: 8px; }
 
 /* ── 인앱 브라우저 모달 ──────────────────────────────────────── */
 .fullscreen-overlay {
@@ -403,63 +392,8 @@ body {
     font-family: inherit;
 }
 
-/* ── 데스크탑: 3컬럼 그리드 ─────────────────────────────────── */
-@media (min-width: 1080px) {
-    .page-grid {
-        display: grid;
-        grid-template-columns: 240px minmax(0, 520px) 260px;
-        grid-template-rows: auto 1fr auto;
-        column-gap: 20px;
-        align-items: start;
-        justify-content: center;
-        padding: 0 24px 60px;
-    }
-
-    /* 헤더: 가운데 컬럼 위 */
-    .landing-header {
-        grid-column: 2;
-        grid-row: 1;
-        max-width: none;
-        padding: 24px 0 16px;
-    }
-
-    /* 왼쪽 패널 */
-    .side-panel--app {
-        grid-column: 1;
-        grid-row: 2;
-        max-width: none;
-        padding: 0;
-        position: sticky;
-        top: 24px;
-        align-self: start;
-    }
-
-    /* 가운데 DB 카드 */
-    .center-col {
-        grid-column: 2;
-        grid-row: 2;
-        max-width: none;
-        padding: 0;
-    }
-
-    .db-card {
-        padding: 32px 28px 36px;
-    }
-
-    /* 오른쪽 패널 */
-    .side-panel--ext {
-        grid-column: 3;
-        grid-row: 2;
-        max-width: none;
-        padding: 0;
-        position: sticky;
-        top: 24px;
-        align-self: start;
-    }
-
-    .side-card {
-        padding: 22px 18px 24px;
-    }
-
-    .page-bottom-spacer { display: none; }
+/* ── 데스크탑 ────────────────────────────────────────────────── */
+@media (min-width: 641px) {
+    .db-card { padding: 32px 28px 36px; }
+    .cta-inner { padding: 24px 24px 28px; }
 }

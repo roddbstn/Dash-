@@ -22,112 +22,116 @@
         </div>
     </div>
 
-    <!-- 3컬럼 페이지 그리드 -->
-    <div class="page-grid">
+    <!-- 메인 랜딩 -->
+    <div class="landing-wrap">
 
-        <!-- 헤더 (전체 너비) -->
+        <!-- 헤더 -->
         <header class="landing-header">
             <span class="logo">DASH</span>
         </header>
 
-        <!-- 왼쪽: 앱 CTA -->
-        <aside class="side-panel side-panel--app" id="cta-section" style="display:none;">
-            <div class="side-card">
-                <div class="side-header">
-                    <img src="/public/logo.png" class="cta-logo" alt="DASH">
-                    <div>
-                        <p class="cta-title">내 계정에 저장하고<br>바로 활용하세요</p>
-                        <p class="cta-sub">저장 즉시 담당자에게<br>알림이 전송돼요.</p>
-                    </div>
+        <!-- DB 카드 -->
+        <div class="db-card">
+
+            <!-- 로딩 -->
+            <div id="state-loading" class="state-center">
+                <div class="spinner"></div>
+                <p>DB를 불러오는 중...</p>
+            </div>
+
+            <!-- 오류 -->
+            <div id="state-error" class="state-center" style="display:none;">
+                <span style="font-size:40px;">🗑</span>
+                <p style="color:#8b95a1; margin-top:12px; line-height:1.7;">삭제된 DB이거나<br>유효하지 않은 링크예요.</p>
+            </div>
+
+            <!-- 내용 -->
+            <div id="db-content" style="display:none;">
+
+                <div class="db-title-row">
+                    <h1 class="db-title" id="page-title"></h1>
+                    <span class="author-badge" id="author-name"></span>
                 </div>
-                <div class="store-buttons">
-                    <a href="#" class="btn-store" target="_blank" rel="noopener">
-                        <!-- TODO: replace # with Play Store URL when published -->
-                        <img src="/public/play_store.svg" class="store-icon" alt="Google Play">
-                        <div class="store-text">
-                            <span class="store-sub">Google Play에서</span>
-                            <span class="store-name">다운로드</span>
+
+                <!-- 서비스 상세정보 아코디언 -->
+                <button class="meta-toggle" onclick="toggleMeta()">
+                    <span>서비스 상세 정보</span>
+                    <span id="meta-icon">▾</span>
+                </button>
+                <div id="meta-grid" class="meta-grid" style="display:none;"></div>
+
+                <div class="divider"></div>
+
+                <div class="content-block">
+                    <h4 class="content-label">서비스 내용</h4>
+                    <p class="content-text" id="main-content"></p>
+                </div>
+
+                <div class="content-block" id="opinion-block" style="display:none;">
+                    <h4 class="content-label">상담원 소견</h4>
+                    <p class="content-text" id="opinion-content"></p>
+                </div>
+
+                <div id="enc-notice-area"></div>
+
+            </div>
+        </div>
+
+        <!-- CTA 섹션 -->
+        <div class="cta-section" id="cta-section" style="display:none;">
+            <div class="cta-inner">
+                <div class="cta-cols">
+
+                    <!-- 왼쪽: 앱 -->
+                    <div class="cta-col">
+                        <div class="cta-col-header">
+                            <img src="/public/logo.png" class="cta-logo" alt="DASH">
+                            <div>
+                                <p class="cta-title">내 계정에 저장하고<br>바로 활용하세요</p>
+                                <p class="cta-sub">저장 즉시 담당자에게<br>알림이 전송돼요.</p>
+                            </div>
                         </div>
-                    </a>
-                    <a href="#" class="btn-store" target="_blank" rel="noopener">
-                        <!-- TODO: replace # with App Store URL when published -->
-                        <img src="/public/app_store.svg" class="store-icon" alt="App Store">
-                        <div class="store-text">
-                            <span class="store-sub">App Store에서</span>
-                            <span class="store-name">다운로드</span>
+                        <div class="store-buttons">
+                            <a href="#" class="btn-store" target="_blank" rel="noopener">
+                                <!-- TODO: replace # with Play Store URL when published -->
+                                <img src="/public/play_store.svg" class="store-icon" alt="Google Play">
+                                <div class="store-text">
+                                    <span class="store-sub">Google Play에서</span>
+                                    <span class="store-name">다운로드</span>
+                                </div>
+                            </a>
+                            <a href="#" class="btn-store" target="_blank" rel="noopener">
+                                <!-- TODO: replace # with App Store URL when published -->
+                                <img src="/public/app_store.svg" class="store-icon" alt="App Store">
+                                <div class="store-text">
+                                    <span class="store-sub">App Store에서</span>
+                                    <span class="store-name">다운로드</span>
+                                </div>
+                            </a>
                         </div>
-                    </a>
-                </div>
-            </div>
-        </aside>
-
-        <!-- 가운데: DB 카드 -->
-        <main class="center-col">
-            <div class="db-card">
-
-                <!-- 로딩 -->
-                <div id="state-loading" class="state-center">
-                    <div class="spinner"></div>
-                    <p>DB를 불러오는 중...</p>
-                </div>
-
-                <!-- 오류 -->
-                <div id="state-error" class="state-center" style="display:none;">
-                    <span style="font-size:40px;">🗑</span>
-                    <p style="color:#8b95a1; margin-top:12px; line-height:1.7;">삭제된 DB이거나<br>유효하지 않은 링크예요.</p>
-                </div>
-
-                <!-- 내용 -->
-                <div id="db-content" style="display:none;">
-
-                    <div class="db-title-row">
-                        <h1 class="db-title" id="page-title"></h1>
-                        <span class="author-badge" id="author-name"></span>
                     </div>
 
-                    <!-- 서비스 상세정보 아코디언 -->
-                    <button class="meta-toggle" onclick="toggleMeta()">
-                        <span>서비스 상세 정보</span>
-                        <span id="meta-icon">▾</span>
-                    </button>
-                    <div id="meta-grid" class="meta-grid" style="display:none;"></div>
+                    <!-- 구분선 -->
+                    <div class="cta-divider"></div>
 
-                    <div class="divider"></div>
-
-                    <div class="content-block">
-                        <h4 class="content-label">서비스 내용</h4>
-                        <p class="content-text" id="main-content"></p>
+                    <!-- 오른쪽: 확장프로그램 -->
+                    <div class="cta-col">
+                        <img src="/public/ext_preview.png" class="ext-preview" alt="확장프로그램 미리보기">
+                        <a href="#" class="btn-store" target="_blank" rel="noopener">
+                            <!-- TODO: replace # with Chrome Web Store URL when published -->
+                            <img src="/public/chrome.svg" class="store-icon" alt="Chrome">
+                            <div class="store-text">
+                                <span class="store-sub">Chrome 웹 스토어에서</span>
+                                <span class="store-name">확장프로그램 설치</span>
+                            </div>
+                        </a>
                     </div>
-
-                    <div class="content-block" id="opinion-block" style="display:none;">
-                        <h4 class="content-label">상담원 소견</h4>
-                        <p class="content-text" id="opinion-content"></p>
-                    </div>
-
-                    <div id="enc-notice-area"></div>
 
                 </div>
             </div>
-        </main>
+        </div>
 
-        <!-- 오른쪽: 확장프로그램 CTA -->
-        <aside class="side-panel side-panel--ext" id="cta-ext-section" style="display:none;">
-            <div class="side-card">
-                <p class="cta-title">저장한 DB는<br>1초만에 기입돼요</p>
-                <img src="/public/ext_preview.png" class="ext-preview" alt="확장프로그램 미리보기">
-                <a href="#" class="btn-extension" target="_blank" rel="noopener">
-                    <!-- TODO: replace # with Chrome Web Store URL when published -->
-                    <img src="/public/chrome.svg" class="store-icon" alt="Chrome">
-                    <div class="store-text">
-                        <span class="store-sub">Chrome 웹 스토어에서</span>
-                        <span class="store-name">확장프로그램 설치</span>
-                    </div>
-                </a>
-            </div>
-        </aside>
-
-        <!-- 모바일 하단 여백 -->
-        <div class="page-bottom-spacer"></div>
+        <div class="cta-spacer" id="cta-spacer" style="display:none;"></div>
 
     </div>
 

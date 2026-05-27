@@ -186,9 +186,9 @@ function renderUI(data) {
 
     // CTA 표시
     const cta = document.getElementById('cta-section');
-    const ctaExt = document.getElementById('cta-ext-section');
+    const spacer = document.getElementById('cta-spacer');
     if (cta) cta.style.display = '';
-    if (ctaExt) ctaExt.style.display = '';
+    if (spacer) spacer.style.display = '';
 }
 
 // ── 로켓 배경 애니메이션 ──────────────────────────────────────
