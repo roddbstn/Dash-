@@ -33,16 +33,20 @@ body {
     100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
 }
 
-/* ── 랜딩 레이아웃 ─────────────────────────────────────────── */
-.landing-wrap {
+/* ── 페이지 그리드 ─────────────────────────────────────────── */
+.page-grid {
     position: relative;
     z-index: 1;
-    max-width: 640px;
-    margin: 0 auto;
-    padding-bottom: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-bottom: 48px;
 }
 
+/* ── 헤더 ───────────────────────────────────────────────────── */
 .landing-header {
+    width: 100%;
+    max-width: 520px;
     padding: 20px 20px 16px;
 }
 
@@ -53,15 +57,45 @@ body {
     letter-spacing: -0.5px;
 }
 
-/* ── DB 카드 ────────────────────────────────────────────────── */
+/* ── 가운데: DB 카드 ────────────────────────────────────────── */
+.center-col {
+    width: 100%;
+    max-width: 520px;
+    padding: 0 16px;
+}
+
 .db-card {
     background: #fff;
     border-radius: 20px;
-    margin: 0 16px;
     padding: 24px 20px 28px;
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
     min-height: 200px;
 }
+
+/* ── 사이드 패널 (모바일: 카드 아래에 나란히) ─────────────── */
+.side-panel {
+    width: 100%;
+    max-width: 520px;
+    padding: 16px 16px 0;
+}
+
+.side-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 22px 20px 24px;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.side-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.page-bottom-spacer { height: 8px; }
 
 /* ── 상태 (로딩 / 오류) ────────────────────────────────────── */
 .state-center {
@@ -201,45 +235,7 @@ body {
     margin-top: 12px;
 }
 
-/* ── CTA 섹션 (모바일: 스크롤 내 카드) ──────────────────────── */
-.cta-section {
-    background: transparent;
-    padding: 16px 16px 0;
-    z-index: 1;
-    position: relative;
-}
-
-.cta-inner {
-    background: #fff;
-    border-radius: 20px;
-    padding: 24px 20px 28px;
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
-}
-
-/* ── 두 컬럼 레이아웃 ────────────────────────────────────────── */
-.cta-cols {
-    display: flex;
-    flex-direction: column;
-    gap: 28px;
-}
-
-.cta-col {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.cta-col-header {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-}
-
-.cta-divider {
-    height: 1px;
-    background: #f0f2f5;
-}
-
+/* ── CTA 공통 텍스트 ─────────────────────────────────────────── */
 .cta-logo {
     width: 52px;
     height: 52px;
@@ -263,21 +259,20 @@ body {
     line-height: 1.6;
 }
 
-/* ── 확장프로그램 미리보기 이미지 ────────────────────────────── */
+/* ── 확장프로그램 미리보기 ────────────────────────────────────── */
 .ext-preview {
     width: 100%;
     border-radius: 12px;
     object-fit: cover;
     object-position: right top;
-    max-height: 200px;
     border: 1px solid #f0f2f5;
     display: block;
 }
 
-/* ── 스토어 버튼 ─────────────────────────────────────────────── */
+/* ── 스토어 버튼 (세로 스택) ─────────────────────────────────── */
 .store-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
 }
 
@@ -334,11 +329,8 @@ body {
 }
 
 .btn-extension:active { background: #e5e8eb; }
-
 .btn-extension .store-sub { color: #8b95a1; }
 .btn-extension .store-name { color: #191f28; font-size: 13px; }
-
-.cta-spacer { height: 40px; }
 
 /* ── 인앱 브라우저 모달 ──────────────────────────────────────── */
 .fullscreen-overlay {
@@ -395,7 +387,7 @@ body {
 /* ── 토스트 ─────────────────────────────────────────────────── */
 #dash-toast {
     position: fixed;
-    bottom: 100px;
+    bottom: 40px;
     left: 50%;
     transform: translateX(-50%);
     background: #1a1a2e;
@@ -411,45 +403,63 @@ body {
     font-family: inherit;
 }
 
-/* ── 데스크탑 ────────────────────────────────────────────────── */
-@media (min-width: 641px) {
-    .landing-wrap {
-        padding: 0 0 60px;
+/* ── 데스크탑: 3컬럼 그리드 ─────────────────────────────────── */
+@media (min-width: 1080px) {
+    .page-grid {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 520px) 260px;
+        grid-template-rows: auto 1fr auto;
+        column-gap: 20px;
+        align-items: start;
+        justify-content: center;
+        padding: 0 24px 60px;
+    }
+
+    /* 헤더: 가운데 컬럼 위 */
+    .landing-header {
+        grid-column: 2;
+        grid-row: 1;
+        max-width: none;
+        padding: 24px 0 16px;
+    }
+
+    /* 왼쪽 패널 */
+    .side-panel--app {
+        grid-column: 1;
+        grid-row: 2;
+        max-width: none;
+        padding: 0;
+        position: sticky;
+        top: 24px;
+        align-self: start;
+    }
+
+    /* 가운데 DB 카드 */
+    .center-col {
+        grid-column: 2;
+        grid-row: 2;
+        max-width: none;
+        padding: 0;
     }
 
     .db-card {
         padding: 32px 28px 36px;
     }
 
-    .cta-inner {
-        padding: 28px 28px 32px;
+    /* 오른쪽 패널 */
+    .side-panel--ext {
+        grid-column: 3;
+        grid-row: 2;
+        max-width: none;
+        padding: 0;
+        position: sticky;
+        top: 24px;
+        align-self: start;
     }
 
-    /* 두 컬럼 → 가로 배치 */
-    .cta-cols {
-        flex-direction: row;
-        gap: 0;
-        align-items: flex-start;
+    .side-card {
+        padding: 22px 18px 24px;
     }
 
-    .cta-col {
-        flex: 1;
-    }
-
-    .cta-divider {
-        width: 1px;
-        height: auto;
-        align-self: stretch;
-        background: #f0f2f5;
-        margin: 0 24px;
-        flex: 0 0 1px;
-    }
-
-    .ext-preview {
-        max-height: 180px;
-    }
-
-    .cta-spacer { display: none !important; }
-
-    #dash-toast { bottom: 40px; }
+    .page-bottom-spacer { display: none; }
 }
