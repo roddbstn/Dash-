@@ -3,8 +3,8 @@
     --primary-light: #e8f3ff;
     --primary-hover: #1446b8;
     --bg: #f2f4f6;
-    --surface: #ffffff;
-    --text-main: #191f28;
+    --surface: #FAFAFA;
+    --text-main: #111111;
     --text-sub: #4e5968;
     --text-hint: #abb3bb;
     --border: #e5e8eb;
@@ -110,8 +110,8 @@ body {
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
 }
-.btn-history-toggle:hover { background: #F8F9FA; color: #222; }
-.btn-history-toggle.active { background: #222; color: #fff; border-color: #222; }
+.btn-history-toggle:hover { background: #F8F9FA; color: #111111; }
+.btn-history-toggle.active { background: #111111; color: #fff; border-color: #111111; }
 
 /* ── 히스토리 패널 */
 #history-panel-overlay {
@@ -123,7 +123,7 @@ body {
     position: fixed;
     top: 0; right: 0; bottom: 0;
     width: 320px;
-    background: #fff;
+    background: #FAFAFA;
     border-left: 1px solid #E9ECEF;
     z-index: 1101;
     display: flex;
@@ -223,7 +223,7 @@ body {
     padding: 20px;
 }
 .history-detail-box {
-    background: #fff;
+    background: #FAFAFA;
     border-radius: 16px;
     width: 100%; max-width: 560px;
     max-height: 80vh;
@@ -430,7 +430,7 @@ body {
 }
 
 .meta-item {
-    background: #ffffff;
+    background: #FAFAFA;
     padding: 12px 16px;
     border-radius: 12px;
     border: 1px solid #f2f3f5;
@@ -699,7 +699,7 @@ body {
 }
 
 .modal {
-    background: white;
+    background: #FAFAFA;
     border-radius: 20px;
     padding: 32px;
     width: 90%;
@@ -758,7 +758,7 @@ body {
 }
 
 .sync-card {
-    background: #222;
+    background: #111111;
     color: white;
     padding: 12px 24px;
     border-radius: 100px;
@@ -806,7 +806,7 @@ body {
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        background: #ffffff;
+        background: #FAFAFA;
         padding: 16px 32px calc(env(safe-area-inset-bottom, 0px) + 16px) 32px;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
         z-index: 9999;
@@ -883,7 +883,7 @@ body {
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        background: #ffffff;
+        background: #FAFAFA;
         padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 16px) 20px;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
         z-index: 9999;

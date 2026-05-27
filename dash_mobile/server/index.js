@@ -87,6 +87,17 @@ app.use(cors({
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use((req, res, next) => { res.setHeader('Referrer-Policy', 'no-referrer'); next(); });
+
+// .well-known 파일 서빙 (Android App Links + iOS Universal Links 검증용)
+// apple-app-site-association은 Content-Type: application/json 필수
+app.use('/.well-known', express.static(path.join(__dirname, '.well-known'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('apple-app-site-association')) {
+      res.setHeader('Content-Type', 'application/json');
+    }
+  }
+}));
+
 app.use(express.static(path.join(__dirname, 'reviewer_site'))); // Serve static files
 
 // ── API Rate Limiting ──────────────────────────────────────────────────────────
@@ -382,11 +393,118 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'reviewer_site', 'admin.html'));
 });
 
-// 앱에서 /share?token=... 로 오는 요청을 /?token=... 으로 리다이렉트
+// ── 딥링크: /share/:token ──────────────────────────────────────────────────
+// 메신저에서 https://dash.qpon/share/{token}#key={key} 링크를 클릭하면:
+//   - 앱 설치됨 → App Links / Universal Links로 앱에서 바로 열림 (이 라우트 미도달)
+//   - 앱 미설치 → 이 라우트에 도달하여 읽기전용 프리뷰 + 앱 설치 유도 페이지 반환
+app.get('/share/:token', async (req, res) => {
+  const { token } = req.params;
+  
+  // OG 태그용 메타 정보 조회
+  let caseName = 'DASH 공유 DB';
+  let authorName = '상담원';
+  let description = '모바일로 작성된 DB를 확인하세요.';
+  try {
+    const [rows] = await queryWithTimeout(
+      `SELECT c.case_name, u.name AS author_name
+       FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       JOIN dash_users u ON c.user_id = u.id
+       WHERE sd.share_token = ? LIMIT 1`, [token]
+    );
+    if (rows.length > 0) {
+      caseName = rows[0].case_name || caseName;
+      authorName = rows[0].author_name || authorName;
+      description = `${authorName} 상담원이 공유한 DB입니다. DASH 앱에서 열어 내 DB로 저장하세요.`;
+    }
+  } catch (e) {
+    console.error('[share] OG meta query error:', e.message);
+  }
+
+  // 읽기전용 프리뷰 + 앱 열기/설치 유도 HTML
+  res.send(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${caseName} | DASH</title>
+  <meta property="og:title" content="${caseName} — DASH 공유 DB" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://dash.qpon/share/${token}" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { background: #fff; border-radius: 24px; padding: 40px 32px; max-width: 400px; width: 90%; box-shadow: 0 8px 40px rgba(0,0,0,0.08); text-align: center; }
+    .logo { font-size: 32px; font-weight: 900; color: #1a56db; letter-spacing: -1px; margin-bottom: 8px; }
+    .subtitle { font-size: 13px; color: #8b95a1; margin-bottom: 32px; }
+    .case-name { font-size: 20px; font-weight: 800; color: #191f28; margin-bottom: 4px; }
+    .author { font-size: 14px; color: #6b7684; margin-bottom: 32px; }
+    .cta { display: block; width: 100%; background: #1a56db; color: #fff; border: none; border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; text-decoration: none; margin-bottom: 12px; }
+    .cta:hover { background: #1548c0; }
+    .secondary { display: block; width: 100%; background: #f1f3f5; color: #4e5968; border: none; border-radius: 14px; padding: 14px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .secondary:hover { background: #e9ecef; }
+    .note { font-size: 12px; color: #adb5bd; margin-top: 20px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">DASH</div>
+    <div class="subtitle">모바일로 DB를 쓴다</div>
+    <div class="case-name">${caseName}</div>
+    <div class="author">${authorName} 상담원 작성</div>
+    <a class="cta" id="open-app" href="#">앱에서 열기</a>
+    <a class="secondary" id="install-app" href="#" style="display:none;">DASH 앱 설치하기</a>
+    <p class="note">DASH 앱이 설치되어 있으면 자동으로 열립니다.<br>설치되어 있지 않다면 스토어에서 다운로드해 주세요.</p>
+  </div>
+  <script>
+    const token = '${token}';
+    const fullUrl = location.href; // #key= fragment 포함
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const deepLink = 'https://dash.qpon/share/' + token + location.hash;
+    const playStore = 'https://play.google.com/store/apps/details?id=com.dash.mobile.yunsoo';
+    const appStore = 'https://apps.apple.com/app/dash/id0000000000'; // TODO: 실제 App Store ID로 교체
+    
+    const openBtn = document.getElementById('open-app');
+    const installBtn = document.getElementById('install-app');
+    
+    openBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (isAndroid) {
+        // Intent URL: 앱 없으면 Play Store로
+        const intent = 'intent://dash.qpon/share/' + token + location.hash + '#Intent;scheme=https;package=com.dash.mobile.yunsoo;end';
+        window.location = intent;
+      } else if (isIOS) {
+        // Universal Link 시도 → 실패 시 App Store
+        window.location = deepLink;
+        setTimeout(function() { window.location = appStore; }, 1500);
+      } else {
+        // PC: 기존 웹 리뷰어로 리다이렉트
+        window.location = '/?token=' + token + location.hash;
+      }
+    });
+    
+    // 자동 시도: 페이지 로드 시 앱 열기 시도
+    if (isAndroid || isIOS) {
+      setTimeout(function() {
+        installBtn.style.display = 'block';
+        installBtn.href = isAndroid ? playStore : appStore;
+      }, 2000);
+    } else {
+      // PC 접근: 기존 웹 리뷰어로 바로 이동
+      window.location = '/?token=' + token + location.hash;
+    }
+  </script>
+</body>
+</html>`);
+});
+
+// 기존 /share?token=... 쿼리 형태 호환 (레거시)
 app.get('/share', (req, res) => {
   const token = req.query.token;
   if (token) {
-    return res.redirect(301, `/?token=${token}`);
+    return res.redirect(301, `/share/${token}`);
   }
   res.redirect(301, '/');
 });
@@ -1217,6 +1335,31 @@ app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) =>
     }
   } catch (err) {
     console.error('❌ Review Error:', err.message);
+    res.status(500).json({ error: safeError(err) });
+  }
+});
+
+// [Mobile App] 공유 DB 메타정보 조회 (딥링크 수신 후 프리뷰 화면용, 인증 필요)
+app.get('/api/shared-records/:token', verifyFirebaseAuth, async (req, res) => {
+  const { token } = req.params;
+  try {
+    const [rows] = await queryWithTimeout(
+      `SELECT sd.share_token, sd.provision_type, sd.method, sd.service_type,
+              sd.service_category, sd.service_name, sd.location,
+              sd.start_time, sd.end_time, sd.service_count, sd.travel_time,
+              sd.service_description, sd.agent_opinion, sd.encrypted_blob,
+              sd.is_shared_db, sd.created_at, sd.updated_at,
+              c.case_name, c.dong, c.target_system_code,
+              u.name AS author_name, u.email AS author_email
+       FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       JOIN dash_users u ON c.user_id = u.id
+       WHERE sd.share_token = ? LIMIT 1`, [token]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 공유 링크입니다.' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('❌ [shared-records] fetch error:', err.message);
     res.status(500).json({ error: safeError(err) });
   }
 });
