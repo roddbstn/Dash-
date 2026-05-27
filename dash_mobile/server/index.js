@@ -1707,17 +1707,10 @@ app.post('/api/records/auth/:token', async (req, res) => {
   }
 });
 
-// [Web] 3. 공유 토큰으로 모든 데이터 불러오기 (이름 인증 필수)
+// [Web] 3. 공유 토큰으로 모든 데이터 불러오기 (인증 불필요 — 토큰이 곧 접근 권한)
 app.get('/api/records/share/:token', async (req, res) => {
   const { token } = req.params;
   console.log(`\n🔗 [WEB ACCESS] Token: ${token}`);
-
-  // 이름 인증 여부 확인 (4시간 유효)
-  const session = authAttempts.get(token);
-  const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
-  if (!isVerified) {
-    return res.status(401).json({ needs_auth: true });
-  }
 
   try {
     const [rows] = await queryWithTimeout(
