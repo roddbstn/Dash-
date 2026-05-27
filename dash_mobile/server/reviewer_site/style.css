@@ -262,15 +262,106 @@ body {
 }
 
 /* ── 확장프로그램 미리보기 ────────────────────────────────────── */
+.ext-preview-wrap {
+    position: relative;
+    cursor: zoom-in;
+    border-radius: 10px;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+}
+
+.ext-preview-wrap:hover .ext-expand-btn {
+    opacity: 1;
+    transform: scale(1);
+}
+
 .ext-preview {
     width: 100%;
+    display: block;
     border-radius: 10px;
     object-fit: cover;
     object-position: right top;
     border: 1px solid #f0f2f5;
-    display: block;
-    flex: 1;
-    min-height: 0;
+    transition: filter 0.2s;
+}
+
+.ext-preview-wrap:hover .ext-preview {
+    filter: brightness(0.92);
+}
+
+.ext-expand-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: 7px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4e5968;
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.18s, transform 0.18s;
+    pointer-events: none;
+}
+
+/* ── 라이트박스 ──────────────────────────────────────────────── */
+.lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.82);
+    z-index: 99998;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    cursor: zoom-out;
+    animation: lb-in 0.2s ease;
+}
+
+.lightbox.open {
+    display: flex;
+}
+
+@keyframes lb-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.lightbox-img {
+    max-width: min(900px, 100%);
+    max-height: 90vh;
+    border-radius: 14px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+    object-fit: contain;
+    animation: lb-img-in 0.22s ease;
+}
+
+@keyframes lb-img-in {
+    from { transform: scale(0.93); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+}
+
+.lightbox-close {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s;
 }
 
 /* ── 스토어 버튼 (세로 스택) ─────────────────────────────────── */

@@ -116,7 +116,17 @@
 
                     <!-- 오른쪽: 확장프로그램 -->
                     <div class="cta-col">
-                        <img src="/public/ext_preview.png" class="ext-preview" alt="확장프로그램 미리보기">
+                        <div class="ext-preview-wrap" onclick="openLightbox()">
+                            <img src="/public/ext_preview.png" class="ext-preview" alt="확장프로그램 미리보기">
+                            <div class="ext-expand-btn" aria-label="크게 보기">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="15 3 21 3 21 9"/>
+                                    <polyline points="9 21 3 21 3 15"/>
+                                    <line x1="21" y1="3" x2="14" y2="10"/>
+                                    <line x1="3" y1="21" x2="10" y2="14"/>
+                                </svg>
+                            </div>
+                        </div>
                         <a href="#" class="btn-store" target="_blank" rel="noopener">
                             <!-- TODO: replace # with Chrome Web Store URL when published -->
                             <img src="/public/chrome.svg" class="store-icon" alt="Chrome">
@@ -133,6 +143,16 @@
 
         <div class="cta-spacer" id="cta-spacer" style="display:none;"></div>
 
+    </div>
+
+    <!-- 이미지 라이트박스 -->
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+        <button class="lightbox-close" onclick="closeLightbox()" aria-label="닫기">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+        <img src="/public/ext_preview.png" class="lightbox-img" onclick="event.stopPropagation()" alt="확장프로그램 미리보기">
     </div>
 
     <script src="app.js"></script>

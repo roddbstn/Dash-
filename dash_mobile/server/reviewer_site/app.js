@@ -225,6 +225,26 @@ function initRockets() {
     }
 }
 
+// ── 라이트박스 ────────────────────────────────────────────────
+function openLightbox() {
+    const lb = document.getElementById('lightbox');
+    if (lb) {
+        lb.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeLightbox() {
+    const lb = document.getElementById('lightbox');
+    if (lb) {
+        lb.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+}
+
+// ESC 키로 닫기
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
 // ── 초기화 ────────────────────────────────────────────────────
 window.onload = () => {
     initRockets();
