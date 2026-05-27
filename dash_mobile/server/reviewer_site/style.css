@@ -4,13 +4,39 @@
 body {
     margin: 0;
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #f0f2f5;
+    background: linear-gradient(160deg, #ddeeff 0%, #c8e0ff 100%);
+    min-height: 100vh;
     color: #191f28;
     -webkit-font-smoothing: antialiased;
 }
 
+/* ── 로켓 배경 레이어 ──────────────────────────────────────── */
+#rocket-bg {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+}
+
+.rocket-particle {
+    position: absolute;
+    animation: rocket-fly linear infinite;
+    will-change: transform, opacity;
+    image-rendering: -webkit-optimize-contrast;
+}
+
+@keyframes rocket-fly {
+    0%   { transform: translate(0, 0) rotate(45deg); opacity: 0; }
+    15%  { opacity: var(--max-opacity); }
+    85%  { opacity: var(--max-opacity); }
+    100% { transform: translate(var(--dx), var(--dy)) rotate(45deg); opacity: 0; }
+}
+
 /* ── 랜딩 레이아웃 ─────────────────────────────────────────── */
 .landing-wrap {
+    position: relative;
+    z-index: 1;
     max-width: 640px;
     margin: 0 auto;
     padding-bottom: 180px; /* 모바일 sticky CTA 공간 */

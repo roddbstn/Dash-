@@ -191,8 +191,44 @@ function renderUI(data) {
     if (spacer) spacer.style.display = '';
 }
 
+// ── 로켓 배경 애니메이션 ──────────────────────────────────────
+function initRockets() {
+    const bg = document.createElement('div');
+    bg.id = 'rocket-bg';
+    document.body.insertBefore(bg, document.body.firstChild);
+
+    const COUNT = 14;
+    for (let i = 0; i < COUNT; i++) {
+        const el = document.createElement('img');
+        el.src = '/public/logo_nobg.png';
+        el.className = 'rocket-particle';
+
+        const size     = 22 + Math.random() * 30;          // 22~52px
+        const duration = 20 + Math.random() * 18;          // 20~38s
+        const delay    = -(Math.random() * duration);       // 이미 진행 중인 것처럼
+        const dist     = 380 + Math.random() * 220;        // 이동 거리
+        const opacity  = 0.07 + Math.random() * 0.10;      // 0.07~0.17
+
+        el.style.cssText = [
+            `width:${size}px`,
+            `height:${size}px`,
+            `left:${Math.random() * 100}%`,
+            `top:${10 + Math.random() * 85}%`,
+            `--dx:${dist}px`,
+            `--dy:-${dist}px`,
+            `--max-opacity:${opacity}`,
+            `animation-duration:${duration}s`,
+            `animation-delay:${delay}s`,
+        ].join(';');
+
+        bg.appendChild(el);
+    }
+}
+
 // ── 초기화 ────────────────────────────────────────────────────
 window.onload = () => {
+    initRockets();
+
     // 인앱 브라우저 감지
     if (isInAppBrowser()) {
         document.getElementById('inapp-modal').style.display = 'flex';
