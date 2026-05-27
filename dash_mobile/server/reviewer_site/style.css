@@ -267,7 +267,6 @@ body {
     object-position: right top;
     border: 1px solid #f0f2f5;
     display: block;
-    min-height: 260px;
 }
 
 /* ── 스토어 버튼 (세로 스택) ─────────────────────────────────── */
