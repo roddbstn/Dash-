@@ -267,6 +267,7 @@ body {
     object-position: right top;
     border: 1px solid #f0f2f5;
     display: block;
+    min-height: 260px;
 }
 
 /* ── 스토어 버튼 (세로 스택) ─────────────────────────────────── */
@@ -320,17 +321,17 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    background: #f0f2f5;
-    color: #4e5968;
+    background: #1a1a2e;
+    color: #fff;
     text-decoration: none;
     border-radius: 12px;
     padding: 13px 16px;
     transition: background 0.15s;
 }
 
-.btn-extension:active { background: #e5e8eb; }
-.btn-extension .store-sub { color: #8b95a1; }
-.btn-extension .store-name { color: #191f28; font-size: 13px; }
+.btn-extension:active { background: #111; }
+.btn-extension .store-sub { color: rgba(255,255,255,0.6); }
+.btn-extension .store-name { color: #fff; font-size: 14px; font-weight: 700; }
 
 /* ── 인앱 브라우저 모달 ──────────────────────────────────────── */
 .fullscreen-overlay {
