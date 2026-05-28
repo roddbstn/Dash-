@@ -207,7 +207,21 @@ body {
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
 }
 
-/* 두 컬럼: 앱(좌) | 확장프로그램(우) */
+/* 상단 전체 너비 헤더 */
+.cta-col-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 0;
+}
+
+.cta-header-divider {
+    height: 1px;
+    background: #f0f2f5;
+    margin: 18px 0;
+}
+
+/* 두 컬럼: 앱(좌) | 확장프로그램(우) — 아래 중복 .cta-col-header 제거됨 */
 .cta-cols {
     display: flex;
     flex-direction: row;
@@ -221,12 +235,6 @@ body {
     flex-direction: column;
     gap: 12px;
     min-width: 0;
-}
-
-.cta-col-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
 }
 
 .cta-divider {
