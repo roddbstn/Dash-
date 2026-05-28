@@ -237,6 +237,22 @@ body {
     align-self: stretch;
 }
 
+/* 좁은 화면: 세로 스택 */
+@media (max-width: 480px) {
+    .cta-cols {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .cta-divider {
+        width: auto;
+        height: 1px;
+        flex: 0 0 1px;
+        margin: 0;
+        align-self: stretch;
+    }
+}
+
 /* ── CTA 텍스트 ─────────────────────────────────────────────── */
 .cta-logo {
     width: 48px;
