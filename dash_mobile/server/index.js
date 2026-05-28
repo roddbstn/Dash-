@@ -377,6 +377,8 @@ pool.query("ALTER TABLE dash_users ADD COLUMN last_login_at DATETIME DEFAULT NUL
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] last_login_at 추가 실패:', err.message); });
 pool.query("ALTER TABLE dash_users ADD COLUMN login_count INT DEFAULT 0")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] login_count 추가 실패:', err.message); });
+pool.query("ALTER TABLE dash_users ADD COLUMN total_records_created INT DEFAULT 0")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] total_records_created 추가 실패:', err.message); });
 
 // Phase 3-B: Vault 접근 Rate Limiting (메모리 기반, 서버 재시작 시 초기화)
 const vaultAttempts = new Map(); // uid → { count, windowStart }
@@ -385,8 +387,14 @@ const VAULT_WINDOW_MS = 10 * 60 * 1000;
 
 // --- API Endpoints ---
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'reviewer_site', 'index.html'));
+app.get('/', async (req, res) => {
+  const token = req.query.token;
+  // ?token= 파라미터 없으면 기존 리뷰어 사이트 반환
+  if (!token) {
+    return res.sendFile(path.join(__dirname, 'reviewer_site', 'index.html'));
+  }
+  // ?token= 있으면 /share/:token 라우트와 동일하게 처리 (OG 태그 포함 동적 HTML)
+  return res.redirect(307, `/share/${token}`);
 });
 
 app.get('/admin', (req, res) => {
@@ -415,7 +423,7 @@ app.get('/share/:token', async (req, res) => {
     if (rows.length > 0) {
       caseName = rows[0].case_name || caseName;
       authorName = rows[0].author_name || authorName;
-      description = `${authorName} 상담원이 공유한 DB입니다. DASH 앱에서 열어 내 DB로 저장하세요.`;
+      description = `${authorName} 상담원이 보냈어요.`;
     }
   } catch (e) {
     console.error('[share] OG meta query error:', e.message);
@@ -428,10 +436,13 @@ app.get('/share/:token', async (req, res) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${caseName} | DASH</title>
-  <meta property="og:title" content="${caseName} — DASH 공유 DB" />
+  <meta property="og:title" content="${caseName}" />
   <meta property="og:description" content="${description}" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://dash.qpon/share/${token}" />
+  <meta property="og:image" content="https://dash.qpon/public/logo.png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Pretendard', -apple-system, sans-serif; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
@@ -825,6 +836,34 @@ app.post('/api/users/public_key', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
+// [Mobile] 유저 통계 조회 (프로필 탭)
+app.get('/api/users/:id/stats', verifyFirebaseAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [[row]] = await queryWithTimeout(
+      `SELECT
+        COALESCE(u.total_records_created, 0) AS total_records_created,
+        COUNT(DISTINCT c.id) AS case_count,
+        COUNT(DISTINCT sd.id) AS current_db_count
+       FROM dash_users u
+       LEFT JOIN cases c ON c.user_id = u.id
+       LEFT JOIN service_drafts sd ON sd.case_id = c.id
+       WHERE u.id = ?`,
+      [id]
+    );
+    const currentDbCount = Number(row.current_db_count) || 0;
+    // 기존 유저 소급: total_records_created가 0이면 현재 DB 수를 최솟값으로 사용
+    const totalCreated = Math.max(Number(row.total_records_created) || 0, currentDbCount);
+    res.json({
+      total_records_created: totalCreated,
+      case_count: Number(row.case_count) || 0,
+      current_db_count: currentDbCount,
+    });
+  } catch (err) {
+    res.status(500).json({ error: safeError(err) });
+  }
+});
+
 app.get('/api/users/:id/public_key', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   try {
@@ -1065,6 +1104,13 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
       );
       recordId = result.insertId;
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);
+      // 누적 DB 생성 카운터 증가
+      if (resolvedUserId) {
+        await queryWithTimeout(
+          'UPDATE dash_users SET total_records_created = total_records_created + 1 WHERE id = ?',
+          [resolvedUserId]
+        ).catch(err => console.warn('[stats] total_records_created 증가 실패:', err.message));
+      }
     }
 
     // 닉네임 자동 동기화: user_name이 제공된 경우 dash_users.name 업데이트
