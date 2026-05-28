@@ -387,28 +387,8 @@ const VAULT_WINDOW_MS = 10 * 60 * 1000;
 
 // --- API Endpoints ---
 
-app.get('/', async (req, res) => {
-  const token = req.query.token;
-  // ?token= 파라미터 없으면 기존 리뷰어 사이트 반환
-  if (!token) {
-    return res.sendFile(path.join(__dirname, 'reviewer_site', 'index.html'));
-  }
-  // ?token= 있으면 /share/:token 라우트와 동일하게 처리 (OG 태그 포함 동적 HTML)
-  return res.redirect(307, `/share/${token}`);
-});
-
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'reviewer_site', 'admin.html'));
-});
-
-// ── 딥링크: /share/:token ──────────────────────────────────────────────────
-// 메신저에서 https://dash.qpon/share/{token}#key={key} 링크를 클릭하면:
-//   - 앱 설치됨 → App Links / Universal Links로 앱에서 바로 열림 (이 라우트 미도달)
-//   - 앱 미설치 → 이 라우트에 도달하여 읽기전용 프리뷰 + 앱 설치 유도 페이지 반환
-app.get('/share/:token', async (req, res) => {
-  const { token } = req.params;
-  
-  // OG 태그용 메타 정보 조회
+// OG 태그 포함 공유 페이지 HTML 생성 (/?token= 과 /share/:token 공용)
+async function buildSharePage(token) {
   let caseName = 'DASH 공유 DB';
   let authorName = '상담원';
   let description = '모바일로 작성된 DB를 확인하세요.';
@@ -428,9 +408,30 @@ app.get('/share/:token', async (req, res) => {
   } catch (e) {
     console.error('[share] OG meta query error:', e.message);
   }
+  return { caseName, authorName, description };
+}
 
-  // 읽기전용 프리뷰 + 앱 열기/설치 유도 HTML
-  res.send(`<!DOCTYPE html>
+app.get('/', async (req, res) => {
+  const token = req.query.token;
+  if (!token) {
+    return res.sendFile(path.join(__dirname, 'reviewer_site', 'index.html'));
+  }
+  // ?token= 있으면 OG 태그 포함 HTML 직접 반환 (redirect X — 메신저 크롤러가 redirect 미추적)
+  const { caseName, authorName, description } = await buildSharePage(token);
+  return res.send(renderShareHtml(token, caseName, authorName, description));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'reviewer_site', 'admin.html'));
+});
+
+// ── 딥링크: /share/:token ──────────────────────────────────────────────────
+// 메신저에서 https://dash.qpon/share/{token}#key={key} 링크를 클릭하면:
+//   - 앱 설치됨 → App Links / Universal Links로 앱에서 바로 열림 (이 라우트 미도달)
+//   - 앱 미설치 → 이 라우트에 도달하여 읽기전용 프리뷰 + 앱 설치 유도 페이지 반환
+// 공유 페이지 HTML 렌더러
+function renderShareHtml(token, caseName, authorName, description) {
+  return `<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -508,7 +509,13 @@ app.get('/share/:token', async (req, res) => {
     }
   </script>
 </body>
-</html>`);
+</html>`;
+}
+
+app.get('/share/:token', async (req, res) => {
+  const { token } = req.params;
+  const { caseName, authorName, description } = await buildSharePage(token);
+  res.send(renderShareHtml(token, caseName, authorName, description));
 });
 
 // 기존 /share?token=... 쿼리 형태 호환 (레거시)
