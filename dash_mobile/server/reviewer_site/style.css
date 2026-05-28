@@ -238,7 +238,7 @@ body {
 }
 
 /* 좁은 화면: 세로 스택 */
-@media (max-width: 480px) {
+@media (max-width: 600px) {
     .cta-cols {
         flex-direction: column;
         gap: 20px;
