@@ -22,6 +22,8 @@ import 'package:dash_mobile/screens/home_tab.dart';
 import 'package:dash_mobile/screens/case_selection_modal.dart';
 import 'package:dash_mobile/screens/db_type_selection_sheet.dart';
 import 'package:intl/intl.dart';
+import 'package:dash_mobile/deep_link_service.dart';
+import 'package:dash_mobile/screens/shared_db_preview_screen.dart';
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -37,7 +39,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   List<dynamic> _drafts = [];
-  List<dynamic> _sharedDrafts = [];
   Map<String, String> _keyMap = {};
   List<dynamic> _cases = [];
   List<dynamic> _notifications = [];
@@ -90,6 +91,10 @@ class _HomeScreenState extends State<HomeScreen>
     _setupFCM();
     _fetchUserProfile();
     _checkPinAndBackfill();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkService.processPendingDeepLink();
+    });
 
     // 다른 기기에서 계정 삭제 시 이 기기도 즉시 로그아웃 처리
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
@@ -260,7 +265,8 @@ class _HomeScreenState extends State<HomeScreen>
         if (_selectedCounselorId == null && counselors.isNotEmpty) {
           _selectedCounselorId = counselors[0]['id']?.toString();
         }
-        _isLoadingInitial = false;
+        // 로컬 캐시가 있으면 즉시 표시, 없으면 서버 응답까지 스켈레톤 유지
+        if (localDrafts.isNotEmpty) _isLoadingInitial = false;
       });
     }
 
@@ -335,15 +341,9 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (serverRecords != null &&
           (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
-        final List sharedOnly = serverRecords
-            .where((s) => s['record_type'] == 'shared')
-            .toList();
         final List ownedServerRecords = serverRecords
             .where((s) => s['record_type'] != 'shared')
             .toList();
-        if (mounted) {
-          setState(() => _sharedDrafts = sharedOnly);
-        }
 
         List<Map<String, dynamic>> updatedDrafts = [];
 
@@ -452,6 +452,8 @@ class _HomeScreenState extends State<HomeScreen>
               'travelTime': (s['status'] == 'Reviewed')
                   ? (s['travel_time'] ?? local['travelTime'])
                   : (local['travelTime'] ?? s['travel_time']),
+              'injected_by_name': s['injected_by_name'],
+              'author_name': s['author_name'],
             });
           } else {
             // 로컬에 없는데 서버에만 있는 경우 (재설치 등)
@@ -486,6 +488,8 @@ class _HomeScreenState extends State<HomeScreen>
               'updated_at': s['updated_at'],
               'is_server_only': true,
               'is_shared_db': s['is_shared_db'] == 1 || s['is_shared_db'] == true,
+              'injected_by_name': s['injected_by_name'],
+              'author_name': s['author_name'],
             });
           }
         }
@@ -518,6 +522,7 @@ class _HomeScreenState extends State<HomeScreen>
           setState(() {
             _drafts = updatedDrafts;
             _keyMap = keyMap;
+            _isLoadingInitial = false; // 서버 응답 후 스켈레톤 해제
           });
           await StorageService.saveDrafts(updatedDrafts);
           _checkAndPromptVaultRecovery(keyMap, updatedDrafts);
@@ -525,6 +530,8 @@ class _HomeScreenState extends State<HomeScreen>
       }
     } catch (e) {
       debugPrint('Sync failed: $e');
+      // 서버 실패해도 스켈레톤은 해제
+      if (mounted && _isLoadingInitial) setState(() => _isLoadingInitial = false);
     }
 
     // 활성 토큰 동기화
@@ -567,8 +574,17 @@ class _HomeScreenState extends State<HomeScreen>
 
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
     const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+        InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
     await flutterLocalNotificationsPlugin.initialize(
         settings: initializationSettings);
 
@@ -829,6 +845,134 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ── 공유 링크로 DB 가져오기 ──────────────────────────────────────
+  void _showImportFromLinkSheet() {
+    final TextEditingController ctrl = TextEditingController();
+    // 클립보드에 링크가 있으면 자동 채움
+    Clipboard.getData('text/plain').then((data) {
+      final text = data?.text ?? '';
+      if (text.contains('/') && text.contains('token=')) {
+        ctrl.text = text;
+        ctrl.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: text.length,
+        );
+      }
+    });
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E8EB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text('공유 링크로 DB 가져오기',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                const Text('공유받은 링크를 붙여넣으면 DB 내용을 확인하고 저장할 수 있어요.',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF8B95A1), height: 1.5)),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'https://...',
+                    hintStyle: const TextStyle(color: Color(0xFFADB5BD)),
+                    filled: true,
+                    fillColor: const Color(0xFFF8F9FA),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.content_paste, size: 20, color: Color(0xFF8B95A1)),
+                      onPressed: () async {
+                        final data = await Clipboard.getData('text/plain');
+                        if (data?.text != null) ctrl.text = data!.text!;
+                      },
+                    ),
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      final url = ctrl.text.trim();
+                      final uri = Uri.tryParse(url);
+                      if (uri == null) return;
+
+                      final token = uri.queryParameters['token'];
+                      // 암호화 키는 fragment(#key=...)에 있음
+                      final fragment = uri.fragment;
+                      final fragParams = Uri.splitQueryString(fragment);
+                      final encKey = fragParams['key'];
+
+                      if (token == null || token.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('유효한 공유 링크가 아니에요.'),
+                            backgroundColor: Colors.black87,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SharedDbPreviewScreen(
+                            token: token,
+                            encryptionKey: encKey,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text('확인하기',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showCaseSelectionModal() async {
     await showCaseSelectionModal(
       context: context,
@@ -860,92 +1004,6 @@ class _HomeScreenState extends State<HomeScreen>
       ApiService.deleteRecord(draftToDelete['share_token']);
     }
     setState(() => _drafts = drafts);
-  }
-
-  Future<bool> _deleteSharedDraft(String recordId) async {
-    final ok = await ApiService.removeSharedRecord(recordId);
-    if (ok && mounted) {
-      setState(() {
-        _sharedDrafts.removeWhere((s) => s['id'].toString() == recordId);
-      });
-      return true;
-    }
-    return false;
-  }
-
-  /// 공유받은 DB 카드 탭 핸들러 — StorageService 동기화 후 FormScreen으로 이동
-  Future<void> _onSharedDraftTap(dynamic d) async {
-    final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
-    final String? shareToken = d['share_token'];
-    final String? encKey =
-        shareToken != null ? _keyMap[shareToken] : null;
-    final dong = d['dong']?.toString() ?? '미지정';
-    final localDrafts = await StorageService.getDrafts();
-
-    String freshDescription =
-        d['service_description'] ?? d['serviceDescription'] ?? '';
-    String freshOpinion = d['agent_opinion'] ?? d['agentOpinion'] ?? '';
-
-    Map<String, dynamic>? localDraft;
-    if (shareToken != null) {
-      localDraft = localDrafts
-          .cast<Map<String, dynamic>?>()
-          .firstWhere(
-            (l) => l?['share_token']?.toString() == shareToken,
-            orElse: () => null,
-          );
-    }
-
-    if (localDraft != null) {
-      localDraft = {
-        ...localDraft,
-        'serviceDescription': freshDescription,
-        'agentOpinion': freshOpinion,
-      };
-      final idx = localDrafts.indexWhere(
-          (l) => l['share_token']?.toString() == shareToken);
-      if (idx != -1) {
-        localDrafts[idx] = localDraft;
-        await StorageService.saveDrafts(List<dynamic>.from(localDrafts));
-      }
-    } else {
-      final newId = DateTime.now().millisecondsSinceEpoch;
-      localDraft = {
-        'id': newId,
-        'caseName': caseName,
-        'dong': dong,
-        'status': 'Draft',
-        'isShared': true,
-        'share_token': shareToken,
-        'encryption_key': encKey,
-        'target': d['target'] ?? '피해아동',
-        'method': d['method'] ?? '방문',
-        'provision_type': d['provision_type'] ?? '제공',
-        'service_type': d['service_type'] ?? '아보전',
-        'service_name': d['service_name'] ?? '',
-        'service_category': d['service_category'] ?? '',
-        'location': d['location'] ?? '기관내',
-        'travelTime':
-            (d['travel_time'] ?? d['travelTime'] ?? '30').toString(),
-        'serviceCount':
-            (d['service_count'] ?? d['serviceCount'] ?? '1').toString(),
-        'serviceDescription': freshDescription,
-        'agentOpinion': freshOpinion,
-        'startTime': d['start_time'] ?? d['startTime'],
-        'endTime': d['end_time'] ?? d['endTime'],
-      };
-      await StorageService.saveDrafts([...localDrafts, localDraft]);
-    }
-
-    if (mounted) {
-      _goToForm(
-        caseName,
-        caseName,
-        dong,
-        caseId: d['case_id'] ?? d['id'],
-        draftId: int.tryParse(localDraft['id'].toString()),
-      );
-    }
   }
 
   // ── 공유할 DB 즉시 공유 다이얼로그 (URL은 sync 완료 후 채워짐) ───────
@@ -1152,18 +1210,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildBody() {
     if (_currentIndex == 0) {
-      if (_isLoadingInitial) {
-        return const Center(
-            child: CircularProgressIndicator(strokeWidth: 2));
-      }
       return Column(
         children: [
           if (!_serverReachable) _buildOfflineBanner(),
           Expanded(
             child: HomeTab(
+              isLoading: _isLoadingInitial,
               userName: _userName,
               pendingDrafts: _pendingDrafts,
-              sharedDrafts: _sharedDrafts,
               cases: _cases,
               counselors: _counselors,
               dbTabController: _dbTabController,
@@ -1171,8 +1225,7 @@ class _HomeScreenState extends State<HomeScreen>
               onShowCaseSelection: _showCaseSelectionModal,
               onGoToForm: _goToForm,
               onDeleteMyDraft: (draftId) async => _deleteDraft(draftId),
-              onSharedDraftTap: _onSharedDraftTap,
-              onDeleteSharedDraft: _deleteSharedDraft,
+              onImportFromLink: _showImportFromLinkSheet,
             ),
           ),
         ],

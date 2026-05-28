@@ -261,6 +261,17 @@ body {
     line-height: 1.5;
 }
 
+.install-hint {
+    font-size: 11px;
+    color: #1A56DB;
+    background: #EEF4FF;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 0;
+    line-height: 1.6;
+    font-weight: 500;
+}
+
 /* ── 확장프로그램 미리보기 ────────────────────────────────────── */
 .ext-preview-wrap {
     position: relative;

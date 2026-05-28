@@ -4,9 +4,9 @@ import 'package:dash_mobile/widgets/home_widgets.dart';
 import 'package:dash_mobile/user_guide_screen.dart';
 
 class HomeTab extends StatelessWidget {
+  final bool isLoading;
   final String? userName;
   final List<dynamic> pendingDrafts;
-  final List<dynamic> sharedDrafts;
   final List<dynamic> cases;
   final List<dynamic> counselors;
   final TabController dbTabController;
@@ -20,14 +20,12 @@ class HomeTab extends StatelessWidget {
     int? draftId,
   }) onGoToForm;
   final Future<void> Function(int draftId) onDeleteMyDraft;
-  final Future<void> Function(dynamic d) onSharedDraftTap;
-  final Future<bool> Function(String recordId) onDeleteSharedDraft;
-
+  final VoidCallback onImportFromLink;
   const HomeTab({
     super.key,
+    this.isLoading = false,
     required this.userName,
     required this.pendingDrafts,
-    required this.sharedDrafts,
     required this.cases,
     required this.counselors,
     required this.dbTabController,
@@ -35,8 +33,7 @@ class HomeTab extends StatelessWidget {
     required this.onShowCaseSelection,
     required this.onGoToForm,
     required this.onDeleteMyDraft,
-    required this.onSharedDraftTap,
-    required this.onDeleteSharedDraft,
+    required this.onImportFromLink,
   });
 
   @override
@@ -79,9 +76,9 @@ class HomeTab extends StatelessWidget {
                   children: [
                     _buildGreetingHeader(),
                     const SizedBox(height: 28),
-                    _buildCtaCard(),
-                    const SizedBox(height: 32),
                     _buildPcGuideBanner(context),
+                    const SizedBox(height: 20),
+                    _buildCtaCard(),
                   ],
                 ),
               ),
@@ -132,13 +129,27 @@ class HomeTab extends StatelessWidget {
 
   // ── 상단 인사말 ─────────────────────────────────────────────────
   Widget _buildGreetingHeader() {
-    final int totalCount = pendingDrafts.length + sharedDrafts.length;
+    final int totalCount = pendingDrafts.length;
     final String displayName =
         (userName != null && userName!.trim().isNotEmpty) ? userName! : '안녕하세요';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Image.asset('assets/icons/logo_transparent.png', width: 36, height: 36),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Image.asset('assets/icons/logo_transparent.png', width: 36, height: 36),
+            const Spacer(),
+            IconButton(
+              onPressed: onImportFromLink,
+              icon: const Icon(Icons.add_link, size: 24),
+              color: const Color(0xFF8B95A1),
+              tooltip: '공유 링크로 DB 가져오기',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
+          ],
+        ),
         const SizedBox(height: 20),
         RichText(
           text: TextSpan(
@@ -158,32 +169,34 @@ class HomeTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          '기입할 DB가 $totalCount개 있어요',
-          style: const TextStyle(fontSize: 15, color: Color(0xFF888888)),
-        ),
+        if (isLoading)
+          Container(
+            width: 130,
+            height: 14,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE9ECEF),
+              borderRadius: BorderRadius.circular(7),
+            ),
+          )
+        else
+          Text(
+            '기입할 DB가 $totalCount개 있어요',
+            style: const TextStyle(fontSize: 15, color: Color(0xFF888888)),
+          ),
       ],
     );
   }
 
   // ── CTA 버튼 카드 ────────────────────────────────────────────────
   Widget _buildCtaCard() {
-    return GestureDetector(
+    return ScaleTap(
       onTap: onShowCaseSelection,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 15),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.primary,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.35),
-              blurRadius: 14,
-              spreadRadius: 0,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -378,7 +391,7 @@ class HomeTab extends StatelessWidget {
         _buildGreetingHeader(),
         const SizedBox(height: 20),
         _buildPcGuideBanner(context),
-        const SizedBox(height: 10),
+        const SizedBox(height: 20),
         _buildCtaCard(),
       ],
     );
@@ -408,18 +421,20 @@ class HomeTab extends StatelessWidget {
               'DB 목록',
               style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w500,
                   color: Color(0xFF222222)),
             ),
             const SizedBox(height: 15),
             _buildSegmentControl(
-              personalDrafts.length + sharedDrafts.length,
+              personalDrafts.length,
               sharedDbDrafts.length,
             ),
             const SizedBox(height: 15),
             if (isMyDb) ...[
-              // 개인 DB + 공유받은 DB
-              if (personalDrafts.isEmpty && sharedDrafts.isEmpty)
+              // 개인 DB
+              if (isLoading && personalDrafts.isEmpty)
+                const _DraftSkeletonList()
+              else if (personalDrafts.isEmpty)
                 _buildEmptyHint('사례를 선택해 DB를 만들어주세요')
               else
                 Column(
@@ -440,15 +455,6 @@ class HomeTab extends StatelessWidget {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _buildDraftCardInBox(context, d, dong,
                             index: idx),
-                      );
-                    }),
-                    ...sharedDrafts.asMap().entries.map<Widget>((entry) {
-                      final idx = entry.key;
-                      final d = entry.value;
-                      return Padding(
-                        padding: EdgeInsets.only(
-                            bottom: idx == sharedDrafts.length - 1 ? 0 : 8),
-                        child: _buildSharedDraftCardInBox(context, d),
                       );
                     }),
                   ],
@@ -597,11 +603,13 @@ class HomeTab extends StatelessWidget {
             : null);
     final counselorName = counselor?['name']?.toString();
 
+    final bool allowShare = d['is_shared_db'] == true || d['is_shared_db'] == 1;
     return SwipeableDraftCard(
       key: ValueKey(d['id']),
       d: d,
       index: index,
       isLast: true,
+      allowShare: allowShare,
       counselorName: counselorName,
       onTap: () => onGoToForm(
         foundCase?['realName'] ?? d['caseName'],
@@ -615,62 +623,6 @@ class HomeTab extends StatelessWidget {
         if (confirmed) {
           await onDeleteMyDraft(d['id']);
           return true;
-        }
-        return false;
-      },
-    );
-  }
-
-  // ── 공유받은 DB 카드 ──────────────────────────────────────────────
-  Widget _buildSharedDraftCardInBox(BuildContext context, dynamic d) {
-    final String caseName = d['case_name'] ?? d['caseName'] ?? '미지정';
-    final String authorName = d['author_name'] ?? '담당자';
-    final String recordId = d['id'].toString();
-
-    return SwipeableSharedDraftCard(
-      key: ValueKey('shared_$recordId'),
-      caseName: caseName,
-      authorName: authorName,
-      dong: d['dong']?.toString(),
-      target: d['target']?.toString(),
-      method: d['method']?.toString(),
-      startTime: d['start_time']?.toString() ?? d['startTime']?.toString(),
-      endTime: d['end_time']?.toString() ?? d['endTime']?.toString(),
-      isLast: true,
-      onTap: () => onSharedDraftTap(d),
-      onDelete: () async {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
-            title: const Text('공유받은 DB 삭제',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            content: const Text(
-              '내 목록에서만 삭제돼요.\n사례 담당자의 DB에는 영향이 없어요.',
-              style: TextStyle(
-                  fontSize: 14, color: AppColors.textSub, height: 1.6),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('취소',
-                      style: TextStyle(
-                          color: Color(0xFFADB5BD),
-                          fontWeight: FontWeight.w600))),
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('삭제',
-                      style: TextStyle(
-                          color: AppColors.danger,
-                          fontWeight: FontWeight.w700))),
-            ],
-          ),
-        );
-        if (confirmed == true) {
-          return await onDeleteSharedDraft(recordId);
         }
         return false;
       },
@@ -711,5 +663,126 @@ class HomeTab extends StatelessWidget {
       ),
     );
     return result ?? false;
+  }
+}
+
+// ── 스켈레톤 카드 목록 ─────────────────────────────────────────────
+class _DraftSkeletonList extends StatelessWidget {
+  const _DraftSkeletonList();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        _DraftSkeletonCard(),
+        SizedBox(height: 8),
+        _DraftSkeletonCard(),
+      ],
+    );
+  }
+}
+
+class _DraftSkeletonCard extends StatefulWidget {
+  const _DraftSkeletonCard();
+
+  @override
+  State<_DraftSkeletonCard> createState() => _DraftSkeletonCardState();
+}
+
+class _DraftSkeletonCardState extends State<_DraftSkeletonCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        final base = Color.lerp(
+          const Color(0xFFF0F2F5),
+          const Color(0xFFE4E7EB),
+          _anim.value,
+        )!;
+        final highlight = Color.lerp(
+          const Color(0xFFE4E7EB),
+          const Color(0xFFD8DCE2),
+          _anim.value,
+        )!;
+
+        return Container(
+          height: 112,
+          decoration: BoxDecoration(
+            color: base,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 케이스명 줄
+              Container(
+                width: 110,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: highlight,
+                  borderRadius: BorderRadius.circular(7),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // 동 줄
+              Container(
+                width: 72,
+                height: 11,
+                decoration: BoxDecoration(
+                  color: base,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  // 상태 뱃지
+                  Container(
+                    width: 56,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: highlight,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                  ),
+                  const Spacer(),
+                  // 담당 태그
+                  Container(
+                    width: 70,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: base,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
