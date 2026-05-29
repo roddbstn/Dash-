@@ -98,7 +98,8 @@ app.use('/.well-known', express.static(path.join(__dirname, '.well-known'), {
   }
 }));
 
-app.use(express.static(path.join(__dirname, 'reviewer_site'))); // Serve static files
+// Serve static files — 단, /?token= 은 OG 태그 라우트가 먼저 처리하도록 index.html 제외
+app.use(express.static(path.join(__dirname, 'reviewer_site'), { index: false }));
 
 // ── API Rate Limiting ──────────────────────────────────────────────────────────
 // 글로벌: 15분당 300회 (정상 사용 기준 넉넉히)

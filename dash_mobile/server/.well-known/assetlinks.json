@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.dash.mobile.yunsoo",
+    "sha256_cert_fingerprints": [
+      "D3:3D:FF:CA:D9:87:5F:AB:47:F4:0B:35:37:22:D2:C7:FA:C6:AA:22:BA:E0:E6:0D:50:0D:14:1D:B7:82:51:14"
+    ]
+  }
+}]

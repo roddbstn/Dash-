@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["4ADD2VG6BR.com.dash.mobile"],
+        "components": [
+          {
+            "/": "/share/*",
+            "comment": "딥링크 공유 DB"
+          }
+        ]
+      }
+    ]
+  }
+}
