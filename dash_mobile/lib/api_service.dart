@@ -205,7 +205,12 @@ class ApiService {
         body: jsonEncode({'user_email': userEmail, 'active_tokens': activeTokens}),
       );
       if (response.statusCode == 200) {
-        debugPrint('🔄 Active records sync complete');
+        final body = jsonDecode(response.body);
+        if (body['skipped'] == true) {
+          debugPrint('⚠️  Active sync skipped (empty token list — server-side data loss guard)');
+        } else {
+          debugPrint('🔄 Active records sync complete (deleted: ${body['deleted_count']})');
+        }
       } else {
         debugPrint('❌ Active sync failed: ${response.body}');
       }
@@ -220,7 +225,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/records/user/$userId'),
         headers: await _authGetHeaders(),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -235,7 +240,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/cases/user/$userId'),
         headers: await _authGetHeaders(),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -260,6 +265,19 @@ class ApiService {
     throw Exception('fetchUser HTTP ${response.statusCode}');
   }
 
+  static Future<Map<String, dynamic>?> fetchUserStats(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$userId/stats'),
+        headers: await _authGetHeaders(),
+      ).timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      debugPrint('❌ Error fetching user stats: $e');
+    }
+    return null;
+  }
+
   static Future<bool> updateUserProfile(String userId, String name, String? email) async {
     try {
       final response = await http.post(
@@ -279,7 +297,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/notifications/$userId'),
         headers: await _authGetHeaders(),
-      );
+      ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -411,6 +429,11 @@ class ApiService {
         Uri.parse('$baseUrl/cases/$caseId'),
         headers: await _authGetHeaders(),
       ).timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        debugPrint('🗑️ Case($caseId) deleted from server');
+      } else {
+        debugPrint('❌ Failed to delete case($caseId): HTTP ${response.statusCode}');
+      }
     } catch (e) {
       debugPrint('❌ Error deleting case($caseId): $e');
     }
@@ -493,5 +516,66 @@ class ApiService {
         debugPrint('🔄 SSE Reconnecting for: $email');
       }
     }
+  }
+
+  // [DeepLink] 공유 DB 암호화 키 수령 (선착순 1명, 인증 후 서버에서 삭제)
+  static Future<String?> fetchSharedKey(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/shared-records/$token/key'),
+        headers: await _authGetHeaders(),
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body)['key'] as String?;
+      }
+      debugPrint('❌ fetchSharedKey HTTP ${response.statusCode}: ${response.body}');
+    } catch (e) {
+      debugPrint('❌ Error fetching shared key: $e');
+    }
+    return null;
+  }
+
+  // [DeepLink] 공유 DB 메타정보 조회 (딥링크 프리뷰 화면용)
+  static Future<Map<String, dynamic>?> fetchSharedRecord(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/shared-records/$token'),
+        headers: await _authGetHeaders(),
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      if (response.statusCode == 404) return null;
+      debugPrint('❌ fetchSharedRecord HTTP ${response.statusCode}');
+    } catch (e) {
+      debugPrint('❌ Error fetching shared record: $e');
+    }
+    return null;
+  }
+
+  // [DeepLink] 공유받은 DB를 내 계정에 저장
+  static Future<bool> saveSharedToMyDb(String token) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/records/save-to-my-db/$token'),
+      headers: await _authHeaders(),
+      body: jsonEncode({}),
+    ).timeout(const Duration(seconds: 15));
+    if (response.statusCode == 200) {
+      debugPrint('✅ Shared DB saved to my account');
+      return true;
+    }
+    // 비200 응답에서 jsonDecode 시 서버가 HTML 오류 페이지를 반환하면 FormatException 발생
+    // → try-catch로 보호하고, own_record 에러만 골라 throw
+    try {
+      final body = jsonDecode(response.body);
+      if (body['error'] == 'own_record') {
+        throw Exception('own_record');
+      }
+    } catch (e) {
+      if (e.toString().contains('own_record')) rethrow;
+      debugPrint('⚠️ saveSharedToMyDb: response body is not valid JSON (${response.statusCode})');
+    }
+    debugPrint('❌ saveSharedToMyDb HTTP ${response.statusCode}: ${response.body}');
+    return false;
   }
 }

@@ -40,6 +40,7 @@ CREATE TABLE service_drafts (
     provision_type VARCHAR(50),
     method VARCHAR(50),
     service_type VARCHAR(50),
+    service_category VARCHAR(100),
     service_name VARCHAR(100),
     location VARCHAR(100),
     start_time DATETIME,

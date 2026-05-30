@@ -237,6 +237,23 @@ function broadcastEvent(event, data) {
   }
 }
 
+// SSE 주기적 dead client 정리 (60초마다)
+// write 실패 외에도 응답이 닫힌 연결을 능동적으로 제거해 메모리 누수 방지
+setInterval(() => {
+  const before = sseClients.length;
+  sseClients = sseClients.filter(c => {
+    try {
+      return !c.res.destroyed && c.res.writable;
+    } catch {
+      return false;
+    }
+  });
+  const removed = before - sseClients.length;
+  if (removed > 0) {
+    console.log(`🧹 [SSE GC] Removed ${removed} stale connections (Remaining: ${sseClients.length})`);
+  }
+}, 60 * 1000);
+
 // Database Connection
 const pool = mysql.createPool({
   host: process.env.MYSQLHOST || process.env.DB_HOST || 'localhost',
@@ -1277,7 +1294,7 @@ app.post('/api/records/sync_active', verifyFirebaseAuth, async (req, res) => {
     // Guard: If active_tokens is empty or missing, skip cleanup to prevent accidental full wipe
     if (!active_tokens || active_tokens.length === 0) {
       console.log(`⚠️  [SYNC_ACTIVE] Empty tokens for ${user_email} — skipping cleanup to prevent data loss`);
-      return res.json({ message: 'Sync skipped (no active tokens)', deleted_count: 0 });
+      return res.json({ message: 'Sync skipped (no active tokens)', deleted_count: 0, skipped: true });
     }
 
     const deleteQuery = `
