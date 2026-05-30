@@ -1136,7 +1136,7 @@ class _StatItem extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1), fontWeight: FontWeight.w500),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF111111), fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 4),
           Text(
