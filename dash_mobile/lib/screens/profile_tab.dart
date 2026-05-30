@@ -1191,53 +1191,72 @@ class _ExtensionBanner extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E8EB)),
+          color: const Color(0xFFEEF3FC),
+          borderRadius: BorderRadius.circular(12),
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '아직 확장프로그램을 설치하지 않았어요',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF222222),
-                      letterSpacing: -0.2,
+                  // "이용 안내" 뱃지와 동일한 스타일의 라벨
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      '확장프로그램',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: const [
-                      Text(
-                        '30초만에 PC에 설치하는 방법',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF1A56DB),
-                          fontWeight: FontWeight.w600,
-                        ),
+                  const SizedBox(height: 6),
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111111),
+                        letterSpacing: -0.3,
+                        height: 1.35,
                       ),
-                      SizedBox(width: 2),
-                      Icon(Icons.arrow_forward, size: 14, color: Color(0xFF1A56DB)),
-                    ],
+                      children: [
+                        TextSpan(text: '아직 설치하지\n'),
+                        TextSpan(
+                          text: '않았어요',
+                          style: TextStyle(color: Color(0xFF1A56DB)),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
+            // "이용 안내" 뱃지와 동일한 스타일의 "보러가기" 버튼
             Container(
-              width: 36, height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF),
-                borderRadius: BorderRadius.circular(10),
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: const Icon(Icons.extension_outlined, size: 20, color: Color(0xFF1A56DB)),
+              child: const Text(
+                '보러가기',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
