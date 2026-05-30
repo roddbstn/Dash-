@@ -1135,13 +1135,13 @@ class _StatItem extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF111111)),
+            label,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1), fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 4),
           Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1), fontWeight: FontWeight.w500),
+            value,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF111111)),
           ),
         ],
       ),
