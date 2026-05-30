@@ -110,8 +110,15 @@ app.use('/.well-known', express.static(path.join(__dirname, '.well-known'), {
   }
 }));
 
-// Serve static files — 단, /?token= 은 OG 태그 라우트가 먼저 처리하도록 index.html 제외
-app.use(express.static(path.join(__dirname, 'reviewer_site'), { index: false }));
+// /?token= 요청은 OG 태그 동적 HTML로 처리 — express.static 보다 먼저 등록
+// (express.static이 index.html을 먼저 서빙하면 OG 태그 라우트에 도달하지 못함)
+app.get('/', async (req, res, next) => {
+  if (!req.query.token) return next();
+  const { caseName, authorName, description } = await buildSharePage(req.query.token);
+  return res.send(renderShareHtml(req.query.token, caseName, authorName, description));
+});
+
+app.use(express.static(path.join(__dirname, 'reviewer_site'))); // Serve static files
 
 // ── API Rate Limiting ──────────────────────────────────────────────────────────
 // 글로벌: 15분당 300회 (정상 사용 기준 넉넉히)
