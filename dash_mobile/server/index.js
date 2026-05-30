@@ -6,6 +6,18 @@ const mysql = require('mysql2/promise');
 const cron = require('node-cron');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
+
+// HTML 특수문자 이스케이프 (XSS 방지 — 공유 페이지 렌더링 시 사용)
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -76,8 +88,8 @@ app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);                         // 모바일 앱 / Origin 없음
     if (origin.startsWith('chrome-extension://')) {
-      const extId = origin.replace('chrome-extension://', '');
-      if (ALLOWED_EXTENSION_IDS.includes(extId)) return callback(null, true);
+      const extId = origin.replace('chrome-extension://', '').toLowerCase();
+      if (ALLOWED_EXTENSION_IDS.map(id => id.toLowerCase()).includes(extId)) return callback(null, true);
       return callback(new Error('CORS: 허용되지 않은 확장프로그램입니다.'));
     }
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true); // 리뷰어 사이트 (same-server)
@@ -160,7 +172,9 @@ async function verifyFirebaseAuth(req, res, next) {
   if (!isFirebaseJwt) {
     // Google OAuth 토큰 검증 (Chrome 확장프로그램용)
     try {
-      const googleRes = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${rawToken}`);
+      const googleRes = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${rawToken}`, {
+        signal: AbortSignal.timeout(5000), // 5초 타임아웃
+      });
       if (googleRes.ok) {
         const info = await googleRes.json();
         if (info.email) {
@@ -282,33 +296,6 @@ async function ensureUserExists(uid, email, name) {
   return uid;
 }
 
-// reviewer_user_id 컬럼이 없으면 자동 추가 (마이그레이션)
-// MySQL 8.0은 IF NOT EXISTS 미지원 → ER_DUP_FIELDNAME(중복)만 무시
-// record_edit_history 테이블 생성 (수정 히스토리)
-pool.query(`
-  CREATE TABLE IF NOT EXISTS record_edit_history (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    share_token VARCHAR(255) NOT NULL,
-    editor_user_id VARCHAR(255),
-    editor_name VARCHAR(100),
-    action ENUM('reviewed','saved','synced') DEFAULT 'saved',
-    service_description_before TEXT,
-    agent_opinion_before TEXT,
-    service_description_snapshot TEXT,
-    agent_opinion_snapshot TEXT,
-    encrypted_blob_snapshot TEXT,
-    created_at DATETIME DEFAULT NOW(),
-    INDEX idx_reh_token (share_token),
-    INDEX idx_reh_created (created_at)
-  )
-`).catch(err => console.error('[migration] record_edit_history 테이블 생성 실패:', err.message));
-
-// record_edit_history _before 컬럼 마이그레이션 (기존 테이블에 추가)
-pool.query(`ALTER TABLE record_edit_history ADD COLUMN service_description_before TEXT AFTER action`)
-  .catch(() => {}); // 이미 존재하면 무시
-pool.query(`ALTER TABLE record_edit_history ADD COLUMN agent_opinion_before TEXT AFTER service_description_before`)
-  .catch(() => {});
-
 // share_viewers 테이블 생성 (공유 링크 접근자 이력)
 pool.query(`
   CREATE TABLE IF NOT EXISTS share_viewers (
@@ -373,6 +360,15 @@ pool.query("ALTER TABLE share_viewers ADD COLUMN dismissed_at DATETIME DEFAULT N
 pool.query("ALTER TABLE service_drafts ADD COLUMN is_shared_db TINYINT(1) DEFAULT 0")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] is_shared_db 추가 실패:', err.message); });
 
+// Phase 5-A: 공유 키 서버 보관 (링크에서 key 제거, 인증 후 전달)
+pool.query("ALTER TABLE service_drafts ADD COLUMN share_key VARCHAR(500) DEFAULT NULL")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] share_key 추가 실패:', err.message); });
+// Phase 5-B: 선착순 1명 클레임
+pool.query("ALTER TABLE service_drafts ADD COLUMN claimed_by VARCHAR(36) DEFAULT NULL")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] claimed_by 추가 실패:', err.message); });
+pool.query("ALTER TABLE service_drafts ADD COLUMN claimed_at DATETIME DEFAULT NULL")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] claimed_at 추가 실패:', err.message); });
+
 // Phase 4: 유저 활동 추적 컬럼 추가 (KPI 대시보드용)
 pool.query("ALTER TABLE dash_users ADD COLUMN last_login_at DATETIME DEFAULT NULL")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] last_login_at 추가 실패:', err.message); });
@@ -393,9 +389,13 @@ async function buildSharePage(token) {
   let caseName = 'DASH 공유 DB';
   let authorName = '상담원';
   let description = '모바일로 작성된 DB를 확인하세요.';
+  let serviceType = '';
+  let provisionType = '';
+  let found = false;
   try {
     const [rows] = await queryWithTimeout(
-      `SELECT c.case_name, u.name AS author_name
+      `SELECT c.case_name, u.name AS author_name,
+              sd.service_type, sd.provision_type, sd.claimed_by
        FROM service_drafts sd
        JOIN cases c ON sd.case_id = c.id
        JOIN dash_users u ON c.user_id = u.id
@@ -404,12 +404,48 @@ async function buildSharePage(token) {
     if (rows.length > 0) {
       caseName = rows[0].case_name || caseName;
       authorName = rows[0].author_name || authorName;
+      serviceType = rows[0].service_type || '';
+      provisionType = rows[0].provision_type || '';
       description = `${authorName} 상담원이 보냈어요.`;
+      found = true;
     }
   } catch (e) {
     console.error('[share] OG meta query error:', e.message);
   }
-  return { caseName, authorName, description };
+  return { caseName, authorName, description, serviceType, provisionType, found };
+}
+
+// 만료/잘못된 토큰에 대한 안내 페이지
+function renderExpiredHtml() {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>링크가 만료됐어요 | DASH</title>
+  <meta property="og:title" content="DASH — 링크가 만료됐어요" />
+  <meta property="og:description" content="이 공유 링크는 더 이상 유효하지 않아요." />
+  <meta property="og:image" content="https://dash.qpon/public/og_image.png" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { background: #fff; border-radius: 24px; padding: 40px 32px; max-width: 400px; width: 90%; box-shadow: 0 8px 40px rgba(0,0,0,0.08); text-align: center; }
+    .logo { font-size: 32px; font-weight: 900; color: #1a56db; letter-spacing: -1px; margin-bottom: 8px; }
+    .title { font-size: 20px; font-weight: 800; color: #191f28; margin-bottom: 8px; }
+    .desc { font-size: 14px; color: #6b7684; margin-bottom: 32px; line-height: 1.6; }
+    .cta { display: block; width: 100%; background: #1a56db; color: #fff; border: none; border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .cta:hover { background: #1548c0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">DASH</div>
+    <div class="title">링크가 만료됐어요</div>
+    <div class="desc">이 공유 링크는 더 이상 유효하지 않거나<br>삭제된 DB예요.</div>
+    <a class="cta" href="https://dash.qpon">DASH 홈으로 가기</a>
+  </div>
+</body>
+</html>`;
 }
 
 app.get('/', async (req, res) => {
@@ -418,8 +454,11 @@ app.get('/', async (req, res) => {
     return res.sendFile(path.join(__dirname, 'reviewer_site', 'index.html'));
   }
   // ?token= 있으면 OG 태그 포함 HTML 직접 반환 (redirect X — 메신저 크롤러가 redirect 미추적)
-  const { caseName, authorName, description } = await buildSharePage(token);
-  return res.send(renderShareHtml(token, caseName, authorName, description));
+  const { caseName, authorName, description, serviceType, provisionType, found } = await buildSharePage(token);
+  if (!found) {
+    return res.status(404).send(renderExpiredHtml());
+  }
+  return res.send(renderShareHtml(token, caseName, authorName, description, serviceType, provisionType));
 });
 
 app.get('/admin', (req, res) => {
@@ -427,21 +466,29 @@ app.get('/admin', (req, res) => {
 });
 
 // ── 딥링크: /share/:token ──────────────────────────────────────────────────
-// 메신저에서 https://dash.qpon/share/{token}#key={key} 링크를 클릭하면:
+// 메신저에서 https://dash.qpon/share/{token} 링크를 클릭하면:
 //   - 앱 설치됨 → App Links / Universal Links로 앱에서 바로 열림 (이 라우트 미도달)
 //   - 앱 미설치 → 이 라우트에 도달하여 읽기전용 프리뷰 + 앱 설치 유도 페이지 반환
 // 공유 페이지 HTML 렌더러
-function renderShareHtml(token, caseName, authorName, description) {
+function renderShareHtml(token, caseName, authorName, description, serviceType, provisionType) {
+  const safeToken = escapeHtml(token);
+  const safeCaseName = escapeHtml(caseName);
+  const safeAuthorName = escapeHtml(authorName);
+  const safeDescription = escapeHtml(description);
+  const safeServiceType = escapeHtml(serviceType || '');
+  const safeProvisionType = escapeHtml(provisionType || '');
+  const metaBadges = [safeProvisionType, safeServiceType].filter(Boolean)
+    .map(v => `<span class="badge">${v}</span>`).join('');
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${caseName} | DASH</title>
-  <meta property="og:title" content="${caseName}" />
-  <meta property="og:description" content="${description}" />
+  <title>${safeCaseName} | DASH</title>
+  <meta property="og:title" content="${safeCaseName}" />
+  <meta property="og:description" content="${safeDescription}" />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://dash.qpon/share/${token}" />
+  <meta property="og:url" content="https://dash.qpon/share/${safeToken}" />
   <meta property="og:image" content="https://dash.qpon/public/og_image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -449,10 +496,14 @@ function renderShareHtml(token, caseName, authorName, description) {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Pretendard', -apple-system, sans-serif; background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
     .card { background: #fff; border-radius: 24px; padding: 40px 32px; max-width: 400px; width: 90%; box-shadow: 0 8px 40px rgba(0,0,0,0.08); text-align: center; }
-    .logo { font-size: 32px; font-weight: 900; color: #1a56db; letter-spacing: -1px; margin-bottom: 8px; }
-    .subtitle { font-size: 13px; color: #8b95a1; margin-bottom: 32px; }
-    .case-name { font-size: 20px; font-weight: 800; color: #191f28; margin-bottom: 4px; }
-    .author { font-size: 14px; color: #6b7684; margin-bottom: 32px; }
+    .logo { font-size: 28px; font-weight: 900; color: #1a56db; letter-spacing: -1px; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: #adb5bd; margin-bottom: 28px; }
+    .meta-badges { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .badge { font-size: 12px; font-weight: 600; color: #1a56db; background: #eef2ff; border-radius: 6px; padding: 3px 10px; }
+    .case-name { font-size: 22px; font-weight: 800; color: #191f28; margin-bottom: 6px; }
+    .author { font-size: 14px; color: #6b7684; margin-bottom: 8px; }
+    .locked { font-size: 13px; color: #adb5bd; margin-bottom: 28px; }
+    .lock-icon { font-size: 16px; margin-right: 4px; }
     .cta { display: block; width: 100%; background: #1a56db; color: #fff; border: none; border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; text-decoration: none; margin-bottom: 12px; }
     .cta:hover { background: #1548c0; }
     .secondary { display: block; width: 100%; background: #f1f3f5; color: #4e5968; border: none; border-radius: 14px; padding: 14px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
@@ -463,60 +514,64 @@ function renderShareHtml(token, caseName, authorName, description) {
 <body>
   <div class="card">
     <div class="logo">DASH</div>
-    <div class="subtitle">모바일로 DB를 쓴다</div>
-    <div class="case-name">${caseName}</div>
-    <div class="author">${authorName} 상담원 작성</div>
+    ${metaBadges ? `<div class="meta-badges">${metaBadges}</div>` : ''}
+    <div class="case-name">${safeCaseName}</div>
+    <div class="author">${safeAuthorName} 상담원 작성</div>
+    <div class="locked"><span class="lock-icon">🔒</span>앱에서 전체 내용을 확인할 수 있어요</div>
     <a class="cta" id="open-app" href="#">앱에서 열기</a>
     <a class="secondary" id="install-app" href="#" style="display:none;">DASH 앱 설치하기</a>
-    <p class="note">DASH 앱이 설치되어 있으면 자동으로 열립니다.<br>설치되어 있지 않다면 스토어에서 다운로드해 주세요.</p>
+    <p class="note">앱을 설치하고 로그인하면<br>내 DB로 바로 저장할 수 있어요.</p>
   </div>
   <script>
-    const token = '${token}';
-    const fullUrl = location.href; // #key= fragment 포함
+    const token = '${safeToken}';
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isAndroid = /Android/i.test(navigator.userAgent);
-    const deepLink = 'https://dash.qpon/share/' + token + location.hash;
+    const deepLink = 'https://dash.qpon/share/' + token;
     const playStore = 'https://play.google.com/store/apps/details?id=com.dash.mobile.yunsoo';
     const appStore = 'https://apps.apple.com/app/dash/id0000000000'; // TODO: 실제 App Store ID로 교체
-    
+
     const openBtn = document.getElementById('open-app');
     const installBtn = document.getElementById('install-app');
-    
+
     openBtn.addEventListener('click', function(e) {
       e.preventDefault();
       if (isAndroid) {
-        // Intent URL: 앱 없으면 Play Store로
-        const intent = 'intent://dash.qpon/share/' + token + location.hash + '#Intent;scheme=https;package=com.dash.mobile.yunsoo;end';
+        const intent = 'intent://dash.qpon/share/' + token + '#Intent;scheme=https;package=com.dash.mobile.yunsoo;end';
         window.location = intent;
       } else if (isIOS) {
-        // Universal Link 시도 → 실패 시 App Store
         window.location = deepLink;
         setTimeout(function() { window.location = appStore; }, 1500);
       } else {
-        // PC: 기존 웹 리뷰어로 리다이렉트
-        window.location = '/?token=' + token + location.hash;
+        window.location = '/view?token=' + token;
       }
     });
-    
-    // 자동 시도: 페이지 로드 시 앱 열기 시도
+
     if (isAndroid || isIOS) {
       setTimeout(function() {
         installBtn.style.display = 'block';
         installBtn.href = isAndroid ? playStore : appStore;
       }, 2000);
     } else {
-      // PC 접근: 기존 웹 리뷰어로 바로 이동
-      window.location = '/?token=' + token + location.hash;
+      window.location = '/view?token=' + token;
     }
   </script>
 </body>
 </html>`;
 }
 
+// PC 브라우저용 reviewer web 진입점 — OG 카드 JS에서 /view?token=으로 리다이렉트됨
+// /?token= 루프 방지: GET /는 크롤러용 OG 카드만 반환, PC 사용자는 이 라우트로 유도
+app.get('/view', (req, res) => {
+  res.sendFile(path.join(__dirname, 'reviewer_site', 'index.html'));
+});
+
 app.get('/share/:token', async (req, res) => {
   const { token } = req.params;
-  const { caseName, authorName, description } = await buildSharePage(token);
-  res.send(renderShareHtml(token, caseName, authorName, description));
+  const { caseName, authorName, description, serviceType, provisionType, found } = await buildSharePage(token);
+  if (!found) {
+    return res.status(404).send(renderExpiredHtml());
+  }
+  res.send(renderShareHtml(token, caseName, authorName, description, serviceType, provisionType));
 });
 
 // 기존 /share?token=... 쿼리 형태 호환 (레거시)
@@ -1011,7 +1066,7 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
     case_id, case_name, dong, user_id, user_email, user_name, target, provision_type, method, service_type, service_category, service_name,
     location, start_time, end_time, service_count, travel_time,
     service_description, agent_opinion, encrypted_blob, encryption_key, share_token: client_share_token,
-    is_shared_db
+    is_shared_db, share_key
   } = req.body;
   
   // 입력 길이 검증
@@ -1103,12 +1158,12 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
     }
 
     if (!recordId) {
-      share_token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+      share_token = crypto.randomBytes(16).toString('hex');
       const [result] = await queryWithTimeout(
         `INSERT INTO service_drafts
-        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status, is_shared_db)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced', ?)`,
-        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token, is_shared_db ? 1 : 0]
+        (case_id, provision_type, method, service_type, service_category, service_name, location, start_time, end_time, service_count, travel_time, service_description, agent_opinion, encrypted_blob, target, share_token, status, is_shared_db, share_key)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Synced', ?, ?)`,
+        [case_id, provision_type, method, service_type, service_category || '', service_name, location, start_time, end_time, service_count, travel_time, service_description || '', agent_opinion || '', encrypted_blob, target || '', share_token, is_shared_db ? 1 : 0, share_key || null]
       );
       recordId = result.insertId;
       console.log(`✅ Record synced successfully (DB ID: ${recordId})`);
@@ -1136,18 +1191,26 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
-// [Mobile] 2-1. 동기화된 상담 기록 단건 삭제
+// [Mobile] 2-1. 동기화된 상담 기록 단건 삭제 (소유자 검증 포함)
 app.delete('/api/records/token/:token', verifyFirebaseAuth, async (req, res) => {
   const { token } = req.params;
+  const uid = req.firebaseUser?.uid;
   const { user_email } = req.body || {};
-  console.log(`\n🗑️ [DELETE RECORD] Token: ${token} (User: ${user_email||'unknown'})`);
+  console.log(`\n🗑️ [DELETE RECORD] Token: ${token} (UID: ${uid||'unknown'})`);
   try {
-    const [result] = await queryWithTimeout('DELETE FROM service_drafts WHERE share_token = ?', [token]);
+    // JOIN으로 소유자 검증: 본인 케이스에 속한 레코드만 삭제 가능
+    const [result] = await queryWithTimeout(
+      `DELETE sd FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       WHERE sd.share_token = ? AND c.user_id = ?`,
+      [token, uid]
+    );
     if (result.affectedRows > 0) {
       console.log(`✅ Deleted record (Token: ${token})`);
       res.json({ message: 'Record deleted' });
       broadcastEvent('record_deleted', { token, user_email });
     } else {
+      // 레코드가 없거나 소유자 불일치 — 둘 다 동일 응답 (정보 노출 방지)
       res.json({ message: 'Record deleted or already non-existent' });
     }
   } catch (err) {
@@ -1264,135 +1327,6 @@ app.put('/api/notifications/:id/read', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
-app.post('/api/records/reviewed/:token', verifyFirebaseAuth, async (req, res) => {
-  const { token } = req.params;
-  const { service_description, agent_opinion } = req.body;
-  const { uid, email } = req.firebaseUser;
-  // 세션 체크는 폴백으로만 사용 (서버 재시작 후에도 Firebase 인증으로 통과 가능)
-  const session = authAttempts.get(token);
-  if (!session?.verified) {
-    // Firebase 인증된 Dash 사용자면 허용
-    const [userCheck] = await queryWithTimeout(
-      'SELECT id FROM dash_users WHERE id = ? OR email = ?', [uid, email]
-    );
-    if (userCheck.length === 0) return res.status(403).json({ error: '인증이 필요합니다.' });
-  }
-  try {
-    const [infoResult] = await queryWithTimeout(
-      `SELECT s.case_id, c.case_name, c.user_id, u.email,
-              CASE WHEN r.name IS NOT NULL AND r.name != '' AND r.name != r.email THEN r.name ELSE '동행상담원' END AS reviewer_name
-       FROM service_drafts s
-       JOIN cases c ON s.case_id = c.id
-       JOIN dash_users u ON c.user_id = u.id
-       LEFT JOIN dash_users r ON s.reviewer_user_id = r.id
-       WHERE s.share_token = ?`, [token]
-    );
-
-    if (infoResult.length === 0) {
-      return res.status(404).json({ error: 'Record not found' });
-    }
-
-    const { case_name, user_id, email: user_email, reviewer_name } = infoResult[0];
-
-    const { encrypted_blob } = req.body;
-
-    // ✅ UPDATE 전에 현재(이전) 값 읽기 — 히스토리 before 컬럼용
-    const [beforeRows] = await queryWithTimeout(
-      'SELECT service_description, agent_opinion FROM service_drafts WHERE share_token = ? LIMIT 1',
-      [token]
-    );
-    const descBefore = beforeRows[0]?.service_description || '';
-    const opinionBefore = beforeRows[0]?.agent_opinion || '';
-
-    // encrypted_blob이 없으면 NULL로 덮어써서 확장프로그램이 stale blob 대신 plaintext를 사용하게 함
-    const updateQuery = `UPDATE service_drafts SET status = 'Reviewed', encrypted_blob = ?, service_description = ?, agent_opinion = ?, updated_at = NOW() WHERE share_token = ?`;
-    const queryParams = [encrypted_blob || null, service_description || '', agent_opinion || '', token];
-
-    const [result] = await queryWithTimeout(updateQuery, queryParams);
-
-    if (result.affectedRows > 0) {
-      // 📝 Create Notification for the counselor
-      const message = `${reviewer_name} 상담원님이 DB를 저장했어요.`;
-      // 📝 Mark previous unread notifications for the same record as read (Requirement: Replace with latest for same DB)
-      await queryWithTimeout(
-        'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND record_token = ? AND is_read = 0',
-        [user_id, token]
-      );
-
-      await queryWithTimeout(
-        'INSERT INTO notifications (user_id, case_name, record_token, message, is_read) VALUES (?, ?, ?, ?, 0)',
-        [user_id, case_name, token, message]
-      );
-
-      // ✅ 수정 히스토리 기록 (UPDATE 전에 읽은 before 값 사용)
-      queryWithTimeout(
-        `INSERT INTO record_edit_history
-           (share_token, editor_user_id, editor_name, action,
-            service_description_before, agent_opinion_before,
-            service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
-         SELECT share_token, reviewer_user_id, ?, 'reviewed',
-                ?, ?,
-                ?, ?, ?
-         FROM service_drafts WHERE share_token = ? LIMIT 1`,
-        [reviewer_name,
-         descBefore, opinionBefore,
-         service_description || '', agent_opinion || '', encrypted_blob || null,
-         token]
-      ).catch(err => console.error('[history] 기록 실패:', err.message));
-
-      console.log(`✅ Record reviewed & Notified (Token: ${token})`);
-      res.json({ message: 'Reviewed' });
-      
-      // Notify extension and mobile app (SSE) — owner + reviewer 모두에게 전송
-      broadcastEvent('new_record', { user_email, reason: 'reviewed', record_token: token });
-      if (email && email !== user_email) {
-        broadcastEvent('new_record', { user_email: email, reason: 'reviewed', record_token: token });
-      }
-
-      // 📧 Send Push Notification (FCM)
-      if (fcmInitialized) {
-        try {
-          // Get user's FCM token
-          const [userRows] = await queryWithTimeout('SELECT fcm_token FROM dash_users WHERE id = ?', [user_id]);
-          console.log(`📱 FCM lookup for user_id=${user_id}, found=${userRows.length}, has_token=${!!(userRows[0]?.fcm_token)}`);
-          if (userRows.length > 0 && userRows[0].fcm_token) {
-            const fcmToken = userRows[0].fcm_token;
-            const message = {
-              notification: {
-                title: `${reviewer_name} 상담원님이 DB를 저장했어요.`,
-              },
-              data: {
-                type: 'review_completed',
-                target_user_id: String(user_id),
-                record_token: token
-              },
-              android: {
-                priority: 'high',
-                notification: { channelId: 'high_importance_channel' },
-              },
-              apns: {
-                payload: { aps: { 'content-available': 1 } },
-                headers: { 'apns-priority': '10' }
-              },
-              token: fcmToken
-            };
-
-            await admin.messaging().send(message);
-            console.log(`🚀 Push Notification Sent to ${user_email}`);
-          }
-        } catch (pushErr) {
-          console.error('❌ Push Notification Error:', pushErr.message);
-        }
-      }
-    } else {
-      res.status(404).json({ error: 'Not found' });
-    }
-  } catch (err) {
-    console.error('❌ Review Error:', err.message);
-    res.status(500).json({ error: safeError(err) });
-  }
-});
-
 // [Mobile App] 공유 DB 메타정보 조회 (딥링크 수신 후 프리뷰 화면용, 인증 필요)
 app.get('/api/shared-records/:token', verifyFirebaseAuth, async (req, res) => {
   const { token } = req.params;
@@ -1403,7 +1337,9 @@ app.get('/api/shared-records/:token', verifyFirebaseAuth, async (req, res) => {
               sd.start_time, sd.end_time, sd.service_count, sd.travel_time,
               sd.service_description, sd.agent_opinion, sd.encrypted_blob,
               sd.is_shared_db, sd.created_at, sd.updated_at,
+              sd.share_expires_at, sd.claimed_by,
               c.case_name, c.dong, c.target_system_code,
+              c.user_id AS owner_user_id,
               u.name AS author_name, u.email AS author_email
        FROM service_drafts sd
        JOIN cases c ON sd.case_id = c.id
@@ -1411,9 +1347,98 @@ app.get('/api/shared-records/:token', verifyFirebaseAuth, async (req, res) => {
        WHERE sd.share_token = ? LIMIT 1`, [token]
     );
     if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 공유 링크입니다.' });
-    res.json(rows[0]);
+
+    const row = rows[0];
+    // 명시적 만료 시각 또는 생성 후 72시간 기본 만료
+    const expiresAt = row.share_expires_at
+      ? new Date(row.share_expires_at)
+      : new Date(new Date(row.created_at).getTime() + 72 * 60 * 60 * 1000);
+    if (new Date() > expiresAt) {
+      return res.status(410).json({ error: '만료된 공유 링크입니다.' });
+    }
+
+    res.json(row);
   } catch (err) {
     console.error('❌ [shared-records] fetch error:', err.message);
+    res.status(500).json({ error: safeError(err) });
+  }
+});
+
+// [Extension] 공유자가 암호화 키를 서버에 업로드 (링크 복사 시점)
+app.post('/api/shared-records/:token/key', verifyFirebaseAuth, async (req, res) => {
+  const { token } = req.params;
+  const { uid } = req.firebaseUser;
+  const { share_key } = req.body;
+  if (!share_key) return res.status(400).json({ error: 'share_key 필요' });
+
+  try {
+    // 공유자 본인인지 확인
+    const [rows] = await queryWithTimeout(
+      `SELECT sd.id, c.user_id AS owner_uid
+       FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       WHERE sd.share_token = ? LIMIT 1`, [token]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 공유 링크입니다.' });
+    if (rows[0].owner_uid !== uid) return res.status(403).json({ error: '권한 없음' });
+
+    await queryWithTimeout(
+      `UPDATE service_drafts SET share_key = ?, claimed_by = NULL, claimed_at = NULL WHERE share_token = ?`,
+      [share_key, token]
+    );
+    res.json({ message: 'ok' });
+  } catch (err) {
+    console.error('❌ [shared-records/key POST] error:', err.message);
+    res.status(500).json({ error: safeError(err) });
+  }
+});
+
+// [Mobile] 공유 링크 암호화 키 수령 (선착순 1명, 인증 필수)
+app.get('/api/shared-records/:token/key', verifyFirebaseAuth, async (req, res) => {
+  const { token } = req.params;
+  const { uid } = req.firebaseUser;
+  try {
+    const [rows] = await queryWithTimeout(
+      `SELECT sd.share_key, sd.claimed_by, sd.created_at, sd.share_expires_at, c.user_id AS owner_uid
+       FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       WHERE sd.share_token = ? LIMIT 1`, [token]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 공유 링크입니다.' });
+
+    const row = rows[0];
+
+    // 72시간 만료 체크
+    const expiresAt = row.share_expires_at
+      ? new Date(row.share_expires_at)
+      : new Date(new Date(row.created_at).getTime() + 72 * 60 * 60 * 1000);
+    if (new Date() > expiresAt) {
+      return res.status(410).json({ error: '만료된 공유 링크입니다.' });
+    }
+
+    // 공유자 본인은 키 수령 불필요
+    if (row.owner_uid === uid) {
+      return res.status(400).json({ error: 'own_record' });
+    }
+
+    // 이미 다른 사람이 클레임한 경우
+    if (row.claimed_by && row.claimed_by !== uid) {
+      return res.status(409).json({ error: '이미 다른 사람이 저장한 DB예요.' });
+    }
+
+    if (!row.share_key) {
+      return res.status(404).json({ error: 'key_not_found' });
+    }
+
+    // 클레임 등록 + 키 삭제 (1회용)
+    await queryWithTimeout(
+      `UPDATE service_drafts SET claimed_by = ?, claimed_at = NOW(), share_key = NULL WHERE share_token = ?`,
+      [uid, token]
+    );
+
+    res.json({ key: row.share_key });
+  } catch (err) {
+    console.error('❌ [shared-records/key] error:', err.message);
     res.status(500).json({ error: safeError(err) });
   }
 });
@@ -1540,18 +1565,6 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
     );
     console.log(`[SAVE-TO-MY-DB] step5-1 ok: share_viewers dismissed for requester`);
 
-    // 5-2. 수정 히스토리 기록
-    queryWithTimeout(
-      `INSERT INTO record_edit_history
-         (share_token, editor_user_id, editor_name, action,
-          service_description_before, agent_opinion_before,
-          service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
-       VALUES (?, ?, ?, 'synced', ?, ?, ?, ?, ?)`,
-      [token, requesterUid, requesterName,
-       orig.service_description || '', orig.agent_opinion || '',
-       finalDesc || '', finalOpinion || '', finalBlob || null]
-    ).catch(err => console.error('[history] save-to-my-db 기록 실패:', err.message));
-
     // 6. 원본 소유자에게 FCM Push
     if (fcmInitialized) {
       try {
@@ -1585,182 +1598,6 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
   }
 });
 
-// [Web] 공유 링크 세션 저장소
-const authAttempts = new Map(); // token -> { verified, verifiedAt, uid?, count?, lockedUntil? }
-
-// [Web] 2-4. 리뷰어 구글 로그인 (Firebase ID 토큰 검증 후 세션 승인)
-app.post('/api/records/reviewer-login/:token', verifyFirebaseAuth, async (req, res) => {
-  const { token } = req.params;
-  const { uid, email } = req.firebaseUser;
-
-  try {
-    const [rows] = await queryWithTimeout(
-      'SELECT id FROM service_drafts WHERE share_token = ?', [token]
-    );
-    if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
-
-    // 모바일 앱 가입 회원인지 확인 (UID 직접 조회 → 이메일 폴백)
-    let [userRows] = await queryWithTimeout(
-      `SELECT id, name, email FROM dash_users WHERE id = ?`,
-      [uid]
-    );
-    if (userRows.length === 0 && email) {
-      [userRows] = await queryWithTimeout(
-        `SELECT id, name, email FROM dash_users WHERE email = ?`,
-        [email]
-      );
-    }
-    if (userRows.length === 0) {
-      return res.status(403).json({ error: 'not_registered' });
-    }
-
-    // 레코드 작성자 UID 조회 (본인 여부 확인용)
-    const [ownerRows] = await queryWithTimeout(
-      `SELECT c.user_id AS owner_uid
-       FROM service_drafts sd
-       JOIN cases c ON sd.case_id = c.id
-       WHERE sd.share_token = ?`,
-      [token]
-    );
-    const isOwner = ownerRows.length > 0 && ownerRows[0].owner_uid === uid;
-
-    if (!isOwner) {
-      const reviewerDbId = userRows[0].id;
-
-      // 공유 인원 제한: 최대 2명 (이미 등록된 사람은 통과)
-      const [viewerCount] = await queryWithTimeout(
-        `SELECT COUNT(*) AS cnt FROM share_viewers WHERE share_token = ? AND user_id != ?`,
-        [token, reviewerDbId]
-      );
-      if (viewerCount[0].cnt >= 2) {
-        return res.status(403).json({ error: 'viewer_limit_reached' });
-      }
-
-      // 이름 인증 대기 상태 저장 (share_viewers 등록은 verify-name에서 수행)
-      const viewerName = userRows[0].name || userRows[0].email || email || '알 수 없음';
-      authAttempts.set(`${token}:${uid}`, { pendingName: true, reviewerDbId, viewerName });
-      console.log(`🔒 [REVIEWER LOGIN] uid=${uid} → token=${token} 이름 인증 대기`);
-      return res.json({ ok: true, isOwner: false, needsNameVerification: true });
-    }
-
-    // 오너: 바로 인증 완료
-    authAttempts.set(token, { verified: true, verifiedAt: Date.now(), uid });
-    console.log(`✅ [REVIEWER LOGIN] uid=${uid} → token=${token} isOwner=true`);
-    return res.json({ ok: true, isOwner: true });
-  } catch (err) {
-    console.error('Reviewer login error:', err);
-    res.status(500).json({ error: safeError(err) });
-  }
-});
-
-// [Web] 공유자 이름 인증 (Google 로그인 후 2단계)
-app.post('/api/records/verify-name/:token', verifyFirebaseAuth, async (req, res) => {
-  const { token } = req.params;
-  const { uid } = req.firebaseUser;
-  const { owner_name: submittedName } = req.body;
-
-  const pending = authAttempts.get(`${token}:${uid}`);
-  if (!pending?.pendingName) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  try {
-    const [ownerRows] = await queryWithTimeout(
-      `SELECT u.name AS owner_name
-       FROM service_drafts sd
-       JOIN cases c ON sd.case_id = c.id
-       JOIN dash_users u ON c.user_id = u.id
-       WHERE sd.share_token = ?`,
-      [token]
-    );
-    if (!ownerRows.length) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
-
-    const normalize = s => (s || '').trim().replace(/\s+/g, '');
-    if (!submittedName || normalize(submittedName) !== normalize(ownerRows[0].owner_name)) {
-      console.log(`❌ [VERIFY NAME] uid=${uid} token=${token} 이름 불일치`);
-      return res.status(403).json({ error: 'name_mismatch' });
-    }
-
-    // 인원 재확인 후 share_viewers 등록
-    const { reviewerDbId, viewerName } = pending;
-    const [viewerCount] = await queryWithTimeout(
-      `SELECT COUNT(*) AS cnt FROM share_viewers WHERE share_token = ? AND user_id != ?`,
-      [token, reviewerDbId]
-    );
-    if (viewerCount[0].cnt >= 2) {
-      authAttempts.delete(`${token}:${uid}`);
-      return res.status(403).json({ error: 'viewer_limit_reached' });
-    }
-
-    await queryWithTimeout(
-      `INSERT INTO share_viewers (share_token, user_id, name) VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE name = ?`,
-      [token, reviewerDbId, viewerName, viewerName]
-    );
-    await queryWithTimeout(
-      'UPDATE service_drafts SET reviewer_user_id = ? WHERE share_token = ?',
-      [reviewerDbId, token]
-    );
-
-    authAttempts.delete(`${token}:${uid}`);
-    authAttempts.set(token, { verified: true, verifiedAt: Date.now(), uid });
-    console.log(`✅ [VERIFY NAME] uid=${uid} → token=${token} 인증 완료`);
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error('verify-name error:', err);
-    res.status(500).json({ error: safeError(err) });
-  }
-});
-
-// [Web] 2-5. 공유 링크 접근 전 상담원 이름 인증 (5회 실패 시 10분 잠금) — 레거시 유지 // token -> { count, lockedUntil }
-
-app.post('/api/records/auth/:token', async (req, res) => {
-  const { token } = req.params;
-  const { name } = req.body;
-
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: '이름을 입력해주세요.' });
-  }
-
-  const attempts = authAttempts.get(token) || { count: 0, lockedUntil: null };
-  if (attempts.lockedUntil && Date.now() < attempts.lockedUntil) {
-    const remainingMin = Math.ceil((attempts.lockedUntil - Date.now()) / 60000);
-    return res.status(429).json({ error: `시도 횟수를 초과했습니다. ${remainingMin}분 후 다시 시도해주세요.`, locked: true });
-  }
-
-  try {
-    const [rows] = await queryWithTimeout(
-      `SELECT u.name as user_name FROM service_drafts s
-       JOIN cases c ON s.case_id = c.id
-       LEFT JOIN dash_users u ON c.user_id = u.id
-       WHERE s.share_token = ?`,
-      [token]
-    );
-
-    if (rows.length === 0) return res.status(404).json({ error: '존재하지 않는 링크입니다.' });
-
-    const authorName = (rows[0].user_name || '').trim();
-    const inputName = name.trim();
-
-    if (inputName === authorName) {
-      authAttempts.set(token, { verified: true, verifiedAt: Date.now() });
-      return res.json({ verified: true });
-    }
-
-    attempts.count = (attempts.count || 0) + 1;
-    if (attempts.count >= 5) {
-      attempts.lockedUntil = Date.now() + 10 * 60 * 1000;
-      attempts.count = 0;
-      authAttempts.set(token, attempts);
-      return res.status(429).json({ error: '시도 횟수를 초과했습니다. 10분 후 다시 시도해주세요.', locked: true });
-    }
-    authAttempts.set(token, attempts);
-    return res.status(401).json({ error: '이름이 일치하지 않습니다.', remaining: 5 - attempts.count });
-  } catch (err) {
-    res.status(500).json({ error: safeError(err) });
-  }
-});
-
 // [Web] 3. 공유 토큰으로 모든 데이터 불러오기 (인증 불필요 — 토큰이 곧 접근 권한)
 app.get('/api/records/share/:token', async (req, res) => {
   const { token } = req.params;
@@ -1768,7 +1605,11 @@ app.get('/api/records/share/:token', async (req, res) => {
 
   try {
     const [rows] = await queryWithTimeout(
-      `SELECT r.*, c.case_name, c.dong, c.target_system_code, u.name as user_name
+      `SELECT r.share_token, r.provision_type, r.method, r.service_type,
+              r.service_category, r.service_name, r.location,
+              r.start_time, r.end_time, r.service_count, r.travel_time,
+              r.target, r.is_shared_db, r.created_at, r.updated_at,
+              c.case_name, c.dong, c.target_system_code, u.name as user_name
        FROM service_drafts r
        JOIN cases c ON r.case_id = c.id
        LEFT JOIN dash_users u ON c.user_id = u.id
@@ -1780,8 +1621,11 @@ app.get('/api/records/share/:token', async (req, res) => {
       console.log('⚠️  Data not found for token');
       return res.status(404).json({ error: 'Data not found' });
     }
-    // Phase 3-A: 공유 링크 만료 검증
-    if (rows[0].share_expires_at && new Date() > new Date(rows[0].share_expires_at)) {
+    // 명시적 만료 시각 또는 생성 후 72시간 기본 만료
+    const expiresAt = rows[0].share_expires_at
+      ? new Date(rows[0].share_expires_at)
+      : new Date(new Date(rows[0].created_at).getTime() + 72 * 60 * 60 * 1000);
+    if (new Date() > expiresAt) {
       console.log(`⛔ [SHARE] Expired link accessed: ${token}`);
       return res.status(410).json({ error: '만료된 공유 링크입니다.' });
     }
@@ -1799,155 +1643,13 @@ app.get('/api/records/share/:token', async (req, res) => {
   }
 });
 
-// [Web] 3.1. 공유 토큰으로 중간 저장 (Auto-save)
-app.put('/api/records/share/:token', async (req, res) => {
-  const { token } = req.params;
-  const { service_description, agent_opinion, encrypted_blob } = req.body;
-  console.log(`\n💾 [WEB AUTO-SAVE] Token: ${token}`);
-
-  // 세션 인증 확인 (reviewer-login 또는 name-auth 완료 필요)
-  const session = authAttempts.get(token);
-  const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
-  if (!isVerified) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  try {
-    // encrypted_blob이 없으면 NULL로 덮어써서 확장프로그램이 stale blob 대신 plaintext를 사용하게 함
-    const query = 'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, encrypted_blob = ?, updated_at = NOW() WHERE share_token = ?';
-    const params = [service_description || '', agent_opinion || '', encrypted_blob || null, token];
-
-    const [result] = await queryWithTimeout(query, params);
-    if (result.affectedRows > 0) {
-      // 수정 히스토리 기록 (저장 전 상태 함께 저장)
-      const session = authAttempts.get(token);
-      if (session?.uid) {
-        queryWithTimeout(
-          `INSERT INTO record_edit_history
-             (share_token, editor_user_id, editor_name, action,
-              service_description_before, agent_opinion_before,
-              service_description_snapshot, agent_opinion_snapshot, encrypted_blob_snapshot)
-           SELECT ?, ?, COALESCE(NULLIF(u.name,''), u.email), 'saved',
-                  sd.service_description, sd.agent_opinion,
-                  ?, ?, ?
-           FROM dash_users u, service_drafts sd
-           WHERE u.id = ? AND sd.share_token = ?`,
-          [token, session.uid, service_description || '', agent_opinion || '', encrypted_blob || null, session.uid, token]
-        ).catch(err => console.error('[history] 저장 기록 실패:', err.message));
-      }
-      // ⚠️ 옵션 2: 리뷰어의 중간 저장은 로컬 임시 저장 개념.
-      // 원 생성자에게 SSE 알림을 보내지 않음 — 버튼 클릭(/reviewed) 시에만 반영됨.
-      res.json({ message: 'Saved' });
-    } else {
-      res.status(404).json({ error: 'Not found' });
-    }
-  } catch (err) {
-    res.status(500).json({ error: safeError(err) });
-  }
-});
-
-// [Web] 3.1-B. 공유 참여자 목록 조회 (세션 인증 우선, Firebase 폴백)
-app.get('/api/records/share/:token/participants', async (req, res) => {
-  const { token } = req.params;
-
-  // 세션 인증 확인 (기존 방식)
-  const session = authAttempts.get(token);
-  const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
-
-  if (!isVerified) {
-    // Firebase 인증 폴백
-    const authHeader = req.headers.authorization || '';
-    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!bearerToken) return res.status(401).json({ error: 'Unauthorized' });
-    try {
-      const decoded = await admin.auth().verifyIdToken(bearerToken);
-      const { uid, email } = decoded;
-      const [access] = await queryWithTimeout(
-        `SELECT 1 FROM service_drafts sd JOIN cases c ON sd.case_id = c.id
-         WHERE sd.share_token = ?
-           AND (c.user_id = ? OR c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
-                OR EXISTS (SELECT 1 FROM share_viewers sv WHERE sv.share_token = sd.share_token AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)))
-         LIMIT 1`,
-        [token, uid, email, email]
-      );
-      if (!access.length) return res.status(403).json({ error: 'Forbidden' });
-    } catch (e) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-  }
-
-  try {
-    const [rows] = await queryWithTimeout(
-      `SELECT u.name AS owner_name
-       FROM service_drafts sd
-       JOIN cases c ON sd.case_id = c.id
-       LEFT JOIN dash_users u ON c.user_id = u.id
-       WHERE sd.share_token = ? LIMIT 1`,
-      [token]
-    );
-    const [viewers] = await queryWithTimeout(
-      `SELECT name FROM share_viewers WHERE share_token = ? ORDER BY first_accessed_at ASC`,
-      [token]
-    );
-    console.log(`📋 [PARTICIPANTS] token=${token} viewers=${JSON.stringify(viewers.map(v=>v.name))}`);
-    res.json({ owner_name: rows[0]?.owner_name || '', viewers: viewers.map(v => v.name) });
-  } catch (err) {
-    res.status(500).json({ error: safeError(err) });
-  }
-});
-
-// [Web/Mobile] 3.2. 수정 히스토리 조회
-app.get('/api/records/history/:token', async (req, res) => {
-  const { token } = req.params;
-  const session = authAttempts.get(token);
-  const isVerified = session?.verified === true && (Date.now() - session.verifiedAt) < 4 * 60 * 60 * 1000;
-
-  if (!isVerified) {
-    // 세션 만료 시 Firebase 토큰으로 폴백 — 토큰 소유자가 owner 또는 share_viewer인지 확인
-    const authHeader = req.headers.authorization || '';
-    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!bearerToken) return res.status(401).json({ error: 'Unauthorized' });
-    try {
-      const decoded = await admin.auth().verifyIdToken(bearerToken);
-      const { uid, email } = decoded;
-      const [access] = await queryWithTimeout(
-        `SELECT 1 FROM service_drafts sd
-         JOIN cases c ON sd.case_id = c.id
-         WHERE sd.share_token = ?
-           AND (c.user_id = ? OR c.user_id IN (SELECT id FROM dash_users WHERE email = ?)
-                OR EXISTS (SELECT 1 FROM share_viewers sv WHERE sv.share_token = sd.share_token AND sv.user_id IN (SELECT id FROM dash_users WHERE email = ?)))
-         LIMIT 1`,
-        [token, uid, email, email]
-      );
-      if (!access.length) return res.status(403).json({ error: 'Forbidden' });
-    } catch (e) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-  }
-
-  try {
-    const [rows] = await queryWithTimeout(
-      `SELECT id, editor_name, action,
-              service_description_before, agent_opinion_before,
-              service_description_snapshot, agent_opinion_snapshot,
-              encrypted_blob_snapshot, created_at
-       FROM record_edit_history
-       WHERE share_token = ?
-       ORDER BY created_at DESC`,
-      [token]
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: safeError(err) });
-  }
-});
-
 // [Web] 4. 검토 완료 및 데이터 수정 사항 반영
-app.put('/api/records/:id/review', async (req, res) => {
+app.put('/api/records/:id/review', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   const updateData = req.body;
-  console.log(`\n✨ [REVIEW COMPLETED] Record ID: ${id}`);
-  
+  const requesterUid = req.user.uid;
+  console.log(`\n✨ [REVIEW COMPLETED] Record ID: ${id} by uid:${requesterUid}`);
+
   const ALLOWED_UPDATE_FIELDS = [
     'service_description', 'agent_opinion', 'provision_type', 'method',
     'service_type', 'service_category', 'service_name', 'location',
@@ -1956,6 +1658,20 @@ app.put('/api/records/:id/review', async (req, res) => {
   ];
   const isInjected = updateData.status === 'Injected';
   try {
+    // 접근 권한 확인: 레코드 소유자 또는 share_viewers에 포함된 사용자만 허용
+    const [accessCheck] = await queryWithTimeout(
+      `SELECT sd.id FROM service_drafts sd
+       JOIN cases c ON sd.case_id = c.id
+       JOIN dash_users u ON c.user_id = u.id
+       WHERE sd.id = ? AND (
+         u.firebase_uid = ?
+         OR JSON_CONTAINS(sd.share_viewers, JSON_QUOTE(?), '$')
+       ) LIMIT 1`,
+      [id, requesterUid, requesterUid]
+    );
+    if (!accessCheck || accessCheck.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     const safeKeys = Object.keys(updateData).filter(k => ALLOWED_UPDATE_FIELDS.includes(k));
     const extraClause = safeKeys.map(k => `${k} = ?`).join(', ');
     const values = safeKeys.map(k => updateData[k]);
