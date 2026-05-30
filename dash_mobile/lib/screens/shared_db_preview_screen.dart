@@ -17,14 +17,17 @@ import 'package:dash_mobile/widgets/dash_button.dart';
 String formatProvisionDate(String startStr, String endStr) {
   const days = ['월', '화', '수', '목', '금', '토', '일'];
   try {
-    if (startStr.isEmpty) return endStr.isNotEmpty ? formatSharedDbDate(endStr) : '';
+    if (startStr.isEmpty)
+      return endStr.isNotEmpty ? formatSharedDbDate(endStr) : '';
     final start = DateTime.parse(startStr);
     final startFmt =
         '${start.month}.${start.day} (${days[start.weekday - 1]}) ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
     if (endStr.isEmpty) return startFmt;
     final end = DateTime.parse(endStr);
     final isSameDay =
-        start.year == end.year && start.month == end.month && start.day == end.day;
+        start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day;
     final endTimeFmt =
         '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
     if (isSameDay) return '$startFmt ~ $endTimeFmt';
@@ -137,19 +140,28 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
       // E2EE 복호화 시도
       final blob = data['encrypted_blob']?.toString();
       final keyStr = _encryptionKey;
-      if (blob != null && keyStr != null && keyStr.isNotEmpty && blob.contains(':')) {
+      if (blob != null &&
+          keyStr != null &&
+          keyStr.isNotEmpty &&
+          blob.contains(':')) {
         try {
           final parts = blob.split(':');
           final iv = encrypt.IV.fromBase64(parts[0]);
           final encrypted = encrypt.Encrypted.fromBase64(parts[1]);
-          final key = encrypt.Key.fromUtf8(keyStr.padRight(32).substring(0, 32));
-          final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
+          final key = encrypt.Key.fromUtf8(
+            keyStr.padRight(32).substring(0, 32),
+          );
+          final encrypter = encrypt.Encrypter(
+            encrypt.AES(key, mode: encrypt.AESMode.cbc),
+          );
           final decrypted = encrypter.decrypt(encrypted, iv: iv);
           final decryptedData = jsonDecode(decrypted) as Map<String, dynamic>;
-          desc = decryptedData['serviceDescription'] ??
+          desc =
+              decryptedData['serviceDescription'] ??
               decryptedData['service_description'] ??
               desc;
-          opinion = decryptedData['agentOpinion'] ??
+          opinion =
+              decryptedData['agentOpinion'] ??
               decryptedData['agent_opinion'] ??
               opinion;
         } catch (e) {
@@ -167,15 +179,18 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
           _provisionType = data['provision_type'] ?? '';
           _method = data['method'] ?? '';
           _serviceType = data['service_type'] ?? '';
-          _serviceCategory = data['service_category'] ?? data['serviceCategory'] ?? '';
+          _serviceCategory =
+              data['service_category'] ?? data['serviceCategory'] ?? '';
           _serviceName = data['service_name'] ?? '';
           _target = data['target'] ?? '';
           _location = data['location'] ?? '';
           _startTime = data['start_time'] ?? '';
           _endTime = data['end_time'] ?? '';
           _createdAt = data['created_at'] ?? '';
-          _serviceCount = (data['service_count'] ?? data['serviceCount'] ?? '').toString();
-          _travelTime = (data['travel_time'] ?? data['travelTime'] ?? '').toString();
+          _serviceCount = (data['service_count'] ?? data['serviceCount'] ?? '')
+              .toString();
+          _travelTime = (data['travel_time'] ?? data['travelTime'] ?? '')
+              .toString();
           _isLoading = false;
         });
       }
@@ -228,7 +243,11 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
         content: Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         backgroundColor: const Color(0xFF222222),
         behavior: SnackBarBehavior.floating,
@@ -262,12 +281,14 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
         centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : _error != null
-              ? _buildErrorState()
-              : _saveComplete
-                  ? _buildSuccessState()
-                  : _buildPreview(),
+          ? _buildErrorState()
+          : _saveComplete
+          ? _buildSuccessState()
+          : _buildPreview(),
     );
   }
 
@@ -285,18 +306,29 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
                 color: const Color(0xFFFFF0F0),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(Icons.link_off_rounded, size: 32, color: Color(0xFFE03131)),
+              child: const Icon(
+                Icons.link_off_rounded,
+                size: 32,
+                color: Color(0xFFE03131),
+              ),
             ),
             const SizedBox(height: 20),
             Text(
               _error!,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF495057)),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF495057),
+              ),
             ),
             const SizedBox(height: 24),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('돌아가기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              child: const Text(
+                '돌아가기',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
@@ -305,46 +337,65 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
   }
 
   Widget _buildSuccessState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(20),
+    return Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      size: 36,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    '$_caseName 아동 DB를\n저장했어요',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF222222),
+                      letterSpacing: -0.5,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '확장프로그램에서 확인하세요',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF8B95A1),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-              child: const Icon(Icons.check_circle_rounded, size: 36, color: AppColors.primary),
             ),
-            const SizedBox(height: 20),
-            const Text(
-              '내 DB에 저장 완료!',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF191F28)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$_caseName 사례가\n내 DB에 추가되었습니다.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF6B7684), height: 1.5),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'PC에서 확장프로그램을 열면\n바로 확인할 수 있어요.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Color(0xFF8B95A1), height: 1.5),
-            ),
-            const SizedBox(height: 32),
-            DashButton(
-              text: '홈으로 돌아가기',
-              onTap: () => Navigator.pop(context),
-            ),
-          ],
+          ),
         ),
-      ),
+        // 최하단 CTA 영역
+        Container(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            MediaQuery.of(context).padding.bottom + 16,
+          ),
+          child: DashButton(text: '확인', onTap: () => Navigator.pop(context)),
+        ),
+      ],
     );
   }
 
@@ -374,19 +425,30 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
                         children: [
                           Text(
                             _caseName,
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF191F28)),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF191F28),
+                            ),
                           ),
                           if (_dong.isNotEmpty) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF1F3F5),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 _dong,
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF6B7684), fontWeight: FontWeight.w500),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF6B7684),
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                           ],
@@ -394,14 +456,20 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
                           if (_createdAt.isNotEmpty)
                             Text(
                               _formatDate(_createdAt),
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1)),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF8B95A1),
+                              ),
                             ),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '$_authorName 상담원 작성',
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF6B7684)),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7684),
+                        ),
                       ),
                     ],
                   ),
@@ -422,18 +490,32 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
                     children: [
                       const Text(
                         '서비스 정보',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF4E5968)),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF4E5968),
+                        ),
                       ),
                       const SizedBox(height: 12),
-                      if (_provisionType.isNotEmpty) _metaRow('제공구분', _provisionType),
+                      if (_provisionType.isNotEmpty)
+                        _metaRow('제공구분', _provisionType),
                       if (_method.isNotEmpty) _metaRow('제공방법', _method),
-                      if (_serviceType.isNotEmpty) _metaRow('서비스유형', _serviceType),
+                      if (_serviceType.isNotEmpty)
+                        _metaRow('서비스유형', _serviceType),
                       if (_serviceName.isNotEmpty)
-                        _metaRow('제공서비스', _serviceCategory.isNotEmpty ? '$_serviceCategory :: $_serviceName' : _serviceName),
+                        _metaRow(
+                          '제공서비스',
+                          _serviceCategory.isNotEmpty
+                              ? '$_serviceCategory :: $_serviceName'
+                              : _serviceName,
+                        ),
                       if (_target.isNotEmpty) _metaRow('대상자', _target),
                       if (_location.isNotEmpty) _metaRow('제공장소', _location),
                       if (_startTime.isNotEmpty || _endTime.isNotEmpty)
-                        _metaRow('제공일시', _formatProvisionDate(_startTime, _endTime)),
+                        _metaRow(
+                          '제공일시',
+                          _formatProvisionDate(_startTime, _endTime),
+                        ),
                       if (_serviceCount.isNotEmpty && _serviceCount != '0')
                         _metaRow('제공횟수', '$_serviceCount회'),
                       if (_travelTime.isNotEmpty && _travelTime != '0')
@@ -458,12 +540,20 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
                       children: [
                         const Text(
                           '서비스 내용',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF4E5968)),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF4E5968),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Text(
                           _serviceDescription,
-                          style: const TextStyle(fontSize: 14, color: Color(0xFF333D4B), height: 1.7),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF333D4B),
+                            height: 1.7,
+                          ),
                         ),
                       ],
                     ),
@@ -473,32 +563,40 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
 
                 // 상담원 소견
                 Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE9ECEF)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '상담원 소견',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF4E5968)),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _agentOpinion.isNotEmpty ? _agentOpinion : '(작성된 소견 없음)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: _agentOpinion.isNotEmpty ? const Color(0xFF333D4B) : const Color(0xFFADB5BD),
-                            height: 1.7,
-                          ),
-                        ),
-                      ],
-                    ),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE9ECEF)),
                   ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '상담원 소견',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF4E5968),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _agentOpinion.isNotEmpty
+                            ? _agentOpinion
+                            : '(작성된 소견 없음)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _agentOpinion.isNotEmpty
+                              ? const Color(0xFF333D4B)
+                              : const Color(0xFFADB5BD),
+                          height: 1.7,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
                 const SizedBox(height: 100), // 하단 CTA 버튼 공간
               ],
@@ -508,7 +606,12 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
 
         // 하단 CTA
         Container(
-          padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 16),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            MediaQuery.of(context).padding.bottom + 16,
+          ),
           decoration: BoxDecoration(
             color: Colors.white,
             boxShadow: [
@@ -526,9 +629,12 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
-                : const Icon(Icons.download_rounded, size: 20, color: Colors.white),
+                : null,
           ),
         ),
       ],
@@ -545,13 +651,21 @@ class _SharedDbPreviewScreenState extends State<SharedDbPreviewScreen> {
             width: 72,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF8B95A1), fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF8B95A1),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF333D4B), fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF333D4B),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

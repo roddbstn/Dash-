@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/api_service.dart';
@@ -96,8 +97,25 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     });
   }
 
+  // ── 초기화 ─────────────────────────────────────────────────────────────────
+  // 추가된 상담원이 있거나 텍스트 입력이 있을 때만 활성
+  bool get _hasAnyData =>
+      _counselors.length > widget.counselors.length ||
+      _rows.any((r) => r.nameCtrl.text.isNotEmpty || r.dongCtrl.text.isNotEmpty);
+
+  void _resetRows() {
+    for (final r in _rows) r.dispose();
+    _rows.clear();
+    // 상담원도 원래 전달받은 목록으로 완전 복원
+    _counselors = List<Map<String, dynamic>>.from(
+      widget.counselors.map((c) => Map<String, dynamic>.from(c)),
+    );
+    _addRow(defaultCounselorId: widget.initialCounselorId);
+  }
+
   // ── 유효성 ─────────────────────────────────────────────────────────────────
   bool get _hasAnyValid => _rows.any((r) => r.isValid);
+  int get _validCount => _rows.where((r) => r.isValid).length;
 
   String _counselorName(String? id) {
     if (id == null) return '선택';
@@ -148,9 +166,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   }
 
   // ── 상담원 추가 바텀시트 ───────────────────────────────────────────────────
-  // 시트 ctx를 외부로 넘기지 않고, Navigator.pop(ctx, name)으로 결과값만 반환
   Future<void> _showAddCounselorSheet(int rowIndex) async {
-    final ctrl = TextEditingController();
     final String? newName = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -158,86 +174,14 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: StatefulBuilder(
-          builder: (sheetCtx, setSt) => Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDDE1E7),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '상담원 추가',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF111827), letterSpacing: -0.5),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  '추가할 상담원의 이름을 입력해주세요.',
-                  style: TextStyle(fontSize: 14, color: Color(0xFF8B95A1), letterSpacing: -0.2),
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: ctrl,
-                  autofocus: true,
-                  maxLength: 10,
-                  onChanged: (_) => setSt(() {}),
-                  onSubmitted: (v) {
-                    if (v.trim().isNotEmpty) Navigator.pop(sheetCtx, v.trim());
-                  },
-                  decoration: InputDecoration(
-                    hintText: '예) 이상훈',
-                    hintStyle: const TextStyle(color: Color(0xFFC4C9D0)),
-                    counterText: '',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFDDE1E7), width: 1.5),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFDDE1E7), width: 1.5),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DashButton(
-                  onTap: ctrl.text.trim().isEmpty
-                      ? null
-                      : () => Navigator.pop(sheetCtx, ctrl.text.trim()),
-                  text: '추가하기',
-                  backgroundColor: AppColors.primary,
-                  height: 52,
-                  borderRadius: 14,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      builder: (ctx) => const _AddCounselorSheet(),
     );
-    ctrl.dispose();
 
-    // 시트가 닫힌 후 안전하게 처리 (ctx 참조 없음)
     if (newName == null || newName.isEmpty || !mounted) return;
     _doAddCounselor(newName, rowIndex);
   }
 
-  void _doAddCounselor(String name, int rowIndex) {
+  Future<void> _doAddCounselor(String name, int rowIndex) async {
     final alreadyExists = _counselors.any((c) => c['name']?.toString() == name);
     if (alreadyExists) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -249,13 +193,28 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       );
       return;
     }
-    final tempId = 'new_${DateTime.now().millisecondsSinceEpoch}';
+    final newId = 'c_${DateTime.now().millisecondsSinceEpoch}';
+    final newCounselor = {
+      'id': newId,
+      'name': name,
+      'isSelf': false,
+      'sortOrder': _counselors.length,
+    };
     setState(() {
-      _counselors.add({'id': tempId, 'name': name});
-      _rows[rowIndex].counselorId = tempId;
+      _counselors.add(newCounselor);
+      _rows[rowIndex].counselorId = newId;
     });
-    // 서버 저장 (비동기, 실패해도 로컬은 유지)
-    ApiService.syncCounselor({'name': name});
+    await StorageService.saveCounselors(_counselors);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      ApiService.syncCounselor({
+        'id': newId,
+        'user_id': uid,
+        'name': name,
+        'is_self': false,
+        'sort_order': newCounselor['sortOrder'],
+      });
+    }
   }
 
   // ── 확인 (저장) ────────────────────────────────────────────────────────────
@@ -364,16 +323,44 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                    child: DashButton(
-                      onTap: _hasAnyValid ? _handleConfirm : null,
-                      text: '확인',
-                      backgroundColor: AppColors.primary,
-                      height: 56,
-                      borderRadius: 12,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildResetButton(),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DashButton(
+                            onTap: _validCount > 0 ? _handleConfirm : null,
+                            text: '$_validCount개 추가',
+                            backgroundColor: AppColors.primary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
+      ),
+    );
+  }
+
+  // ── 초기화 버튼 ────────────────────────────────────────────────────────────
+  Widget _buildResetButton() {
+    final active = _hasAnyData;
+    return GestureDetector(
+      onTap: active ? _resetRows : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 48,
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFFF1F3F5) : const Color(0xFFDBE0E5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          Icons.sync_rounded,
+          size: 22,
+          color: active ? const Color(0xFF4E5968) : const Color(0xFFB0B8C1),
+        ),
       ),
     );
   }
@@ -634,6 +621,109 @@ class _CounselorSheet extends StatelessWidget {
           ),
           SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
         ],
+      ),
+    );
+  }
+}
+
+// ── 상담원 추가 바텀시트 콘텐츠 ──────────────────────────────────────────────
+// controller를 State가 소유해 Flutter 생명주기(State.dispose)에 따라 안전하게 해제
+class _AddCounselorSheet extends StatefulWidget {
+  const _AddCounselorSheet();
+
+  @override
+  State<_AddCounselorSheet> createState() => _AddCounselorSheetState();
+}
+
+class _AddCounselorSheetState extends State<_AddCounselorSheet> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDDE1E7),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              '상담원 추가',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF111827),
+                  letterSpacing: -0.5),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              '상담원은 최대 3명까지 추가할 수 있어요',
+              style: TextStyle(fontSize: 14, color: Color(0xFF8B95A1), letterSpacing: -0.2),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              maxLength: 7,
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (v) {
+                if (v.trim().isNotEmpty) Navigator.pop(context, v.trim());
+              },
+              decoration: InputDecoration(
+                hintText: '예) 이상훈',
+                hintStyle: const TextStyle(color: Color(0xFFC4C9D0)),
+                counterText: '',
+                suffix: Text(
+                  '${_ctrl.text.length}/7',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFFADB5BD)),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFDDE1E7), width: 1.5),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFDDE1E7), width: 1.5),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      const BorderSide(color: AppColors.primary, width: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DashButton(
+              onTap: _ctrl.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.pop(context, _ctrl.text.trim()),
+              text: '추가하기',
+              backgroundColor: AppColors.primary,
+            ),
+          ],
+        ),
       ),
     );
   }

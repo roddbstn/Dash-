@@ -1,0 +1,229 @@
+{
+    "metrics": {
+        "http_req_connecting": {
+            "med": 0,
+            "max": 143.017,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 1.1762980881130511,
+            "min": 0
+        },
+        "group_duration": {
+            "avg": 367.18461668384856,
+            "min": 318.128417,
+            "med": 361.015792,
+            "max": 1358.059333,
+            "p(90)": 399.8862496,
+            "p(95)": 410.28842499999996
+        },
+        "health_duration_ms": {
+            "med": 360.341,
+            "max": 905.794,
+            "p(90)": 400.12080000000003,
+            "p(95)": 409.93,
+            "avg": 366.97448129675684,
+            "min": 320.535,
+            "thresholds": {
+                "p(95)<500": false
+            }
+        },
+        "auth_check_ms": {
+            "p(90)": 398.5444,
+            "p(95)": 408.2568,
+            "avg": 363.3042289276796,
+            "min": 317.973,
+            "med": 359.188,
+            "max": 620.062
+        },
+        "data_sent": {
+            "count": 1014045,
+            "rate": 4177.064101429313
+        },
+        "checks": {
+            "passes": 24353,
+            "fails": 5722,
+            "value": 0.809742310889443
+        },
+        "http_req_failed": {
+            "passes": 12030,
+            "fails": 6015,
+            "thresholds": {
+                "rate<0.01": true
+            },
+            "value": 0.6666666666666666
+        },
+        "http_reqs": {
+            "count": 18045,
+            "rate": 74.33114083723302
+        },
+        "http_req_sending": {
+            "max": 162.933,
+            "p(90)": 0.185,
+            "p(95)": 0.243,
+            "avg": 0.16841978387364884,
+            "min": 0.01,
+            "med": 0.074
+        },
+        "http_req_receiving": {
+            "p(90)": 0.118,
+            "p(95)": 0.205,
+            "avg": 0.22563413688001982,
+            "min": 0.008,
+            "med": 0.044,
+            "max": 125.134
+        },
+        "admin_kpi_duration_ms": {
+            "p(90)": 398.5732,
+            "p(95)": 408.4457,
+            "avg": 363.2109012468825,
+            "min": 318.066,
+            "med": 358.615,
+            "max": 666.188
+        },
+        "rate_limit_429": {
+            "count": 5722,
+            "rate": 23.570118474405504
+        },
+        "vus_max": {
+            "value": 200,
+            "min": 200,
+            "max": 200
+        },
+        "http_req_blocked": {
+            "max": 451.699,
+            "p(90)": 0.001,
+            "p(95)": 0.001,
+            "avg": 2.4675817678020198,
+            "min": 0,
+            "med": 0.001
+        },
+        "http_req_waiting": {
+            "avg": 364.1024832363523,
+            "min": 238.576,
+            "med": 359.201,
+            "max": 905.043,
+            "p(90)": 399.0956,
+            "p(95)": 408.6504
+        },
+        "http_req_duration": {
+            "avg": 364.49653715710843,
+            "min": 317.973,
+            "med": 359.435,
+            "max": 905.794,
+            "p(90)": 399.3496,
+            "p(95)": 408.9748,
+            "thresholds": {
+                "p(95)<2000": false
+            }
+        },
+        "http_req_tls_handshaking": {
+            "max": 251.888,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 1.2753551122194515,
+            "min": 0,
+            "med": 0
+        },
+        "data_received": {
+            "count": 5799216,
+            "rate": 23888.187378306186
+        },
+        "vus": {
+            "value": 3,
+            "min": 1,
+            "max": 200
+        },
+        "error_rate": {
+            "passes": 0,
+            "fails": 6015,
+            "value": 0
+        },
+        "iteration_duration": {
+            "med": 3148.230167,
+            "max": 4017.541625,
+            "p(90)": 3207.7549166,
+            "p(95)": 3249.3637750999997,
+            "avg": 3105.0632315162084,
+            "min": 2961.511917
+        },
+        "http_req_duration{expected_response:true}": {
+            "min": 320.535,
+            "med": 360.341,
+            "max": 905.794,
+            "p(90)": 400.12080000000003,
+            "p(95)": 409.93,
+            "avg": 366.97448129675684
+        },
+        "iterations": {
+            "count": 6015,
+            "rate": 24.77704694574434
+        }
+    },
+    "root_group": {
+        "groups": {
+            "Health Check": {
+                "path": "::Health Check",
+                "id": "167c726a79efe9afd2c220eb9d49c1a2",
+                "groups": {},
+                "checks": {
+                        "health: 200": {
+                            "name": "health: 200",
+                            "path": "::Health Check::health: 200",
+                            "id": "7a987739fd54a244480a251461857429",
+                            "passes": 6015,
+                            "fails": 0
+                        },
+                        "health: db connected": {
+                            "passes": 6015,
+                            "fails": 0,
+                            "name": "health: db connected",
+                            "path": "::Health Check::health: db connected",
+                            "id": "b4c321ebf9b3d1410b2038b29cf38dde"
+                        }
+                    },
+                "name": "Health Check"
+            },
+            "Admin KPI (공개)": {
+                "name": "Admin KPI (공개)",
+                "path": "::Admin KPI (공개)",
+                "id": "ec5817b617517c6101dce25d2cff2da7",
+                "groups": {},
+                "checks": {
+                        "kpi: not 500": {
+                            "passes": 6015,
+                            "fails": 0,
+                            "name": "kpi: not 500",
+                            "path": "::Admin KPI (공개)::kpi: not 500",
+                            "id": "69207c8fea38d86ba17b7786a338b9af"
+                        }
+                    }
+            },
+            "Auth 401 확인 (토큰 없이)": {
+                "path": "::Auth 401 확인 (토큰 없이)",
+                "id": "18be7577f0b4a914d0c3e57493947970",
+                "groups": {},
+                "checks": {
+                        "no-token: 401 반환": {
+                            "name": "no-token: 401 반환",
+                            "path": "::Auth 401 확인 (토큰 없이)::no-token: 401 반환",
+                            "id": "76bd631fe4a55fb069604e47775fd341",
+                            "passes": 293,
+                            "fails": 5722
+                        },
+                        "no-token: 서버 안전": {
+                            "id": "8b175de9898aa664af6ccd72d5ea9b42",
+                            "passes": 6015,
+                            "fails": 0,
+                            "name": "no-token: 서버 안전",
+                            "path": "::Auth 401 확인 (토큰 없이)::no-token: 서버 안전"
+                        }
+                    },
+                "name": "Auth 401 확인 (토큰 없이)"
+            }
+        },
+        "checks": {},
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+}

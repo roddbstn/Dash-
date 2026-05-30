@@ -16,6 +16,12 @@ class DeepLinkService {
   static GlobalKey<NavigatorState>? _navigatorKey;
   static bool _initialized = false;
 
+  /// 이미 네비게이션된 토큰 집합
+  /// 핫리로드 시 _initialized가 리셋되어 getInitialLink()가 재실행되더라도
+  /// 동일 토큰으로 중복 push되는 것을 방지합니다.
+  /// 화면이 닫히면(pop 또는 저장 완료) 토큰을 제거해 새 공유 링크는 정상 동작합니다.
+  static final Set<String> _handledTokens = {};
+
   /// 앱 시작 시 호출 — cold start + warm start 딥링크 모두 처리
   /// MyApp.build()에서 호출되더라도 실제 초기화(리스너 등록)는 1회만 실행됩니다.
   static void init(GlobalKey<NavigatorState> navigatorKey) {
@@ -77,6 +83,12 @@ class DeepLinkService {
 
   /// 프리뷰 화면으로 네비게이션
   static void _navigateToPreview(String token, {String? fallbackKey}) {
+    // 이미 처리된 토큰이면 무시 (핫리로드 등으로 인한 중복 push 방지)
+    if (_handledTokens.contains(token)) {
+      debugPrint('🔗 [DeepLink] Token already handled, skipping: $token');
+      return;
+    }
+
     final navigator = _navigatorKey?.currentState;
     if (navigator == null) {
       debugPrint('🔗 [DeepLink] Navigator not available yet, retrying...');
@@ -95,6 +107,9 @@ class DeepLinkService {
       return;
     }
 
+    // 토큰을 처리됨으로 등록
+    _handledTokens.add(token);
+
     navigator.push(
       MaterialPageRoute(
         builder: (_) => SharedDbPreviewScreen(
@@ -103,7 +118,12 @@ class DeepLinkService {
           onSaved: onDbSaved,
         ),
       ),
-    );
+    ).then((_) {
+      // 화면이 닫히면(뒤로가기 또는 저장 완료) 토큰을 소거
+      // → 이후 같은 링크를 다시 클릭하면 정상 동작
+      _handledTokens.remove(token);
+      debugPrint('🔗 [DeepLink] Token consumed: $token');
+    });
   }
 
   // 로그인 완료 후 대기 중인 딥링크 처리용

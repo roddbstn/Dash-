@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
-import 'package:dash_mobile/consent_screen.dart';
-import 'package:dash_mobile/home_screen.dart';
-import 'package:dash_mobile/nickname_screen.dart';
-import 'package:dash_mobile/storage_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -74,36 +69,8 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // StreamBuilder 재빌드에만 의존하지 않고 명시적 화면 전환
-      if (mounted) {
-        final p = await SharedPreferences.getInstance();
-        final currentUid = FirebaseAuth.instance.currentUser?.uid;
-        final perUserConsent = currentUid != null
-            ? (p.getBool('consent_done_$currentUid') ?? false)
-            : false;
-        final legacyConsent = (p.getBool('consent_v1_completed') ?? false) &&
-            currentUid != null &&
-            currentUid == p.getString('consent_user_uid');
-        final consentValid = perUserConsent || legacyConsent;
-        if (consentValid) {
-          final nickname = await StorageService.getUserNickname();
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (_) => (nickname == null || nickname.isEmpty)
-                    ? const NicknameScreen()
-                    : const HomeScreen(),
-              ),
-              (route) => false,
-            );
-          }
-        } else {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ConsentScreen()),
-            (route) => false,
-          );
-        }
-      }
+      // 로그인 성공 후 라우팅은 main.dart의 StreamBuilder → _PostLoginRouter에 위임
+      // (서버 fetchUser 폴백 포함한 완전한 라우팅 로직이 거기에 있음)
     } catch (e) {
       AnalyticsService.loginFailure(e.toString());
       if (mounted) {

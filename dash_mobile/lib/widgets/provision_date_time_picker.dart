@@ -181,8 +181,6 @@ class _ProvisionDateTimePickerState extends State<ProvisionDateTimePicker> {
                         onTap: _onApply,
                         text: '확인',
                         backgroundColor: AppColors.primary,
-                        height: 52,
-                        borderRadius: 16,
                       ),
                       const SizedBox(height: 16),
                     ],

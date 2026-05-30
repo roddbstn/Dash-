@@ -1,136 +1,7 @@
 // ==============================================
-// sidepanel.js — Dash Extension Main Logic
-// Magazine Fill 전략: Draft → Magazine → Inject
+// sidepanel.js — Main UI, State, and App Logic
+// Auth: auth.js | PIN/Crypto: pin.js | Config: core/config.js
 // ==============================================
-
-// ===== 설정 =====
-const API_BASE = 'https://dash.qpon/api';
-const FIREBASE_API_KEY = 'AIzaSyDd8anDd8ASoz9zr6oZ_DUwPQMiELVSxjE'; // From mobile google-services.json
-
-// Google OAuth — launchWebAuthFlow (Chrome / Edge 공통 동작)
-// Firebase 프로젝트(dash-7cdea)의 Web client ID (client_type: 3, google-services.json 기준)
-const GOOGLE_CLIENT_ID = '803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com';
-const OAUTH_REDIRECT_URI = `https://${chrome.runtime.id}.chromiumapp.org`;
-
-async function getGoogleAccessToken(interactive) {
-    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
-    authUrl.searchParams.set('redirect_uri', OAUTH_REDIRECT_URI);
-    authUrl.searchParams.set('response_type', 'token');
-    authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile');
-    if (!interactive) authUrl.searchParams.set('prompt', 'none');
-
-    return new Promise((resolve, reject) => {
-        chrome.identity.launchWebAuthFlow(
-            { url: authUrl.toString(), interactive },
-            (callbackUrl) => {
-                if (chrome.runtime.lastError || !callbackUrl) {
-                    reject(new Error(chrome.runtime.lastError?.message || '로그인 취소'));
-                    return;
-                }
-                const hash = new URL(callbackUrl).hash.slice(1);
-                const params = new URLSearchParams(hash);
-                const token = params.get('access_token');
-                if (token) resolve(token);
-                else reject(new Error('액세스 토큰을 받지 못했습니다.'));
-            }
-        );
-    });
-}
-
-// chrome.identity.getAuthToken — 팝업 없이 로그인 (Chrome 전용, Edge도 지원)
-async function getGoogleTokenViaAuthToken() {
-    return new Promise((resolve, reject) => {
-        chrome.identity.getAuthToken({ interactive: true }, (token) => {
-            if (chrome.runtime.lastError || !token) {
-                reject(new Error(chrome.runtime.lastError?.message || 'getAuthToken 실패'));
-            } else {
-                resolve(token);
-            }
-        });
-    });
-}
-
-// 구글 액세스 토큰을 Firebase ID Token으로 교환 (백엔드 verifyIdToken 대응)
-async function getFirebaseIdToken(googleAccessToken) {
-    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_API_KEY}`;
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            postBody: `access_token=${googleAccessToken}&providerId=google.com`,
-            requestUri: 'http://localhost',
-            returnIdpCredential: true,
-            returnSecureToken: true
-        })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || 'Firebase Auth failed');
-    return data.idToken;
-}
-
-// 팝업 없이 조용히 토큰 갱신 (SSE 재연결, 세션 복원 시 사용)
-// launchWebAuthFlow(prompt=none)으로 Firebase Web client 기준 토큰 갱신
-async function getFreshTokenSilent() {
-    const googleToken = await getGoogleAccessToken(false); // interactive: false
-    return await getFirebaseIdToken(googleToken);
-}
-async function handleGoogleLogin(googleToken) {
-    // 1. 구글 유저 정보 가져오기 (이메일, 사진 등)
-    const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
-        headers: { Authorization: `Bearer ${googleToken}` }
-    });
-    const userInfo = await response.json();
-
-    // 2. 구글 액세스 토큰을 Firebase ID Token으로 교환
-    const idToken = await getFirebaseIdToken(googleToken);
-    currentOAuthToken = idToken; // 이제부터 모든 API 요청에 Firebase ID Token 사용
-
-    // 3. Firebase ID Token(JWT)에서 실제 Firebase UID 추출
-    // userInfo.id는 Google 계정 숫자 ID이며, Firebase UID와 다름
-    // Firebase UID는 JWT payload의 sub(=user_id) 클레임에 포함됨
-    const firebaseUid = parseJwtPayload(idToken).sub;
-
-    currentUser = {
-        uid: firebaseUid,
-        email: userInfo.email,
-        name: userInfo.name || userInfo.email, // 임시: Google 이름 (아래에서 Dash 닉네임으로 교체됨)
-        photo: userInfo.picture
-    };
-
-    // 4. 서버 dash_users에서 Dash 닉네임 가져오기 (Google 계정 이름 대신)
-    try {
-        const idTokenForProfile = currentOAuthToken;
-        const profileRes = await fetch(`${API_BASE}/users/${firebaseUid}`, {
-            headers: { 'Authorization': `Bearer ${idTokenForProfile}` }
-        });
-        if (profileRes.ok) {
-            const profile = await profileRes.json();
-            if (profile.name) currentUser.name = profile.name;
-        }
-    } catch (e) {
-        // 닉네임 조회 실패 시 Google 이름 유지
-    }
-
-    chrome.storage.local.set({ dashUser: currentUser });
-    chrome.storage.session.set({ cachedOAuthToken: idToken });
-
-    await checkPinAndProceed();
-}
-
-// Firebase ID Token(JWT) payload 디코딩 유틸
-// JWT는 header.payload.signature 형식이며, payload는 base64url 인코딩
-function parseJwtPayload(token) {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-        atob(base64).split('').map(c =>
-            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-        ).join('')
-    );
-    return JSON.parse(jsonPayload);
-}
-
 
 // ===== 상태 관리 =====
 let currentUser = null;   // { uid, email }
@@ -155,9 +26,9 @@ const btnLogout = document.getElementById('btn-logout');
 const btnRefresh = document.getElementById('btn-refresh');
 
 // 탭 클릭 이벤트 (MV3 CSP: inline onclick 대신 addEventListener 사용)
-document.getElementById('tab-pending').addEventListener('click', () => switchMainTab('pending'));
-document.getElementById('tab-shared').addEventListener('click', () => switchMainTab('shared'));
-document.getElementById('tab-history').addEventListener('click', () => switchMainTab('history'));
+document.getElementById('tab-pending')?.addEventListener('click', () => switchMainTab('pending'));
+document.getElementById('tab-shared')?.addEventListener('click', () => switchMainTab('shared'));
+document.getElementById('tab-history')?.addEventListener('click', () => switchMainTab('history'));
 const btnInject = document.getElementById('btn-inject');
 const btnBackToList = document.getElementById('btn-back-to-list');
 const userEmailEl = document.getElementById('user-email');
@@ -167,23 +38,6 @@ const statusBar = document.getElementById('status-bar');
 const recordsContainer = document.getElementById('records-container');
 const emptyState = document.getElementById('empty-state');
 const actionBar = document.getElementById('action-bar');
-
-// ===== PIN 관련 DOM =====
-const pinDots = document.getElementById('pin-dots');
-const pinKeypad = document.getElementById('pin-keypad');
-const pinError = document.getElementById('pin-error');
-const btnForgotPin = document.getElementById('btn-forgot-pin');
-const pinHelpModal = document.getElementById('pin-help-modal');
-const btnClosePinHelp = document.getElementById('btn-close-pin-help');
-
-// ===== PIN 상태 =====
-let pinInput = '';           // 현재 입력 중인 PIN
-let pinLocked = false;       // PIN 검증 중 잠금
-let vaultKeys = {};          // { share_token: encryptionKey } — 메모리에만 보관, 영구 저장 안 함
-let pinAuthenticated = false; // PIN 인증 성공 여부 (vault가 빈 {}이어도 인증된 상태 추적)
-let lastVaultRefreshTime = 0; // refreshVaultKeys 마지막 호출 시각 (rate limit 보호)
-let pinFailCount = 0;        // PIN 연속 실패 횟수
-let pinLockUntil = 0;        // 잠금 해제 시각 (Date.now() 기준)
 
 // ==============================================
 // 1. 인증 (간소화된 구글 로그인)
@@ -236,7 +90,7 @@ profilePicEl.addEventListener('click', () => {
 
 // 푸터 로그아웃 버튼
 const btnFooterLogout = document.getElementById('btn-footer-logout');
-btnFooterLogout.addEventListener('click', () => {
+btnFooterLogout?.addEventListener('click', () => {
     if (!confirm('로그아웃하시겠어요?')) return;
     performLogout();
 });
@@ -286,9 +140,16 @@ function showAccountDeletedError() {
 }
 
 // API 응답 상태에 따른 공통 에러 처리
+// 401: 토큰 만료(세션 문제) / 403: 서버가 해당 계정을 거부(계정 삭제·미가입)
 function handleApiStatus(status) {
-    if (status === 401 || status === 403) {
+    if (status === 403) {
         showAccountDeletedError();
+        return true; // 처리됨
+    }
+    if (status === 401) {
+        // 토큰 만료 → 재로그인 유도 (계정 삭제 메시지 표시하지 않음)
+        performLogout();
+        showLoginError('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
         return true; // 처리됨
     }
     return false;
@@ -356,425 +217,6 @@ function switchMainTab(tab) {
     if (tab === 'history') fetchHistory();
     if (tab === 'shared') renderSharedByMe();
 }
-
-// ==============================================
-// 2.5. PIN 인증 로직
-// ==============================================
-
-// PIN 입력 후 서버 Vault와 검증하는 핵심 함수
-async function checkPinAndProceed() {
-    // 1. 세션 스토리지에 캐시된 vaultKeys 확인 (브라우저 닫기 전까지 재입력 불필요)
-    //    PIN 자체는 저장하지 않음 — 복호화된 키만 세션에 보관
-    const session = await new Promise(resolve => {
-        chrome.storage.session.get(['cachedVaultKeys', 'cachedDerivedKey'], result => resolve(result));
-    });
-    // cachedDerivedKey도 있어야 vault 갱신 가능 → 없으면 PIN 재입력으로 캐시
-    if (session.cachedVaultKeys && session.cachedDerivedKey && Object.keys(session.cachedVaultKeys).length > 0) {
-        vaultKeys = session.cachedVaultKeys;
-        pinAuthenticated = true;
-        showMainView();
-        fetchRecords();
-        fetchHistory();
-        setupRealtimeSync();
-        return;
-    }
-
-    // 2. 서버에 Vault가 존재하는지 확인
-    const hasVault = await checkVaultExists();
-    if (!hasVault) {
-        // Vault 없음 = 모바일에서 아직 PIN 미설정
-        // → 복호화할 키가 없으므로 인증 완료 처리 (배너 미표시)
-        pinAuthenticated = true;
-        showMainView();
-        fetchRecords();
-        fetchHistory();
-        setupRealtimeSync();
-        return;
-    }
-
-    // 3. PIN 입력 화면 표시
-    showPinView();
-}
-
-// 서버에 Vault가 존재하고 실제 암호화 데이터가 있는지 확인
-async function checkVaultExists() {
-    if (!currentUser?.uid) return false;
-    try {
-        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
-        if (res.status === 401 || res.status === 403) {
-            showAccountDeletedError();
-            return false;
-        }
-        if (!res.ok) return false;
-        const data = await res.json();
-        return !!(data.encrypted_vault); // 빈 문자열이나 null이면 false → PIN 화면 생략
-    } catch (e) {
-        console.error('Vault check failed:', e);
-        return false;
-    }
-}
-
-// PIN으로 Vault 복호화 시도 — 성공 시 { share_token: encryptionKey } 맵 반환, 실패 시 null
-async function verifyPinWithVault(pin) {
-    if (!currentUser?.uid) return null;
-    try {
-        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
-        if (!res.ok) return null;
-
-        const { encrypted_vault, salt } = await res.json();
-        console.log('[DEBUG] vault fetch OK, encrypted_vault len:', encrypted_vault?.length, 'salt len:', salt?.length);
-        if (!encrypted_vault) return null;
-
-        // PIN 성공 시 derived key를 세션에 캐시 → vault 재복호화에 재사용
-        if (salt && salt.length > 10) {
-            try {
-                const keyBytes = await deriveVaultKey(pin, salt);
-                const keyB64 = btoa(String.fromCharCode(...keyBytes));
-                chrome.storage.session.set({ cachedDerivedKey: keyB64 });
-            } catch (_) {}
-        }
-
-        const result = await attemptDecryptVault(pin, encrypted_vault, salt);
-        return result;
-    } catch (e) {
-        console.error('PIN verification failed:', e);
-        return null;
-    }
-}
-
-// 공유 링크 클릭 시 key 반환
-// vaultKeys 캐시에 있으면 바로 반환, 없을 때만 서버 vault 재fetch (rate limit 보호)
-async function getShareKeyForToken(token) {
-    // 1. 캐시에 이미 있으면 바로 반환
-    if (vaultKeys[token]) {
-        console.log('[getShareKey] 캐시 히트:', token.slice(0, 8));
-        return vaultKeys[token];
-    }
-
-    // 2. 캐시 미스 → 서버 vault 실시간 fetch
-    const session = await new Promise(resolve => {
-        chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
-    });
-    if (!session.cachedDerivedKey || !currentUser?.uid) {
-        console.warn('[getShareKey] cachedDerivedKey 없음 → PIN 재인증 필요');
-        return 'PIN_REQUIRED';
-    }
-
-    try {
-        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
-        if (!res.ok) {
-            console.warn('[getShareKey] vault fetch 실패:', res.status);
-            return '';
-        }
-        const { encrypted_vault } = await res.json();
-        if (!encrypted_vault) {
-            console.warn('[getShareKey] vault가 비어있음');
-            return '';
-        }
-
-        const parts = encrypted_vault.split(':');
-        if (parts.length !== 2) return '';
-        const iv = base64ToArrayBuffer(parts[0]);
-        const ciphertext = base64ToArrayBuffer(parts[1]);
-        const keyBytes = Uint8Array.from(atob(session.cachedDerivedKey), c => c.charCodeAt(0));
-        const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
-        const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, ciphertext);
-        const freshVault = JSON.parse(new TextDecoder().decode(buf));
-
-        vaultKeys = { ...vaultKeys, ...freshVault };
-        lastVaultRefreshTime = Date.now();
-        chrome.storage.session.set({ cachedVaultKeys: vaultKeys });
-        const found = !!freshVault[token];
-        console.log('[getShareKey] vault 재fetch 완료, key 있음:', found,
-            '| vault 키 수:', Object.keys(freshVault).length,
-            '| 찾는 token:', token.slice(0, 8));
-        if (freshVault[token]) return freshVault[token];
-
-        // vault에 없을 때: records 배열의 레거시 encryption_key 폴백
-        const fallbackRec = records.find(r => r.share_token === token);
-        if (fallbackRec?.encryption_key) {
-            console.log('[getShareKey] vault 미등록 → encryption_key 폴백 사용');
-            return fallbackRec.encryption_key;
-        }
-        return '';
-    } catch (e) {
-        console.warn('[getShareKey] vault 복호화 실패 (cachedDerivedKey 무효 가능성):', e.message);
-        // cachedDerivedKey가 무효(PIN 변경/새 salt) → 세션 초기화하여 PIN 재입력 강제
-        chrome.storage.session.remove(['cachedVaultKeys', 'cachedDerivedKey']);
-        return 'PIN_REQUIRED';
-    }
-}
-
-// Vault 갱신: fetchRecords 호출 시 새로 추가된 공유 DB 키를 반영 (5분 throttle)
-async function refreshVaultKeys() {
-    if (!pinAuthenticated || !currentUser?.uid) return;
-    const THROTTLE_MS = 5 * 60 * 1000; // 5분
-    if (Date.now() - lastVaultRefreshTime < THROTTLE_MS) return;
-    try {
-        const session = await new Promise(resolve => {
-            chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
-        });
-        if (!session.cachedDerivedKey) return;
-
-        const res = await fetch(`${API_BASE}/users/vault/${currentUser.uid}`, { headers: authHeaders() });
-        if (!res.ok) return; // 네트워크/인증 오류 — 조용히 skip
-        const { encrypted_vault } = await res.json();
-        if (!encrypted_vault) return;
-
-        const parts = encrypted_vault.split(':');
-        if (parts.length !== 2) return;
-        const iv = base64ToArrayBuffer(parts[0]);
-        const ciphertext = base64ToArrayBuffer(parts[1]);
-
-        let freshVault;
-        try {
-            const keyBytes = Uint8Array.from(atob(session.cachedDerivedKey), c => c.charCodeAt(0));
-            const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
-            const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
-            freshVault = JSON.parse(new TextDecoder().decode(buf));
-        } catch (_) {
-            // 복호화 실패 = 모바일에서 PIN 변경 또는 vault 재초기화로 salt가 바뀐 것
-            // cachedDerivedKey가 무효하므로 세션 캐시를 지우고 PIN 재입력 유도
-            console.warn('[refreshVaultKeys] 복호화 실패 — vault 키 변경 감지, PIN 재입력 필요');
-            vaultKeys = {};
-            pinAuthenticated = false;
-            chrome.storage.session.remove(['cachedVaultKeys', 'cachedDerivedKey']);
-            showPinView();
-            return;
-        }
-
-        const merged = { ...vaultKeys, ...freshVault };
-        vaultKeys = merged;
-        lastVaultRefreshTime = Date.now();
-        chrome.storage.session.set({ cachedVaultKeys: merged });
-        console.log('[refreshVaultKeys] vault 갱신 완료, 토큰 수:', Object.keys(merged).length);
-    } catch (e) {
-        console.warn('[refreshVaultKeys] 갱신 실패 (무시):', e);
-    }
-}
-
-// PKCS7 패딩 제거 유틸
-function removePkcs7(bytes) {
-    const padLen = bytes[bytes.length - 1];
-    if (padLen < 1 || padLen > 16) return bytes;
-    return bytes.slice(0, bytes.length - padLen);
-}
-
-// [Security] Phase 1-B: PBKDF2로 PIN → Vault 키 파생 (100,000 iterations, SHA-256)
-async function deriveVaultKey(pin, saltB64) {
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        new TextEncoder().encode(pin),
-        'PBKDF2',
-        false,
-        ['deriveBits']
-    );
-    const saltBytes = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
-    const bits = await crypto.subtle.deriveBits(
-        { name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: 100000 },
-        keyMaterial,
-        256
-    );
-    return new Uint8Array(bits);
-}
-
-// Vault 복호화 — PBKDF2(신규) → raw PIN pad(레거시 폴백) 순으로 시도
-// 성공 시 파싱된 Vault 객체 반환, 실패 시 null
-async function attemptDecryptVault(pin, encryptedVaultB64, salt) {
-    const parts = encryptedVaultB64.split(':');
-    if (parts.length !== 2) return null;
-
-    const iv = base64ToArrayBuffer(parts[0]);
-    const ciphertext = base64ToArrayBuffer(parts[1]);
-
-    // 1차 시도: PBKDF2 파생 키 (salt가 있는 신규 Vault)
-    if (salt && salt.length > 10) {
-        try {
-            const keyBytes = await deriveVaultKey(pin, salt);
-            const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
-            const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
-            const decryptedText = new TextDecoder().decode(buf);
-            return JSON.parse(decryptedText);
-        } catch (e) {
-        }
-        return null; // 신규 Vault는 PBKDF2만 시도 — 실패 = PIN 불일치
-    }
-
-
-    // 2차 시도: 레거시 raw PIN pad (salt 없는 구버전 Vault)
-    const keyBytes = new TextEncoder().encode(pin.padEnd(32).substring(0, 32));
-    try {
-        const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
-        const buf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ciphertext);
-        return JSON.parse(new TextDecoder().decode(buf));
-    } catch {}
-    try {
-        const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CTR' }, false, ['decrypt']);
-        const buf = await crypto.subtle.decrypt({ name: 'AES-CTR', counter: iv, length: 128 }, key, ciphertext);
-        const unpadded = removePkcs7(new Uint8Array(buf));
-        return JSON.parse(new TextDecoder().decode(unpadded));
-    } catch {}
-
-    return null;
-}
-
-// encrypted_blob 복호화 — 성공 시 draftData 객체 반환, 실패 시 null
-async function decryptBlob(encryptedBlobStr, encryptionKey) {
-    try {
-        const parts = encryptedBlobStr.split(':');
-        if (parts.length !== 2) return null;
-
-        const iv = base64ToArrayBuffer(parts[0]);        // 16 bytes
-        const ciphertext = base64ToArrayBuffer(parts[1]);
-
-        // Flutter: encrypt.Key.fromUtf8(encryptionKey.padRight(32).substring(0, 32))
-        const keyStr = encryptionKey.padEnd(32).substring(0, 32);
-        const keyBytes = new TextEncoder().encode(keyStr);
-
-        const cryptoKey = await crypto.subtle.importKey(
-            'raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']
-        );
-
-        const decryptedBuffer = await crypto.subtle.decrypt(
-            { name: 'AES-CBC', iv }, cryptoKey, ciphertext
-        );
-
-        const json = new TextDecoder().decode(decryptedBuffer);
-        return JSON.parse(json);
-    } catch (e) {
-        console.error('Blob decryption failed:', e);
-        return null;
-    }
-}
-
-// Base64 ↔ ArrayBuffer 유틸
-function base64ToArrayBuffer(base64) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes.buffer;
-}
-
-// PIN Dots UI 업데이트
-function updatePinDots() {
-    const dots = pinDots.querySelectorAll('.pin-dot');
-    dots.forEach((dot, i) => {
-        dot.classList.remove('filled', 'error', 'success');
-        if (i < pinInput.length) {
-            dot.classList.add('filled');
-        }
-    });
-}
-
-// PIN 키패드 이벤트 핸들링
-pinKeypad.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.pin-key');
-    // 잠금 시간 체크
-    if (pinLockUntil > Date.now()) {
-        const remaining = Math.ceil((pinLockUntil - Date.now()) / 1000);
-        pinError.textContent = `PIN 5회 실패. ${remaining}초 후 다시 시도해주세요.`;
-        pinError.classList.remove('hidden');
-        return;
-    }
-    if (!btn || btn.disabled || pinLocked) return;
-
-    const key = btn.dataset.key;
-
-    if (key === 'delete') {
-        if (pinInput.length > 0) {
-            pinInput = pinInput.slice(0, -1);
-            pinError.classList.add('hidden');
-            updatePinDots();
-        }
-        return;
-    }
-
-    if (pinInput.length >= 4) return;
-
-    pinInput += key;
-    updatePinDots();
-
-    // 4자리 완성 → 자동 검증
-    if (pinInput.length === 4) {
-        pinLocked = true;
-
-        const vault = await verifyPinWithVault(pinInput);
-
-        if (vault !== null) {
-            // ✅ 성공: Vault 키 메모리 저장 → 초록색 표시 → 메인 진입
-            vaultKeys = vault;
-            pinAuthenticated = true;
-
-            const dots = pinDots.querySelectorAll('.pin-dot');
-            dots.forEach(d => {
-                d.classList.remove('filled');
-                d.classList.add('success');
-            });
-
-            // 세션 스토리지에 복호화된 vaultKeys 저장 (PIN 자체는 저장하지 않음)
-            // chrome.storage.session은 브라우저 종료 시 자동 소멸 → DevTools에서 읽을 수 없음
-            chrome.storage.session.set({ cachedVaultKeys: vault });
-
-            setTimeout(() => {
-                showMainView();
-                fetchRecords();
-                fetchHistory();
-                setupRealtimeSync();
-            }, 500);
-        } else {
-            // ❌ 실패: 빨간색 + 흔들기 → 초기화
-            pinFailCount++;
-            const dots = pinDots.querySelectorAll('.pin-dot');
-            dots.forEach(d => {
-                d.classList.remove('filled');
-                d.classList.add('error');
-            });
-
-            if (pinFailCount >= 5) {
-                pinLockUntil = Date.now() + 30 * 1000;
-                pinFailCount = 0;
-                pinError.textContent = 'PIN 5회 실패. 30초 후 다시 시도해주세요.';
-                // 30초 후 에러 메시지 자동 업데이트
-                const lockInterval = setInterval(() => {
-                    const remaining = Math.ceil((pinLockUntil - Date.now()) / 1000);
-                    if (remaining <= 0) {
-                        clearInterval(lockInterval);
-                        pinError.classList.add('hidden');
-                    } else {
-                        pinError.textContent = `PIN 5회 실패. ${remaining}초 후 다시 시도해주세요.`;
-                    }
-                }, 1000);
-            } else {
-                pinError.textContent = `PIN이 맞지 않아요. (${pinFailCount}/5회)`;
-            }
-            pinError.classList.remove('hidden');
-
-            setTimeout(() => {
-                pinInput = '';
-                pinLocked = false;
-                updatePinDots();
-            }, 600);
-        }
-    }
-});
-
-// PIN 분실 도움말 모달
-btnForgotPin.addEventListener('click', () => {
-    pinHelpModal.classList.remove('hidden');
-});
-
-btnClosePinHelp.addEventListener('click', () => {
-    pinHelpModal.classList.add('hidden');
-});
-
-// 모달 외부 클릭 시 닫기
-pinHelpModal.addEventListener('click', (e) => {
-    if (e.target === pinHelpModal) {
-        pinHelpModal.classList.add('hidden');
-    }
-});
 
 // ==============================================
 // 3. 서버에서 기록 가져오기 (Magazine)
@@ -884,6 +326,10 @@ async function fetchHistory() {
         } catch (e) {
             console.warn('[History] 토큰 갱신 실패, 기존 토큰 사용:', e.message);
         }
+
+        // 이전 기록은 사용자 명시적 액션 — throttle 우회하고 vault 강제 갱신 (새 키 반영)
+        lastVaultRefreshTime = 0;
+        await refreshVaultKeys();
 
         const res = await fetch(`${API_BASE}/records/history?email=${encodeURIComponent(email)}`, { headers: authHeaders() });
         if (!res.ok) {
@@ -1026,7 +472,7 @@ function renderHistory() {
 }
 
 async function reinjectRecord(record) {
-    const tabs = await chrome.tabs.query({ url: ["*://localhost:*/*", "*://ncads.go.kr/*", "*://*.ncads.go.kr/*"] });
+    const tabs = await chrome.tabs.query({ url: ["*://ncads.go.kr/*", "*://*.ncads.go.kr/*"] });
     const potentialTabs = tabs.filter(t => !t.url.includes('AnySignPlus'));
     let targetTab = null;
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1130,11 +576,11 @@ function exitSelectionMode() {
     const toggleBtn = document.getElementById('toggle-select-mode-btn');
     const cancelBtn = document.getElementById('cancel-select-btn');
     const selectText = document.getElementById('select-mode-text');
-    
+
     if (toggleBtn) toggleBtn.classList.remove('delete-mode');
     if (selectText) selectText.textContent = '선택';
     if (cancelBtn) cancelBtn.classList.add('hidden');
-    
+
     document.querySelectorAll('.record-card').forEach(c => {
          c.classList.remove('selection-mode', 'selected-for-delete');
     });
@@ -1144,9 +590,9 @@ function setupSelectionLogic() {
     const toggleBtn = document.getElementById('toggle-select-mode-btn');
     const cancelBtn = document.getElementById('cancel-select-btn');
     const selectText = document.getElementById('select-mode-text');
-    
+
     if (!toggleBtn) return;
-    
+
     toggleBtn.addEventListener('click', async () => {
         if (!isSelectionMode) {
             // Enter selection mode
@@ -1155,7 +601,7 @@ function setupSelectionLogic() {
             toggleBtn.classList.add('delete-mode');
             selectText.textContent = '삭제';
             cancelBtn.classList.remove('hidden');
-            
+
             document.querySelectorAll('.record-card').forEach(c => {
                 c.classList.add('selection-mode');
                 c.classList.remove('selected-for-delete');
@@ -1177,7 +623,7 @@ function setupSelectionLogic() {
                         await fetch(endpoint, { method: 'DELETE', headers: authHeaders() });
                     }
                     exitSelectionMode();
-                    fetchRecords(); 
+                    fetchRecords();
                 } catch (e) {
                     console.error('Delete multiple failed:', e);
                     setStatus('error', '삭제 실패. 다시 시도해 주세요.');
@@ -1185,7 +631,7 @@ function setupSelectionLogic() {
             }
         }
     });
-    
+
     cancelBtn.addEventListener('click', () => {
         exitSelectionMode();
     });
@@ -1298,15 +744,9 @@ function renderRecords() {
                 </div>
             </div>
             <div class="record-card-footer" style="display:flex;gap:8px;margin-top:12px;padding-top:4px;">
-                ${record.share_token ? `
-                <button class="btn-share-pending" data-token="${record.share_token}" style="
-                    display:inline-flex;align-items:center;justify-content:center;gap:4px;
-                    flex:1;padding:9px 0;background:#EBF3FF;color:#1A56DB;border:none;border-radius:10px;
-                    font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
-                ">🔗 공유</button>` : ''}
                 <button class="btn-inject-card" data-id="${record.id}" style="
                     display:inline-flex;align-items:center;justify-content:center;gap:4px;
-                    flex:${record.share_token ? '2' : '1'};padding:9px 0;background:#1A56DB;color:#fff;border:none;border-radius:10px;
+                    flex:1;padding:9px 0;background:#1A56DB;color:#fff;border:none;border-radius:10px;
                     font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
                 ">⚡ DB 삽입</button>
             </div>
@@ -1325,38 +765,6 @@ function renderRecords() {
             arrow.classList.toggle('open', !isHidden);
             label.textContent = isHidden ? '상세 보기' : '접기';
         });
-
-        // 공유 버튼 (share_token 있을 때만 렌더됨)
-        const shareBtn = card.querySelector('.btn-share-pending');
-        if (shareBtn) {
-            shareBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const btn = e.currentTarget;
-                const token = btn.dataset.token;
-                const origText = btn.textContent;
-                btn.textContent = '링크 생성 중...';
-                btn.disabled = true;
-                try {
-                    const key = await getShareKeyForToken(token);
-                    if (key === 'PIN_REQUIRED') {
-                        showToastNotification('보안 PIN을 다시 입력해주세요. 확장프로그램을 새로고침 후 PIN을 입력하세요.');
-                        return;
-                    }
-                    if (!key) {
-                        showToastNotification('암호화 키를 찾지 못했어요. 모바일 앱에서 해당 DB를 다시 공유해주세요.');
-                        return;
-                    }
-                    const url = `https://dash.qpon/?token=${token}#key=${key}`;
-                    await navigator.clipboard.writeText(url);
-                    showToastNotification('공유 링크가 복사됐어요');
-                } catch (_) {
-                    showToastNotification('복사에 실패했어요. 다시 시도해주세요.');
-                } finally {
-                    btn.textContent = origText;
-                    btn.disabled = false;
-                }
-            });
-        }
 
         // 카드 내 삽입 버튼 → 바로 inject 실행
         const injectCardBtn = card.querySelector('.btn-inject-card');
@@ -1567,7 +975,17 @@ function renderSharedByMe() {
                         showToastNotification('암호화 키를 찾지 못했어요. 모바일 앱에서 해당 DB를 다시 공유해주세요.');
                         return;
                     }
-                    const url = `https://dash.qpon/?token=${token}#key=${key}`;
+                    // 키를 서버에 업로드한 뒤 URL에서 제거
+                    const uploadRes = await fetch(`${API_BASE}/shared-records/${token}/key`, {
+                        method: 'POST',
+                        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ share_key: key }),
+                    });
+                    if (!uploadRes.ok) {
+                        showToastNotification('링크 생성에 실패했어요. 다시 시도해주세요.');
+                        return;
+                    }
+                    const url = `https://dash.qpon/?token=${token}`;
                     await navigator.clipboard.writeText(url);
                     showToastNotification('공유 링크가 복사됐어요');
                 } catch (_) {
@@ -1587,7 +1005,7 @@ function updateInjectButton() {
     if (selectedRecordId) {
         btnInject.disabled = false;
         const record = records.find(r => r.id === selectedRecordId);
-        btnInject.textContent = `${record?.case_name || '기록'} 아동 사례 삽입`;
+        btnInject.textContent = 'DB 삽입';
     } else {
         btnInject.disabled = true;
         btnInject.textContent = '삽입할 DB를 선택해주세요';
@@ -1605,9 +1023,9 @@ btnInject.addEventListener('click', async () => {
     if (!record) return;
 
     // 1. 타겟 탭 찾기 (복수 가능하므로 핑을 쏴서 확인)
-    const tabs = await chrome.tabs.query({ url: ["*://localhost:*/*", "*://localhost/*", "*://ncads.go.kr/*", "*://*.ncads.go.kr/*"] });
+    const tabs = await chrome.tabs.query({ url: ["*://ncads.go.kr/*", "*://*.ncads.go.kr/*"] });
     const potentialTabs = tabs.filter(t => !t.url.includes('AnySignPlus'));
-    
+
     let targetTab = null;
 
     // 현재 활성화된 페이지가 타겟이면 우선적으로 사용
@@ -1777,9 +1195,9 @@ async function setupRealtimeSync() {
         const data = JSON.parse(e.data);
         // Refresh only if the deletion belongs to this user or is a general cleanup for this user
         if (!currentUser || (data.user_email && data.user_email !== currentUser.email)) return;
-        
+
         console.log('🔄 Record deleted at server, refreshing list...');
-        fetchRecords(); 
+        fetchRecords();
     });
 
     eventSource.onmessage = (e) => {

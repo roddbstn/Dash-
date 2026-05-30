@@ -32,7 +32,6 @@
                 <span style="display: none;">Google 계정으로 로그인</span>
               </div>
             </button>
-            <button id="btn-other-account" style="display:block;background:none;border:none;color:#8B95A1;font-size:12px;cursor:pointer;padding:0;margin:10px auto 0;text-decoration:underline;font-family:inherit;">다른 계정으로 로그인</button>
             <p class="login-hint">모바일 앱과 동일한 계정으로 로그인하세요</p>
         </div>
     </div>
@@ -67,7 +66,7 @@
                 <button class="pin-key" data-key="7">7</button>
                 <button class="pin-key" data-key="8">8</button>
                 <button class="pin-key" data-key="9">9</button>
-                <button class="pin-key pin-key-empty" disabled></button>
+                <button class="pin-key pin-key-empty" disabled aria-label="빈 키"></button>
                 <button class="pin-key" data-key="0">0</button>
                 <button class="pin-key pin-key-delete" data-key="delete">⌫</button>
             </div>
@@ -141,7 +140,7 @@
 
             <!-- 하단 삽입 버튼 (숨김 — 카드 내 버튼으로 대체) -->
             <div id="action-bar" style="display:none;">
-                <button id="btn-inject" class="btn btn-primary" disabled></button>
+                <button id="btn-inject" class="btn btn-primary" disabled aria-label="자동 입력"></button>
             </div>
         </div>
 
@@ -189,10 +188,13 @@
     <script src="core/config.js"></script>
     <script src="core/message-types.js"></script>
 
-    <!-- 엑셀 (유지) -->
-    <script src="xlsx.mini.min.js"></script>
+    <!-- Auth (Google OAuth / Firebase) -->
+    <script src="auth.js"></script>
 
-    <!-- 메인 로직 -->
+    <!-- PIN / Vault / Crypto -->
+    <script src="pin.js"></script>
+
+    <!-- Main UI logic -->
     <script src="sidepanel.js"></script>
 
 </body>

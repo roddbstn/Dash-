@@ -6,6 +6,7 @@ import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:dash_mobile/consent_screen.dart';
 import 'package:dash_mobile/home_screen.dart';
+import 'package:dash_mobile/widgets/dash_button.dart';
 
 
 class OnboardingScreen extends StatefulWidget {
@@ -32,6 +33,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _currentPage = widget.initialPage;
     _pageController = PageController(initialPage: widget.initialPage);
     AnalyticsService.screenOnboarding(_currentPage);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      precacheImage(const AssetImage('assets/icons/google_logo.png'), context);
+    });
   }
 
   Future<void> _signInWithGoogle() async {
@@ -98,10 +102,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             );
           }
         } else {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ConsentScreen()),
-            (route) => false,
-          );
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const ConsentScreen()),
+              (route) => false,
+            );
+          }
         }
       }
     } catch (e) {
@@ -205,75 +211,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : (_currentPage < _pageCount - 1
-                              ? () => _pageController.nextPage(
-                                    duration:
-                                        const Duration(milliseconds: 350),
-                                    curve: Curves.easeInOut,
-                                  )
-                              : _signInWithGoogle),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _currentPage == _pageCount - 1
-                            ? const Color(0xFFF8FAFC)
-                            : AppColors.primary,
-                        disabledBackgroundColor: _currentPage == _pageCount - 1
-                            ? const Color(0xFFF8FAFC).withValues(alpha: 0.6)
-                            : AppColors.primary.withValues(alpha: 0.6),
-                        side: _currentPage == _pageCount - 1
-                            ? const BorderSide(color: Color(0xFFDDE1E7), width: 1)
-                            : BorderSide.none,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
+                  if (_currentPage < _pageCount - 1)
+                    DashButton(
+                      text: '다음',
+                      onTap: () => _pageController.nextPage(
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeInOut,
                       ),
-                      child: _isLoading && _currentPage == _pageCount - 1
+                    )
+                  else
+                    DashButton(
+                      text: '구글 계정으로 시작하기',
+                      onTap: _isLoading ? null : _signInWithGoogle,
+                      backgroundColor: const Color(0xFFF8FAFC),
+                      textColor: const Color(0xFF222222),
+                      border: const Border.fromBorderSide(
+                        BorderSide(color: Color(0xFFDDE1E7)),
+                      ),
+                      icon: _isLoading
                           ? const SizedBox(
-                              width: 22,
-                              height: 22,
+                              width: 20,
+                              height: 20,
                               child: CircularProgressIndicator(
                                 color: AppColors.primary,
                                 strokeWidth: 2.5,
                               ),
                             )
-                          : _currentPage < _pageCount - 1
-                              ? const Text(
-                                  '다음',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                    letterSpacing: -0.3,
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Image.asset(
-                                      'assets/icons/google_logo.png',
-                                      width: 20,
-                                      height: 20,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      '구글 계정으로 시작하기',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF222222),
-                                        letterSpacing: -0.3,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                          : Image.asset(
+                              'assets/icons/google_logo.png',
+                              width: 20,
+                              height: 20,
+                            ),
                     ),
-                  ),
                   const SizedBox(height: 10),
                   const SizedBox(height: 52),
                 ],
@@ -371,9 +340,20 @@ class _SecurityFlowDiagram extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -538,7 +518,7 @@ class _FlowNode extends StatelessWidget {
                           : const Color(0xFFDC2626),
                       shape: BoxShape.circle,
                       border: Border.all(
-                          color: const Color(0xFFF8FAFC), width: 1.5),
+                          color: Colors.white, width: 1.5),
                     ),
                     child: Icon(
                       canSee ? Icons.visibility : Icons.visibility_off,
@@ -773,45 +753,473 @@ class _Page2Illustration extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackH =
-            (constraints.maxHeight * 0.88).clamp(220.0, 340.0);
+        final h = (constraints.maxHeight * 0.65).clamp(180.0, 240.0);
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth:
-                      constraints.maxWidth > 600 ? 520 : double.infinity,
+                  maxWidth: constraints.maxWidth > 600 ? 520 : double.infinity,
                 ),
-                child: SizedBox(
-                  height: stackH,
-                  child: Stack(
-                    clipBehavior: Clip.none,
+                child: SizedBox(height: h, child: const _BrowserWithDashPanel()),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BrowserWithDashPanel extends StatelessWidget {
+  const _BrowserWithDashPanel();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.09), blurRadius: 10, offset: const Offset(0, 3))],
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(9),
+        child: Column(
+          children: [
+            // 브라우저 크롬바
+            Container(
+              height: 22,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              color: const Color(0xFFF3F4F6),
+              child: Row(
+                children: [
+                  ...List.generate(3, (i) => Container(
+                    width: 6, height: 6, margin: const EdgeInsets.only(right: 3),
+                    decoration: BoxDecoration(
+                      color: [const Color(0xFFEF4444), const Color(0xFFF59E0B), const Color(0xFF10B981)][i],
+                      shape: BoxShape.circle,
+                    ),
+                  )),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Container(
+                      height: 13,
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(3), border: Border.all(color: const Color(0xFFD1D5DB))),
+                      child: const Center(child: Text('ncads.go.kr', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280)))),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+            ),
+            // 메인 콘텐츠: NCADS 폼 + Dash 사이드패널
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Container(
+                      color: const Color(0xFFEEEEEE),
+                      child: const SingleChildScrollView(
+                        physics: NeverScrollableScrollPhysics(),
+                        child: _NCAdSFormMockup(),
+                      ),
+                    ),
+                  ),
+                  Container(width: 1, color: const Color(0xFFD1D5DB)),
+                  const SizedBox(width: 112, child: _DashSidePanelMockup()),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── NCADS 폼 목업 (새 디자인) ────────────────────────────────────────
+class _NCAdSFormMockup extends StatelessWidget {
+  const _NCAdSFormMockup();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFD1D5DB)),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        padding: const EdgeInsets.all(7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 제목
+            Row(children: [
+              Container(width: 3, height: 14, decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(1.5))),
+              const SizedBox(width: 5),
+              const Text('서비스 제공 내용 (프로토타입)', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+            ]),
+            const SizedBox(height: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              color: const Color(0xFFF3F4F6),
+              child: const Text('▶ 제공정보', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+            ),
+            const SizedBox(height: 3),
+            // 제공구분 행
+            _NCAdSRow2(
+              leftLabel: '제공구분 *',
+              leftChild: Row(children: [
+                _RadioDot(on: true), const SizedBox(width: 2),
+                const Text('제공', style: TextStyle(fontSize: 6, color: Color(0xFF111827))),
+                const SizedBox(width: 5),
+                const _RadioDot(), const SizedBox(width: 2),
+                const Text('부가업무', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+                const SizedBox(width: 5),
+                const _RadioDot(), const SizedBox(width: 2),
+                const Text('거부', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+              ]),
+              rightLabel: '서비스제공방법',
+              rightChild: const _MiniDropdown2(value: '--선택--'),
+            ),
+            _NCAdSRow2(
+              leftLabel: '서비스제공유형 *',
+              leftChild: const _MiniDropdown2(value: '--선택--'),
+              rightLabel: '서비스제공기관 *',
+              rightChild: const _MiniSearchInput(value: '대전광역시아동보호전문기관'),
+            ),
+            _NCAdSRow2(
+              leftLabel: '제공서비스 *',
+              leftChild: const _MiniDropdown2(value: '-- 선택 --'),
+              rightLabel: '홈케어플래너서포터즈',
+              rightChild: Container(width: 8, height: 8, decoration: BoxDecoration(border: Border.all(color: const Color(0xFF9CA3AF)), borderRadius: BorderRadius.circular(1.5))),
+            ),
+            const SizedBox(height: 4),
+            // 서비스내용
+            const Text('서비스내용 *', style: TextStyle(fontSize: 6.5, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+            const SizedBox(height: 2),
+            Container(
+              width: double.infinity,
+              height: 28,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(border: Border.all(color: const Color(0xFFD1D5DB)), borderRadius: BorderRadius.circular(2)),
+              child: const Text('자세한 내용을 입력하세요.', style: TextStyle(fontSize: 6, color: Color(0xFFD1D5DB), height: 1.3)),
+            ),
+            const SizedBox(height: 3),
+            const Text('상담원소견', style: TextStyle(fontSize: 6.5, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+            const SizedBox(height: 2),
+            Container(
+              width: double.infinity,
+              height: 14,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              decoration: BoxDecoration(border: Border.all(color: const Color(0xFFD1D5DB)), borderRadius: BorderRadius.circular(2)),
+              child: const Text('상담원 소견 입력', style: TextStyle(fontSize: 6, color: Color(0xFFD1D5DB))),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(3)),
+                  child: const Text('저장', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: Colors.white)),
+                ),
+                const SizedBox(width: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFF9CA3AF), borderRadius: BorderRadius.circular(3)),
+                  child: const Text('닫기', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: Colors.white)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NCAdSRow2 extends StatelessWidget {
+  final String leftLabel;
+  final Widget leftChild;
+  final String rightLabel;
+  final Widget rightChild;
+  const _NCAdSRow2({required this.leftLabel, required this.leftChild, required this.rightLabel, required this.rightChild});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: _NCAdSCell2(label: leftLabel, child: leftChild)),
+            const SizedBox(width: 3),
+            Expanded(child: _NCAdSCell2(label: rightLabel, child: rightChild)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NCAdSCell2 extends StatelessWidget {
+  final String label;
+  final Widget child;
+  const _NCAdSCell2({required this.label, required this.child});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 5.5, color: Color(0xFF9CA3AF))),
+          const SizedBox(height: 2),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _RadioDot extends StatelessWidget {
+  final bool on;
+  const _RadioDot({this.on = false});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 7, height: 7,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: on ? AppColors.primary : const Color(0xFF9CA3AF), width: 1),
+      ),
+      child: on ? Center(child: Container(width: 3.5, height: 3.5, decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle))) : null,
+    );
+  }
+}
+
+class _MiniDropdown2 extends StatelessWidget {
+  final String value;
+  const _MiniDropdown2({required this.value});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(value, style: const TextStyle(fontSize: 6, color: Color(0xFF374151))),
+        const Spacer(),
+        const Icon(Icons.keyboard_arrow_down, size: 8, color: Color(0xFF9CA3AF)),
+      ],
+    );
+  }
+}
+
+class _MiniSearchInput extends StatelessWidget {
+  final String value;
+  const _MiniSearchInput({required this.value});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 5.5, color: Color(0xFF374151)), overflow: TextOverflow.ellipsis)),
+        const SizedBox(width: 2),
+        const Icon(Icons.search, size: 8, color: Color(0xFF2563EB)),
+      ],
+    );
+  }
+}
+
+// ── Dash 사이드패널 목업 (새 디자인) ──────────────────────────────────
+class _DashSidePanelMockup extends StatelessWidget {
+  const _DashSidePanelMockup();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFF8F9FA),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 헤더
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+            ),
+            child: Row(
+              children: [
+                Image.asset('assets/icons/logo.png', width: 10, height: 10),
+                const SizedBox(width: 3),
+                const Text('Dash', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                const Spacer(),
+                const Icon(Icons.close, size: 8, color: Color(0xFF9CA3AF)),
+              ],
+            ),
+          ),
+          // 유저 프로필
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+            color: Colors.white,
+            child: Row(
+              children: [
+                Container(
+                  width: 18, height: 18,
+                  decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.15), shape: BoxShape.circle),
+                  child: Center(child: Text('강', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: AppColors.primary))),
+                ),
+                const SizedBox(width: 4),
+                const Text('강윤수님', style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                const Spacer(),
+                const Icon(Icons.refresh, size: 10, color: Color(0xFF6B7280)),
+              ],
+            ),
+          ),
+          // 탭
+          Container(
+            color: Colors.white,
+            child: Row(
+              children: [
+                _DashPanelTab(label: '나의 DB', badge: '1', active: true),
+                _DashPanelTab(label: '공유할 DB', badge: '1', active: false),
+                _DashPanelTab(label: '이전 기록', active: false),
+              ],
+            ),
+          ),
+          // 선택 버튼
+          Padding(
+            padding: const EdgeInsets.fromLTRB(7, 4, 7, 2),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text('○  선택', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+            ),
+          ),
+          // DB 카드
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Positioned(
-                        top: 0, left: 0, right: 0,
-                        child: _NCADSBrowserMock(),
+                      Row(children: [
+                        const Expanded(child: Text('이O주 아동 사례', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Color(0xFF111827), letterSpacing: -0.2), overflow: TextOverflow.ellipsis)),
+                      ]),
+                      const SizedBox(height: 3),
+                      Wrap(spacing: 3, children: [
+                        _PanelTag(label: '이O주'),
+                        _PanelTag(label: '나의DB', isPrimary: true),
+                      ]),
+                      const SizedBox(height: 2),
+                      const Text('from 홍길동 상담원', style: TextStyle(fontSize: 5, color: Color(0xFF9CA3AF))),
+                      const SizedBox(height: 5),
+                      _PanelCardRow(label: '제공방법', value: '방문'),
+                      _PanelCardRow(label: '제공서비스', value: '아동학대대상자 및 가족 지원 → 아동 안전점검 및 상담'),
+                      _PanelCardRow(label: '제공일시', value: '5.11(월) 02:15 - 5.26(화) 03:15'),
+                      const SizedBox(height: 3),
+                      const Align(
+                        alignment: Alignment.centerRight,
+                        child: Text('상세 보기 ▼', style: TextStyle(fontSize: 5.5, color: Color(0xFF6B7280))),
                       ),
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        width: 126,
-                        child: _DashExtensionPopup(),
-                      ),
-                      Positioned(
-                        top: 102,
-                        right: 126,
-                        child: _AutoFillArrow(),
+                      const Divider(height: 8, color: Color(0xFFE5E7EB)),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(5)),
+                        child: const Center(child: Text('⚡ DB 삽입', style: TextStyle(fontSize: 6.5, color: Colors.white, fontWeight: FontWeight.w700))),
                       ),
                     ],
                   ),
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashPanelTab extends StatelessWidget {
+  final String label;
+  final String? badge;
+  final bool active;
+  const _DashPanelTab({required this.label, this.badge, this.active = false});
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(bottom: BorderSide(color: active ? AppColors.primary : Colors.transparent, width: 1.5)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(label, style: TextStyle(fontSize: 6, fontWeight: active ? FontWeight.w700 : FontWeight.w500, color: active ? AppColors.primary : const Color(0xFF9CA3AF))),
+            if (badge != null) ...[
+              const SizedBox(width: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(8)),
+                child: Text(badge!, style: const TextStyle(fontSize: 5, color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+            ],
           ],
-        );
-      },
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelTag extends StatelessWidget {
+  final String label;
+  final bool isPrimary;
+  const _PanelTag({required this.label, this.isPrimary = false});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: isPrimary ? AppColors.primary.withValues(alpha: 0.1) : const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 5.5, color: isPrimary ? AppColors.primary : const Color(0xFF6B7280), fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _PanelCardRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _PanelCardRow({required this.label, required this.value});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 32, child: Text(label, style: const TextStyle(fontSize: 5, color: Color(0xFF9CA3AF)))),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 5, color: Color(0xFF374151), height: 1.4), overflow: TextOverflow.ellipsis, maxLines: 2)),
+        ],
+      ),
     );
   }
 }
@@ -1654,36 +2062,20 @@ class _DashExtensionPopup extends StatelessWidget {
                     ),
                     const Divider(height: 8, color: Color(0xFFE5E7EB)),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 5),
                       decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                        borderRadius: BorderRadius.circular(8),
+                        color: const Color(0xFF2563EB),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text('🔗 공유', style: TextStyle(fontSize: 6, color: Color(0xFF374151))),
+                      child: const Center(
+                        child: Text('⚡ DB 삽입', style: TextStyle(fontSize: 6.5, color: Colors.white, fontWeight: FontWeight.w700)),
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 5),
-              // 하단 버튼 (활성화 상태 - 파란색)
-              Container(
-                margin: const EdgeInsets.fromLTRB(5, 0, 5, 5),
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: const Center(
-                  child: Text(
-                    '류O진 아동 사례 삽입',
-                    style: TextStyle(
-                      fontSize: 6,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -2060,7 +2452,7 @@ class _ReviewerPhoneMockupState extends State<_ReviewerPhoneMockup>
               ),
               child: const Center(
                 child: Text(
-                  '수정 완료 알림',
+                  '내 DB로 저장',
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,

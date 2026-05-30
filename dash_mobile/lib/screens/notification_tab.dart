@@ -84,10 +84,10 @@ class NotificationTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(20, 40, 20, 16),
+            padding: EdgeInsets.fromLTRB(20, 15, 20, 16),
             child: Text(
               '알림',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF222222)),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
             ),
           ),
           const Expanded(
@@ -113,11 +113,11 @@ class NotificationTab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.fromLTRB(20, 48, 20, 16),
+          padding: EdgeInsets.fromLTRB(20, 15, 20, 16),
           child: Text(
             '알림',
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 20,
               fontWeight: FontWeight.w800,
               color: Color(0xFF222222),
             ),
@@ -208,7 +208,7 @@ class NotificationTab extends StatelessWidget {
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 15,
-                                  color: AppColors.primary,
+                                  color: Color(0xFF111111),
                                 ),
                               ),
                               const SizedBox(height: 6),
@@ -218,7 +218,7 @@ class NotificationTab extends StatelessWidget {
                                   fontSize: 14,
                                   height: 1.5,
                                   color: Color(0xFF4E5968),
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               const SizedBox(height: 12),

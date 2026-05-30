@@ -28,6 +28,7 @@ class ProfileTab extends StatefulWidget {
   final void Function(bool enabled) onNotificationsChanged;
   final void Function() onResetComplete;
   final void Function(List<dynamic> cases) onCasesChanged;
+  final List<dynamic> counselors;
   final void Function(String message) onShowToast;
 
   const ProfileTab({
@@ -38,6 +39,7 @@ class ProfileTab extends StatefulWidget {
     required this.cases,
     required this.drafts,
     required this.notifications,
+    required this.counselors,
     required this.onNameChanged,
     required this.onNotificationsChanged,
     required this.onResetComplete,
@@ -523,6 +525,7 @@ class _ProfileTabState extends State<ProfileTab> {
   void _showPinChangeDialog(String currentPin) {
     final newPinController = TextEditingController();
     bool isLoading = false;
+    bool pinComplete = false;
     String? errorMsg;
 
     showDialog(
@@ -551,6 +554,38 @@ class _ProfileTabState extends State<ProfileTab> {
                   maxLength: 4,
                   obscureText: true,
                   autofocus: true,
+                  onChanged: (val) {
+                    if (val.length == 4 && !pinComplete) {
+                      if (val == currentPin) {
+                        setStateSB(() => errorMsg = '현재 PIN과 동일해요');
+                        return;
+                      }
+                      setStateSB(() { pinComplete = true; errorMsg = null; });
+                      Future.delayed(const Duration(milliseconds: 700), () async {
+                        if (!ctx.mounted) return;
+                        setStateSB(() => isLoading = true);
+                        try {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user == null) { Navigator.pop(ctx); return; }
+                          final keyMap = await StorageService.getKeyMap();
+                          if (keyMap.isNotEmpty) {
+                            for (final entry in keyMap.entries) {
+                              await VaultService.syncKey(user.uid, entry.key, entry.value, val);
+                            }
+                          }
+                          await StorageService.savePin(val);
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            widget.onShowToast('PIN이 변경되었습니다');
+                          }
+                        } catch (e) {
+                          setStateSB(() { isLoading = false; pinComplete = false; errorMsg = '변경 중 오류가 발생했어요'; });
+                        }
+                      });
+                    } else if (val.length < 4) {
+                      setStateSB(() { pinComplete = false; errorMsg = null; });
+                    }
+                  },
                   decoration: InputDecoration(
                     counterText: '',
                     hintText: '새 PIN 4자리',
@@ -562,49 +597,17 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                if (isLoading)
+                  const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
+                else
+                  _PinCompleteIndicatorInline(visible: pinComplete),
               ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('취소', style: TextStyle(color: AppColors.textSub)),
-              ),
-              TextButton(
-                onPressed: isLoading
-                    ? null
-                    : () async {
-                        final newPin = newPinController.text;
-                        if (newPin.length != 4) {
-                          setStateSB(() => errorMsg = 'PIN은 4자리여야 해요');
-                          return;
-                        }
-                        if (newPin == currentPin) {
-                          setStateSB(() => errorMsg = '현재 PIN과 동일해요');
-                          return;
-                        }
-                        setStateSB(() { isLoading = true; errorMsg = null; });
-                        try {
-                          final user = FirebaseAuth.instance.currentUser;
-                          if (user == null) { Navigator.pop(ctx); return; }
-                          // 기존 Vault 복호화 → 새 PIN으로 재암호화
-                          final keyMap = await StorageService.getKeyMap();
-                          if (keyMap.isNotEmpty) {
-                            for (final entry in keyMap.entries) {
-                              await VaultService.syncKey(user.uid, entry.key, entry.value, newPin);
-                            }
-                          }
-                          await StorageService.savePin(newPin);
-                          if (mounted) {
-                            Navigator.pop(ctx);
-                            widget.onShowToast('PIN이 변경되었습니다');
-                          }
-                        } catch (e) {
-                          setStateSB(() { isLoading = false; errorMsg = '변경 중 오류가 발생했어요'; });
-                        }
-                      },
-                child: isLoading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('변경하기', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
               ),
             ],
           );
@@ -659,6 +662,21 @@ class _ProfileTabState extends State<ProfileTab> {
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.left,
+                    onChanged: (val) {
+                      setStateSB(() {});
+                      if (val.length == 4) {
+                        setStateSB(() {});
+                        Future.delayed(const Duration(milliseconds: 700), () async {
+                          if (!ctx.mounted) return;
+                          final newPin = controller.text;
+                          await StorageService.savePin(newPin);
+                          await _syncPinToVault(newPin);
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          if (mounted) widget.onShowToast('PIN이 설정되었습니다.');
+                        });
+                      }
+                    },
                     decoration: InputDecoration(
                       counterText: '',
                       hintText: '_ _ _ _',
@@ -687,6 +705,8 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                     autofocus: true,
                   ),
+                  const SizedBox(height: 8),
+                  _PinCompleteIndicatorInline(visible: controller.text.length == 4),
                 ],
               ),
               actions: [
@@ -697,30 +717,6 @@ class _ProfileTabState extends State<ProfileTab> {
                     style: TextStyle(
                       color: Color(0xFFADB5BD),
                       fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    if (controller.text.length == 4) {
-                      final newPin = controller.text;
-                      await StorageService.savePin(newPin);
-                      await _syncPinToVault(newPin);
-                      if (!ctx.mounted) return;
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(
-                          content: Text('PIN이 설정되었습니다.'),
-                          backgroundColor: Color(0xFF16A34A),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text(
-                    '설정 완료',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
@@ -865,6 +861,7 @@ class _ProfileTabState extends State<ProfileTab> {
     }
 
     AnalyticsService.pinReset();
+    if (!mounted) return;
     widget.onResetComplete();
     widget.onShowToast('PIN 및 로컬 DB 데이터가 안전하게 완전히 삭제되었습니다.');
 
@@ -915,60 +912,85 @@ class _ProfileTabState extends State<ProfileTab> {
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email ?? '-';
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircleAvatar(
-              radius: 54,
-              backgroundColor: Color(0xFFF2F4F6),
-              child: Icon(Icons.person, size: 54, color: Color(0xFF8B95A1)),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '${widget.userName ?? '사용자'}님',
+    // 현재 보유 DB: 기입 완료(Injected)·공유 임시 제외
+    final dbCount = widget.drafts
+        .where((d) => d['status'] != 'Injected' && d['isShared'] != true)
+        .length;
+    // 내 사례: self 상담원 소속 사례만
+    final selfMatches = widget.counselors.where((c) => c['isSelf'] == true);
+    final selfCounselor = selfMatches.isEmpty ? null : selfMatches.first;
+    final selfCounselorId = selfCounselor?['id']?.toString();
+    final caseCount = widget.cases.where((c) {
+      final cid = c['counselorId']?.toString() ?? '';
+      return cid.isEmpty || cid == selfCounselorId;
+    }).length;
+    // 누적 DB: 개인 드래프트 전체 (기입 완료 포함, 공유 DB 제외)
+    final totalCreated = widget.drafts.where((d) => d['isShared'] != true).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 15, 20, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 이름 + 수정 버튼
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              RichText(
+                text: TextSpan(
+                  text: '${widget.userName ?? '사용자'}님',
                   style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 24,
-                    color: AppColors.textMain,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                    letterSpacing: -0.5,
+                    color: Color(0xFF222222),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _showEditNameDialog,
-                  icon: const Icon(
-                    Icons.edit,
-                    size: 20,
-                    color: Color(0xFF8B95A1),
-                  ),
-                  tooltip: '이름 수정',
-                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: _showEditNameDialog,
+                child: const Icon(Icons.edit, size: 16, color: Color(0xFF8B95A1)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            email,
+            style: const TextStyle(
+              fontSize: 15,
+              color: Color(0xFF888888),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // 통계 카드
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                _StatItem(label: '보유 DB', value: '$dbCount개'),
+                _StatDivider(),
+                _StatItem(label: '보유 사례', value: '$caseCount개'),
+                _StatDivider(),
+                _StatItem(label: '누적 DB', value: '$totalCreated개'),
               ],
             ),
-            Text(
-              email,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textSub,
-                fontWeight: FontWeight.w500,
-              ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(height: 48),
-            Container(
-              width: double.infinity,
-              clipBehavior: Clip.hardEdge,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
+            child: Column(
+              children: [
                   _buildNotificationToggleItem(),
                   const Divider(
                     height: 1,
@@ -1085,9 +1107,9 @@ class _ProfileTabState extends State<ProfileTab> {
                     onTap: () async {
                       final confirmed =
                           await _showDeleteAccountConfirmationDialog();
-                      if (confirmed == true) {
+                      if (confirmed == true && mounted) {
                         await StorageService.clearAllData();
-                        await _deleteAccount();
+                        if (mounted) await _deleteAccount();
                       }
                     },
                     isDanger: true,
@@ -1097,7 +1119,86 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
           ],
         ),
+  );
+}
+}
+
+
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+  const _StatItem({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF111111)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1), fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, height: 32, color: const Color(0xFFF2F4F6));
+  }
+}
+
+// PIN 입력 완료 시 녹색 체크 인디케이터 (다이얼로그용)
+class _PinCompleteIndicatorInline extends StatelessWidget {
+  final bool visible;
+  const _PinCompleteIndicatorInline({required this.visible});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      transitionBuilder: (child, animation) => ScaleTransition(
+        scale: Tween<double>(begin: 0.5, end: 1.0).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+        ),
+        child: FadeTransition(opacity: animation, child: child),
+      ),
+      child: visible
+          ? Row(
+              key: const ValueKey('check'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 13,
+                  height: 13,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF16A34A),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 9),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  '설정 완료',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF16A34A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            )
+          : const SizedBox.shrink(key: ValueKey('empty')),
     );
   }
 }

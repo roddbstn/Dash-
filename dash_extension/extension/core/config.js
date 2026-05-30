@@ -7,7 +7,7 @@ window.DBAuto = window.DBAuto || {};
 window.DBAuto.Config = Object.freeze({
 
     // 대상 시스템 URL 패턴 (탭 스캔 시 사용)
-    TARGET_URLS: ["*://localhost:*/*", "*://localhost/*", "*://ncads.go.kr/*", "*://*.ncads.go.kr/*"],
+    TARGET_URLS: ["*://ncads.go.kr/*", "*://*.ncads.go.kr/*"],
     EXCLUDED_KEYWORDS: ['AnySignPlus'],
 
     // 타겟 시스템 DOM 필드 ID

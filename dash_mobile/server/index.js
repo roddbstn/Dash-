@@ -566,7 +566,7 @@ function renderShareHtml(token, caseName, authorName, description, serviceType, 
         window.location = deepLink;
         setTimeout(function() { window.location = appStore; }, 1500);
       } else {
-        window.location = '/view?token=' + token;
+        alert('모바일 기기(Android/iOS)에서 열어주세요.');
       }
     });
 
@@ -575,8 +575,6 @@ function renderShareHtml(token, caseName, authorName, description, serviceType, 
         installBtn.style.display = 'block';
         installBtn.href = isAndroid ? playStore : appStore;
       }, 2000);
-    } else {
-      window.location = '/view?token=' + token;
     }
   </script>
 </body>

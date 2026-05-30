@@ -23,7 +23,7 @@ import 'package:dash_mobile/screens/case_selection_modal.dart';
 import 'package:dash_mobile/screens/db_type_selection_sheet.dart';
 import 'package:intl/intl.dart';
 import 'package:dash_mobile/deep_link_service.dart';
-import 'package:dash_mobile/screens/shared_db_preview_screen.dart';
+
 
 // 로컬 알림 플러그인 초기화
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -93,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen>
     _checkPinAndBackfill();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkService.registerOnSaved(() { if (mounted) _loadData(); });
       DeepLinkService.processPendingDeepLink();
     });
 
@@ -211,13 +212,17 @@ class _HomeScreenState extends State<HomeScreen>
       };
       counselors = [selfCounselor];
       await StorageService.saveCounselors(counselors);
-      await ApiService.syncCounselor({
-        'id': selfCounselor['id'],
-        'user_id': userId,
-        'name': selfCounselor['name'],
-        'is_self': true,
-        'sort_order': 0,
-      });
+      try {
+        await ApiService.syncCounselor({
+          'id': selfCounselor['id'],
+          'user_id': userId,
+          'name': selfCounselor['name'],
+          'is_self': true,
+          'sort_order': 0,
+        });
+      } catch (e) {
+        debugPrint('⚠️ [Counselor] 기본 상담원 서버 동기화 실패 (로컬 보존): $e');
+      }
     }
 
     // 서버에서 상담원 목록 동기화
@@ -431,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen>
               'agentOpinion': finalOpinion,
               'reviewed_at': s['reviewed_at'],
               'updated_at': s['updated_at'],
-              'is_shared_db': s['is_shared_db'] == 1 || s['is_shared_db'] == true,
+              'is_shared_db': s['is_shared_db'] == true || s['is_shared_db'] == 1,
               'service_type':
                   s['service_type'] ?? local['service_type'],
               'service_category':
@@ -487,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen>
               'reviewed_at': s['reviewed_at'],
               'updated_at': s['updated_at'],
               'is_server_only': true,
-              'is_shared_db': s['is_shared_db'] == 1 || s['is_shared_db'] == true,
+              'is_shared_db': s['is_shared_db'] == true || s['is_shared_db'] == 1,
               'injected_by_name': s['injected_by_name'],
               'author_name': s['author_name'],
             });
@@ -795,9 +800,19 @@ class _HomeScreenState extends State<HomeScreen>
       if (dbType == null) return; // 유저가 시트 닫음
     }
 
-    final isShared = dbType == DbType.shared;
+    // 기존 DB 열기: 탭에 따라 제목 결정
+    bool isSharedDbDraft = false;
+    if (draftId != null) {
+      final draft = _drafts.cast<Map<String, dynamic>?>().firstWhere(
+        (d) => d?['id']?.toString() == draftId.toString(),
+        orElse: () => null,
+      );
+      isSharedDbDraft = draft?['is_shared_db'] == true || draft?['is_shared_db'] == 1;
+    }
+
+    final isShared = draftId != null ? isSharedDbDraft : dbType == DbType.shared;
     // 공유할 DB: FormScreen 닫히자마자 dialog를 즉시 띄우기 위한 Completer
-    final urlCompleter = isShared ? Completer<String>() : null;
+    final urlCompleter = isShared && draftId == null ? Completer<String>() : null;
 
     final result = await Navigator.push(
       context,
@@ -809,12 +824,14 @@ class _HomeScreenState extends State<HomeScreen>
           draftId: draftId,
           userName: _userName,
           isSharedDb: isShared,
+          isViewOnly: draftId != null,
+          viewTitle: isSharedDbDraft ? '공유할 DB' : '나의 DB',
           onSyncComplete: () {
             if (mounted) _loadData();
           },
-          onSharedDbReady: isShared
+          onSharedDbReady: isShared && draftId == null
               ? (token, key) {
-                  final url = '${ApiService.serverUrl}/?token=$token#key=$key';
+                  final url = '${ApiService.serverUrl}/?token=$token';
                   if (!(urlCompleter!.isCompleted)) urlCompleter.complete(url);
                 }
               : null,
@@ -845,133 +862,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // ── 공유 링크로 DB 가져오기 ──────────────────────────────────────
-  void _showImportFromLinkSheet() {
-    final TextEditingController ctrl = TextEditingController();
-    // 클립보드에 링크가 있으면 자동 채움
-    Clipboard.getData('text/plain').then((data) {
-      final text = data?.text ?? '';
-      if (text.contains('/') && text.contains('token=')) {
-        ctrl.text = text;
-        ctrl.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: text.length,
-        );
-      }
-    });
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE5E8EB),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text('공유 링크로 DB 가져오기',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                const Text('공유받은 링크를 붙여넣으면 DB 내용을 확인하고 저장할 수 있어요.',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF8B95A1), height: 1.5)),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: ctrl,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: 'https://...',
-                    hintStyle: const TextStyle(color: Color(0xFFADB5BD)),
-                    filled: true,
-                    fillColor: const Color(0xFFF8F9FA),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.content_paste, size: 20, color: Color(0xFF8B95A1)),
-                      onPressed: () async {
-                        final data = await Clipboard.getData('text/plain');
-                        if (data?.text != null) ctrl.text = data!.text!;
-                      },
-                    ),
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
-                    ),
-                    onPressed: () {
-                      final url = ctrl.text.trim();
-                      final uri = Uri.tryParse(url);
-                      if (uri == null) return;
-
-                      final token = uri.queryParameters['token'];
-                      // 암호화 키는 fragment(#key=...)에 있음
-                      final fragment = uri.fragment;
-                      final fragParams = Uri.splitQueryString(fragment);
-                      final encKey = fragParams['key'];
-
-                      if (token == null || token.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('유효한 공유 링크가 아니에요.'),
-                            backgroundColor: Colors.black87,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.pop(ctx);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SharedDbPreviewScreen(
-                            token: token,
-                            encryptionKey: encKey,
-                          ),
-                        ),
-                      );
-                    },
-                    child: const Text('확인하기',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   void _showCaseSelectionModal() async {
     await showCaseSelectionModal(
@@ -1129,21 +1020,15 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppColors.bg,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         toolbarHeight: 0,
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, -4),
-            ),
-          ],
+          border: Border(top: BorderSide(color: Color(0xFFDDE1E7), width: 0.5)),
         ),
         child: SafeArea(
           child: SizedBox(
@@ -1181,7 +1066,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                     _NavBarItem(
                       icon: const Icon(Icons.history_rounded),
-                      label: 'DB 내역',
+                      label: 'DB내역',
                       selected: _currentIndex == 2,
                       onTap: () {
                         setState(() => _currentIndex = 2);
@@ -1208,27 +1093,47 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildBody() {
-    if (_currentIndex == 0) {
-      return Column(
+  Widget _buildTopBar(BuildContext context) {
+    final safeLeft = MediaQuery.of(context).padding.left;
+    final safeRight = MediaQuery.of(context).padding.right;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFDDE1E7), width: 0.5)),
+      ),
+      padding: EdgeInsets.fromLTRB(16 + safeLeft, 8, 20 + safeRight, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (!_serverReachable) _buildOfflineBanner(),
-          Expanded(
-            child: HomeTab(
-              isLoading: _isLoadingInitial,
-              userName: _userName,
-              pendingDrafts: _pendingDrafts,
-              cases: _cases,
-              counselors: _counselors,
-              dbTabController: _dbTabController,
-              onRefresh: _loadData,
-              onShowCaseSelection: _showCaseSelectionModal,
-              onGoToForm: _goToForm,
-              onDeleteMyDraft: (draftId) async => _deleteDraft(draftId),
-              onImportFromLink: _showImportFromLinkSheet,
-            ),
-          ),
+          Image.asset('assets/icons/logo_transparent.png', width: 36, height: 36),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    return Column(
+      children: [
+        _buildTopBar(context),
+        if (!_serverReachable) _buildOfflineBanner(),
+        Expanded(child: _buildTabContent()),
+      ],
+    );
+  }
+
+  Widget _buildTabContent() {
+    if (_currentIndex == 0) {
+      return HomeTab(
+        isLoading: _isLoadingInitial,
+        userName: _userName,
+        pendingDrafts: _pendingDrafts,
+        cases: _cases,
+        counselors: _counselors,
+        dbTabController: _dbTabController,
+        onRefresh: _loadData,
+        onShowCaseSelection: _showCaseSelectionModal,
+        onGoToForm: _goToForm,
+        onDeleteMyDraft: (draftId) async => _deleteDraft(draftId),
       );
     }
     if (_currentIndex == 1) {
@@ -1261,6 +1166,7 @@ class _HomeScreenState extends State<HomeScreen>
       cases: _cases,
       drafts: _drafts,
       notifications: _notifications,
+      counselors: _counselors,
       onNameChanged: (newName) => setState(() => _userName = newName),
       onNotificationsChanged: (enabled) =>
           setState(() => _notificationsEnabled = enabled),
@@ -1336,7 +1242,7 @@ class _NavBarItemState extends State<_NavBarItem> {
   @override
   Widget build(BuildContext context) {
     final color = widget.selected
-        ? AppColors.primary
+        ? const Color(0xFF111111)
         : const Color(0xFFBBBBBB);
     return Expanded(
       child: GestureDetector(

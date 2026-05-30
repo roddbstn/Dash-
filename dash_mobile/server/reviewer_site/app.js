@@ -18,14 +18,6 @@ function copyAndClose() {
     });
 }
 
-// ── 암호화 키 추출 (URL fragment에서만 읽음 — 서버 로그에 기록 안 됨) ──
-function _getEncKey(token) {
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    let key = hashParams.get('key') || '';
-    if (!key) key = sessionStorage.getItem('dash_key_' + token) || '';
-    return key;
-}
-
 // ── 메타 아코디언 ─────────────────────────────────────────────
 let _metaOpen = false;
 function toggleMeta() {
@@ -36,10 +28,18 @@ function toggleMeta() {
     if (icon) icon.textContent = _metaOpen ? '▴' : '▾';
 }
 
+// ── KST 날짜 파싱 (타임존 미지정 시 UTC+9 가정) ────────────────
+function _parseKST(dateString) {
+    if (!dateString) return new Date(NaN);
+    const s = dateString.replace(' ', 'T');
+    // 이미 타임존 정보가 있으면 그대로 파싱
+    return new Date(/[Z+]/.test(s) ? s : s + '+09:00');
+}
+
 // ── 날짜 포매팅 ───────────────────────────────────────────────
 function formatDayOfWeek(dateString) {
     if (!dateString) return '';
-    const date = new Date(dateString.replace(' ', 'T'));
+    const date = _parseKST(dateString);
     if (isNaN(date)) return dateString;
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     return `${date.getMonth() + 1}.${date.getDate()} (${days[date.getDay()]})`;
@@ -47,8 +47,8 @@ function formatDayOfWeek(dateString) {
 
 function formatDateTimeRange(startStr, endStr) {
     if (!startStr || !endStr) return '';
-    const s = new Date(startStr.replace(' ', 'T'));
-    const e = new Date(endStr.replace(' ', 'T'));
+    const s = _parseKST(startStr);
+    const e = _parseKST(endStr);
     if (isNaN(s) || isNaN(e)) return `${startStr} ~ ${endStr}`;
     const pad = n => String(n).padStart(2, '0');
     const sDay = formatDayOfWeek(startStr);
@@ -81,65 +81,16 @@ function showToast(msg, duration = 3000) {
 
 // ── DB 로드 ───────────────────────────────────────────────────
 function loadRecord(token) {
-    const encKey = _getEncKey(token);
-
     fetch(`${window.location.origin}/api/records/share/${token}`)
         .then(res => {
             if (!res.ok) throw new Error('not_found');
             return res.json();
         })
-        .then(data => {
-            // E2EE 복호화
-            if (data.encrypted_blob && encKey) {
-                try {
-                    const parts = data.encrypted_blob.split(':');
-                    const iv = CryptoJS.enc.Base64.parse(parts[0]);
-                    const key = CryptoJS.enc.Utf8.parse(encKey.padEnd(32).substring(0, 32));
-                    const decrypted = CryptoJS.AES.decrypt(
-                        { ciphertext: CryptoJS.enc.Base64.parse(parts[1]) }, key, { iv }
-                    );
-                    const text = decrypted.toString(CryptoJS.enc.Utf8);
-                    if (!text) throw new Error('empty');
-                    const dec = JSON.parse(text);
-                    data = {
-                        ...data, ...dec,
-                        case_name: dec.caseName || data.case_name,
-                        service_description: dec.serviceDescription || dec.service_description || data.service_description,
-                        agent_opinion: dec.agentOpinion || dec.agent_opinion || data.agent_opinion,
-                        target: dec.target || data.target,
-                        method: dec.method || data.method,
-                        provision_type: dec.provision_type || data.provision_type,
-                        service_type: dec.service_type || data.service_type,
-                        service_category: dec.service_category || data.service_category,
-                        service_name: dec.service_name || data.service_name,
-                        location: dec.location || data.location,
-                        start_time: dec.startTime || dec.start_time || data.start_time,
-                        end_time: dec.endTime || dec.end_time || data.end_time,
-                        service_count: dec.serviceCount || dec.service_count || data.service_count,
-                        travel_time: dec.travelTime || dec.travel_time || data.travel_time,
-                    };
-                } catch (e) {
-                    console.error('Decryption failed:', e);
-                    showEncNotice('decrypt_failed');
-                }
-            } else if (data.encrypted_blob && !encKey) {
-                showEncNotice('no_key');
-            }
-            renderUI(data);
-        })
+        .then(data => renderUI(data))
         .catch(() => {
             document.getElementById('state-loading').style.display = 'none';
             document.getElementById('state-error').style.display = 'flex';
         });
-}
-
-function showEncNotice(reason) {
-    const area = document.getElementById('enc-notice-area');
-    if (!area) return;
-    const msg = reason === 'no_key'
-        ? '🔒 이 링크에 암호화 키가 포함되어 있지 않아 내용을 표시할 수 없습니다. 원래 공유 링크를 다시 받아 열어주세요.'
-        : '🔒 복호화에 실패했습니다. 담당 상담원에게 공유 링크를 다시 요청해 주세요.';
-    area.innerHTML = `<div class="enc-notice">${msg}</div>`;
 }
 
 // ── UI 렌더링 ─────────────────────────────────────────────────
@@ -168,21 +119,11 @@ function renderUI(data) {
         </div>`
     ).join('');
 
-    // 서비스 내용
-    const mainContent = document.getElementById('main-content');
-    if (mainContent) mainContent.textContent = data.service_description || '';
-
-    // 상담원 소견
-    const opinionContent = document.getElementById('opinion-content');
-    const opinionBlock = document.getElementById('opinion-block');
-    if (data.agent_opinion && data.agent_opinion.trim()) {
-        if (opinionContent) opinionContent.textContent = data.agent_opinion;
-        if (opinionBlock) opinionBlock.style.display = '';
-    }
-
     // 상태 전환
-    document.getElementById('state-loading').style.display = 'none';
-    document.getElementById('db-content').style.display = '';
+    const stateLoading = document.getElementById('state-loading');
+    const dbContent = document.getElementById('db-content');
+    if (stateLoading) stateLoading.style.display = 'none';
+    if (dbContent) dbContent.style.display = '';
 
     // CTA 표시
     const cta = document.getElementById('cta-section');
@@ -201,6 +142,7 @@ function initRockets() {
     for (let i = 0; i < COUNT; i++) {
         const el = document.createElement('img');
         el.src = '/public/logo_nobg.png';
+        el.alt = '';
         el.className = 'rocket-particle';
 
         const size     = 20 + Math.random() * 32;          // 20~52px
@@ -244,6 +186,52 @@ function closeLightbox() {
 
 // ESC 키로 닫기
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ── 앱 열기 (OS별 딥링크 → 스토어 폴백) ─────────────────────
+function openApp() {
+    const token = new URLSearchParams(window.location.search).get('token') || '';
+    const ua = navigator.userAgent;
+
+    // iPad 데스크탑 모드는 UA에 'iPad'가 없으므로 maxTouchPoints로 보완
+    const isIOS = /iPhone|iPad|iPod/i.test(ua)
+        || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(ua);
+    // intent:// 는 Chrome 계열 Android 브라우저에서만 안정적으로 작동
+    const isAndroidChrome = isAndroid && /Chrome\//i.test(ua) && !/Chromium/i.test(ua);
+
+    const playStore = 'https://play.google.com/store/apps/details?id=com.dash.mobile.yunsoo';
+    const appStore = 'https://apps.apple.com/app/id0000000000'; // TODO: 실제 App Store ID로 교체
+
+    // token 없으면 딥링크 의미 없음 → 스토어 직행
+    if (!token) {
+        window.location = isIOS ? appStore : playStore;
+        return;
+    }
+
+    if (isAndroidChrome) {
+        // intent:// — 앱 설치 시 앱으로, 미설치 시 browser_fallback_url(Play Store)로 자동 폴백
+        window.location = 'intent://dash.qpon/share/' + token
+            + '#Intent;scheme=https;package=com.dash.mobile.yunsoo;S.browser_fallback_url='
+            + encodeURIComponent(playStore) + ';end';
+    } else if (isAndroid) {
+        // Chrome 외 Android 브라우저 (Firefox 등) — intent:// 미지원이므로 Play Store 직행
+        window.location = playStore;
+    } else if (isIOS) {
+        // Universal Link 시도 → 앱이 열리면 페이지가 hidden 상태로 전환됨
+        // visibilitychange로 감지해 App Store 리다이렉트 타이머 취소
+        const timer = setTimeout(function() { window.location = appStore; }, 1500);
+        document.addEventListener('visibilitychange', function onHidden() {
+            if (document.hidden) {
+                clearTimeout(timer);
+                document.removeEventListener('visibilitychange', onHidden);
+            }
+        });
+        window.location = 'https://dash.qpon/share/' + token;
+    } else {
+        // PC — 모바일에서 열어달라는 안내 toast
+        showToast('모바일 기기에서 열어주세요.');
+    }
+}
 
 // ── 초기화 ────────────────────────────────────────────────────
 window.onload = () => {

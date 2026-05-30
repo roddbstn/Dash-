@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Dash Admin · KPI Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
@@ -25,7 +25,7 @@
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: var(--bg); color: var(--text-main); min-height: 100vh; }
 
     /* Auth */
-    #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+    #auth-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
     #auth-overlay.hidden { display: none; }
     .auth-card { background: var(--surface); border-radius: 20px; padding: 40px; width: 360px; box-shadow: 0 16px 48px rgba(0,0,0,0.18); display: flex; flex-direction: column; gap: 18px; }
     .auth-card h2 { font-size: 20px; font-weight: 700; }
@@ -130,6 +130,9 @@
     <input type="password" id="secret-input" placeholder="Admin Secret" autocomplete="off" />
     <span id="auth-error">Secret이 맞지 않습니다.</span>
     <button onclick="tryAuth()">확인</button>
+    <p style="font-size:12px; color:#abb3bb; text-align:center; margin-top:-8px;">
+      비밀번호를 모르시나요? 서버의 <code style="background:#f2f4f6; padding:1px 5px; border-radius:4px;">ADMIN_SECRET</code> 환경변수를 확인하세요.
+    </p>
   </div>
 </div>
 
@@ -343,7 +346,7 @@
 
 <script>
 const REFRESH_SEC = 30;
-let _secret = sessionStorage.getItem('dash_admin_secret') || '';
+let _secret = ''; // 메모리 전용 — sessionStorage에 저장하지 않음
 let _countdown = null;
 let _countdownVal = REFRESH_SEC;
 let _data = null;
@@ -355,7 +358,6 @@ let _charts = {};
 function tryAuth() {
   const val = document.getElementById('secret-input').value.trim();
   if (!val) return;
-  sessionStorage.setItem('dash_admin_secret', val);
   _secret = val;
   fetchKpi(true);
 }
@@ -378,7 +380,6 @@ async function fetchKpi(manual = false) {
   try {
     const res = await fetch('/api/admin/kpi', { headers: { 'x-admin-secret': _secret } });
     if (res.status === 401) {
-      sessionStorage.removeItem('dash_admin_secret');
       _secret = '';
       document.getElementById('auth-error').style.display = 'block';
       document.getElementById('auth-overlay').classList.remove('hidden');

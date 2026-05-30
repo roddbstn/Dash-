@@ -169,6 +169,12 @@ class AnalyticsService {
 
   static Future<void> reviewSubmitted() => _log('review_submitted');
 
+  // ── 딥링크 공유 ─────────────────────────────────────────────────────
+  static Future<void> deepLinkDbSaved(String token) =>
+      _log('deeplink_db_saved', {'token': token});
+
+  static Future<void> deepLinkReceived() => _log('deeplink_received');
+
   // ── Vault 재시도 (Priority 3 관측성) ────────────────────────────────
   static Future<void> vaultKeyRetried({
     required int successCount,

@@ -14,6 +14,7 @@ import 'package:dash_mobile/firebase_options.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/pin_setup_screen.dart';
 import 'package:dash_mobile/api_service.dart';
+import 'package:dash_mobile/deep_link_service.dart';
 
 
 @pragma('vm:entry-point')
@@ -51,9 +52,15 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
+    // 딥링크 서비스 초기화 (앱 시작 시 1회)
+    DeepLinkService.init(navigatorKey);
+
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Dash',
       theme: AppTheme.light,
@@ -62,16 +69,7 @@ class MyApp extends StatelessWidget {
         '/home': (_) => const HomeScreen(),
         '/pin_setup': (_) => const PinSetupScreen(),
       },
-      builder: (context, child) {
-        // 태블릿(shortestSide >= 600)은 모든 방향, 폰은 세로 고정
-        final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
-        SystemChrome.setPreferredOrientations(
-          isTablet
-              ? DeviceOrientation.values
-              : [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
-        );
-        return child!;
-      },
+      builder: (context, child) => _OrientationHandler(child: child!),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
@@ -210,7 +208,22 @@ class _PostLoginRouterState extends State<_PostLoginRouter> {
               DateTime.now().difference(createdAt) < const Duration(hours: 24);
           debugPrint('🔍 [ROUTE] isNewSignup=$isNewSignup → ${isNewSignup ? "consent" : "home"}');
           if (isNewSignup) {
-            return 'consent';
+            // dash_users 행이 없어도 기존 사용자일 수 있음 (재설치 edge case)
+            // cases가 있으면 기존 사용자로 확정
+            try {
+              final existingCases = await ApiService.fetchCases(currentUid);
+              if (existingCases != null && existingCases.isNotEmpty) {
+                debugPrint('🔍 [ROUTE] dash_users 없지만 케이스 있음 → 기존 사용자');
+                await prefs.setBool('consent_done_$currentUid', true);
+                await StorageService.setRegistered(currentUid);
+                await prefs.setBool('pin_setup_required', true);
+                // fall through to PIN check
+              } else {
+                return 'consent';
+              }
+            } catch (_) {
+              return 'consent';
+            }
           } else {
             await prefs.setBool('consent_done_$currentUid', true);
             await StorageService.setRegistered(currentUid);
@@ -231,6 +244,7 @@ class _PostLoginRouterState extends State<_PostLoginRouter> {
       return 'pin_setup';
     }
     debugPrint('🔍 [ROUTE] → home (final)');
+    DeepLinkService.processPendingDeepLink();
     return 'home';
   }
 
@@ -253,4 +267,36 @@ class _PostLoginRouterState extends State<_PostLoginRouter> {
       },
     );
   }
+}
+
+// ── 방향 설정 핸들러 ─────────────────────────────────────────
+// builder 콜백에서 매 build마다 setPreferredOrientations를 호출하던 것을
+// didChangeDependencies로 분리해, 태블릿 여부가 실제로 바뀔 때만 호출.
+class _OrientationHandler extends StatefulWidget {
+  final Widget child;
+  const _OrientationHandler({required this.child});
+
+  @override
+  State<_OrientationHandler> createState() => _OrientationHandlerState();
+}
+
+class _OrientationHandlerState extends State<_OrientationHandler> {
+  bool? _wasTablet;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
+    if (_wasTablet != isTablet) {
+      _wasTablet = isTablet;
+      SystemChrome.setPreferredOrientations(
+        isTablet
+            ? DeviceOrientation.values
+            : [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

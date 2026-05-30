@@ -1,0 +1,27 @@
+{
+  "name": "dash-e2e-tests",
+  "version": "1.0.0",
+  "description": "DASH E2E Test Suite (Playwright + Jest)",
+  "scripts": {
+    "test": "playwright test",
+    "test:reviewer": "playwright test tests/reviewer-web.spec.ts",
+    "test:extension": "playwright test tests/extension.spec.ts",
+    "test:api": "jest tests/api.test.ts --forceExit",
+    "test:mobile": "flutter test integration_test/ --device-id=all",
+    "report": "playwright show-report",
+    "install:deps": "npm install && npx playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.12.12",
+    "jest": "^29.7.0",
+    "serve": "^14.2.6",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.1.4",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "crypto-js": "^4.2.0"
+  }
+}

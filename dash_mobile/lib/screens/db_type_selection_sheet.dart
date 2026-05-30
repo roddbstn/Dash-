@@ -7,6 +7,7 @@ Future<DbType?> showDbTypeSelectionSheet(BuildContext context) {
   return showModalBottomSheet<DbType>(
     context: context,
     backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.45),
     isScrollControlled: true,
     builder: (ctx) => const _DbTypeSelectionSheet(),
   );
@@ -45,7 +46,7 @@ class _DbTypeSelectionSheet extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            '이 DB를 동행자에게 공유할 예정인가요?',
+            '어떤 목적으로 작성하세요?',
             style: TextStyle(fontSize: 13, color: Color(0xFF8B95A1)),
           ),
           const SizedBox(height: 20),
@@ -59,7 +60,7 @@ class _DbTypeSelectionSheet extends StatelessWidget {
           _TypeCard(
             icon: Icons.people_outline_rounded,
             title: '공유할 DB',
-            description: '저장 후 동행자에게 공유 링크를 보낼 수 있어요',
+            description: '동행자로서 담당자의 DB를 대신 작성하고 공유할 수 있어요',
             accent: true,
             onTap: () => Navigator.pop(context, DbType.shared),
           ),
@@ -69,7 +70,7 @@ class _DbTypeSelectionSheet extends StatelessWidget {
   }
 }
 
-class _TypeCard extends StatelessWidget {
+class _TypeCard extends StatefulWidget {
   final IconData icon;
   final String title;
   final String description;
@@ -85,44 +86,61 @@ class _TypeCard extends StatelessWidget {
   });
 
   @override
+  State<_TypeCard> createState() => _TypeCardState();
+}
+
+class _TypeCardState extends State<_TypeCard> {
+  bool _isPressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    final color = accent ? AppColors.primary : const Color(0xFF4E5968);
-    final bgColor = accent ? AppColors.primary.withValues(alpha: 0.06) : const Color(0xFFF8F9FA);
-    final borderColor = accent ? AppColors.primary.withValues(alpha: 0.3) : const Color(0xFFE9ECEF);
+    final color = widget.accent ? AppColors.primary : const Color(0xFF4E5968);
+    final bgColor = widget.accent ? AppColors.primary.withValues(alpha: 0.06) : const Color(0xFFF8F9FA);
+    final pressedColor = widget.accent ? AppColors.primary.withValues(alpha: 0.12) : const Color(0xFFEEF0F2);
+    final borderColor = widget.accent ? AppColors.primary.withValues(alpha: 0.3) : const Color(0xFFE9ECEF);
 
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: accent ? AppColors.primary.withValues(alpha: 0.12) : const Color(0xFFE9ECEF),
-                borderRadius: BorderRadius.circular(12),
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.98 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: _isPressed ? pressedColor : bgColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: widget.accent ? AppColors.primary.withValues(alpha: 0.12) : const Color(0xFFE9ECEF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(widget.icon, color: color, size: 22),
               ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color)),
-                  const SizedBox(height: 2),
-                  Text(description, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
-                ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+                    const SizedBox(height: 2),
+                    Text(widget.description, style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A1))),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.5), size: 20),
-          ],
+              Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.5), size: 20),
+            ],
+          ),
         ),
       ),
     );

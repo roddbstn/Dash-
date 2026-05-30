@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Dash",
-    "version": "3.5.1",
+    "version": "3.5.3",
     "description": "모바일에서 작성한 상담 기록을 아동학대정보시스템에 1초 만에 주입합니다.",
     "permissions": [
         "storage",
@@ -13,8 +13,7 @@
         "*://ncads.go.kr/*",
         "*://*.ncads.go.kr/*",
         "*://dash.qpon/*",
-        "*://www.googleapis.com/*",
-        "*://localhost/*"
+        "*://www.googleapis.com/*"
     ],
     "oauth2": {
         "client_id": "803548605147-8p75oeqvre7frce70lkl59akqung8kd7.apps.googleusercontent.com",
@@ -48,8 +47,7 @@
         {
             "matches": [
                 "*://ncads.go.kr/*",
-                "*://*.ncads.go.kr/*",
-                "*://localhost/*"
+                "*://*.ncads.go.kr/*"
             ],
             "js": [
                 "core/config.js",

@@ -73,8 +73,8 @@ class VaultService {
       salt = _generateSalt();
     }
 
-    // 기존 Vault 복호화해서 기존 키 보존
-    if (vaultResponse != null && vaultResponse['encrypted_vault'] != null) {
+    // 기존 Vault 복호화해서 기존 키 보존 (여기까지 오면 vaultResponse는 non-null 보장)
+    if (vaultResponse['encrypted_vault'] != null) {
       try {
         final derivedKey = _deriveKey(pin, salt);
         final vaultKey = enc.Key(derivedKey);

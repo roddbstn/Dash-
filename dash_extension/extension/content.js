@@ -8,6 +8,9 @@ const CFG = (window.DBAuto && window.DBAuto.Config) || {};
 const ACT = (window.DBAuto && window.DBAuto.Actions) || {};
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // 확장프로그램 내부 메시지만 허용 (외부 웹페이지 메시지 차단)
+    if (sender.id !== chrome.runtime.id) return;
+
     const action = message.action;
 
     if (action === (ACT.START_AUTO_FILL || 'START_AUTO_FILL')) {
@@ -121,41 +124,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true;
 });
-// 크롬 익스텐션 Isolated World 정책을 우회하여 메인 권한에서 코드를 실행시키는 기법
-function executeInMainWorld(element, jsCode = '') {
-    const script = document.createElement('script');
-
-    if (jsCode) {
-        script.textContent = `(function() { 
-            try { 
-                ${jsCode} 
-            } catch(e) { console.error('[dbauto-main-world] Error executing code:', e); }
-        })();`;
-    } else if (element) {
-        const href = element.getAttribute('href');
-        if (href && href.startsWith('javascript:')) {
-            const code = href.replace('javascript:', '');
-            script.textContent = `(function() { 
-                try { ${code} } catch(e) { console.error('[dbauto-main-world]', e); }
-            })();`;
-        } else {
-            const originalId = element.id;
-            const tempId = originalId || `dbauto-temp-btn-${Date.now()}`;
-            if (!originalId) element.id = tempId;
-            script.textContent = `(function() { 
-                var btn = document.getElementById('${tempId}'); 
-                if (btn) btn.click();
-            })();`;
-            setTimeout(() => {
-                const el = document.getElementById(tempId);
-                if (el && !originalId) el.removeAttribute('id');
-            }, 300);
-        }
-    }
-
-    (document.head || document.documentElement).appendChild(script);
-    script.remove();
-}
 
 async function handleAutoFill(data) {
     try {
@@ -344,10 +312,14 @@ async function fillRecipientsSequentially(items) {
         // 3단계: 이름 선택
         idSelect.value = item.value;
         idSelect.dispatchEvent(new Event('change', { bubbles: true }));
-        // 4단계: "+" 버튼 클릭
+        // 4단계: "+" 버튼 클릭 (href가 허용된 함수명만 포함하는지 검증)
         const addBtn = document.querySelector('a[href*="fnAddRecipient"]');
-        if (addBtn) { addBtn.click(); }
-        else { try { fnAddRecipient(); } catch (e) { } }
+        if (addBtn) {
+            const href = addBtn.getAttribute('href') || '';
+            if (/^javascript:\s*fnAddRecipient\s*\(\s*\)\s*;?\s*$/.test(href)) {
+                addBtn.click();
+            }
+        }
         await new Promise(r => setTimeout(r, 100));
     }
 }
@@ -363,8 +335,12 @@ async function fillPicSequentially(items) {
         picSelect.value = item.value;
         picSelect.dispatchEvent(new Event('change', { bubbles: true }));
         const addBtn = document.querySelector('a[href*="fnAddPicId"]');
-        if (addBtn) { addBtn.click(); }
-        else { try { fnAddPicId(); } catch (e) { } }
+        if (addBtn) {
+            const href = addBtn.getAttribute('href') || '';
+            if (/^javascript:\s*fnAddPicId\s*\(\s*\)\s*;?\s*$/.test(href)) {
+                addBtn.click();
+            }
+        }
         await new Promise(r => setTimeout(r, 100));
     }
 }

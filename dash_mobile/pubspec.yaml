@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.7+19
+version: 1.0.9+21
 
 environment:
   sdk: ^3.9.2
@@ -52,6 +52,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   flutter_local_notifications: ^20.1.0
   url_launcher: ^6.3.0
+  app_links: ^6.4.0
   font_awesome_flutter: ^10.7.0
 
 dev_dependencies:
@@ -64,6 +65,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+
+  # HTTP 모킹: package:http/testing.dart의 MockClient + http.runWithClient 사용
+  # 모든 서비스가 static 메서드 기반이므로 mockito의 @GenerateMocks는 적용 불가.
+  # → mockito, build_runner 의존성 제거 (미사용 의존성 정리)
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -109,8 +114,6 @@ flutter:
           weight: 700
         - asset: assets/fonts/Pretendard-ExtraBold.otf
           weight: 800
-        - asset: assets/fonts/Pretendard-ExtraBold.otf
-          weight: 900
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package

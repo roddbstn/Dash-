@@ -94,8 +94,6 @@ class _NicknameScreenState extends State<NicknameScreen> {
                     onTap: _isEnabled ? _save : null,
                     text: '완료',
                     backgroundColor: AppColors.primary,
-                    height: 56,
-                    borderRadius: 12,
                   ),
                 ),
               ),

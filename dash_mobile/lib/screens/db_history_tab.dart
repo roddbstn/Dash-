@@ -13,10 +13,10 @@ class DbHistoryTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(20, 40, 20, 16),
+            padding: EdgeInsets.fromLTRB(20, 15, 20, 16),
             child: Text(
               'DB 내역',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF222222)),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
             ),
           ),
           Expanded(
@@ -64,10 +64,10 @@ class DbHistoryTab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.fromLTRB(20, 48, 20, 16),
+          padding: EdgeInsets.fromLTRB(20, 15, 20, 16),
           child: Text(
             'DB 내역',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF222222)),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
           ),
         ),
         Expanded(
@@ -80,7 +80,7 @@ class DbHistoryTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 16, bottom: 8, left: 4),
+                    padding: const EdgeInsets.only(top: 8, bottom: 8, left: 4),
                     child: Text(
                       section.key,
                       style: const TextStyle(
@@ -159,7 +159,9 @@ class _HistoryCardState extends State<_HistoryCard> {
         : (serviceName.isNotEmpty ? serviceName : '-');
     final rawServiceType = d['service_type'] ?? d['serviceType'] ?? '';
     final serviceTypeDisplay = rawServiceType == '아보전' ? '아보전서비스' : (rawServiceType.isNotEmpty ? rawServiceType : '-');
-    final injectedByName = d['injected_by_name'] ?? d['injectedByName'] ?? d['author_name'] ?? '';
+    final injectedByName = [d['injected_by_name'], d['injectedByName'], d['author_name']]
+        .whereType<String>()
+        .firstWhere((s) => s.isNotEmpty, orElse: () => '');
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -173,7 +175,7 @@ class _HistoryCardState extends State<_HistoryCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.all(18),
+              padding: EdgeInsets.fromLTRB(18, 18, 18, _expanded ? 12 : 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -207,35 +209,36 @@ class _HistoryCardState extends State<_HistoryCard> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // 요약 정보
-                  _InfoRow(label: '기입자', value: injectedByName.isNotEmpty ? injectedByName : '-'),
-                  _InfoRow(label: '제공일시', value: _dateTimeStr),
-                  _InfoRow(label: '제공서비스', value: serviceFullName),
-                  _InfoRow(label: '제공방법', value: d['method'] ?? '-'),
+                  // 요약 정보 및 상세 보기 토글
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _InfoRow(label: '기입자', value: injectedByName.isNotEmpty ? injectedByName : '-'),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => setState(() => _expanded = !_expanded),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          color: Colors.transparent,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _expanded ? '접기' : '상세 보기',
+                                style: const TextStyle(fontSize: 13, color: Color(0xFF8B95A1), fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                                  size: 16, color: const Color(0xFFADB5BD)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-              ),
-            ),
-
-            // 상세 보기 토글
-            GestureDetector(
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: Color(0xFFF2F4F6))),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      _expanded ? '접기' : '상세 보기',
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF8B95A1), fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                        size: 16, color: const Color(0xFFADB5BD)),
-                  ],
-                ),
               ),
             ),
 
@@ -245,6 +248,9 @@ class _HistoryCardState extends State<_HistoryCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _InfoRow(label: '제공일시', value: _dateTimeStr),
+                    _InfoRow(label: '제공서비스', value: serviceFullName),
+                    _InfoRow(label: '제공방법', value: d['method'] ?? '-'),
                     _InfoRow(label: '대상자', value: d['target'] ?? '-'),
                     _InfoRow(label: '제공구분', value: d['provision_type'] ?? '-'),
                     _InfoRow(label: '서비스제공유형', value: serviceTypeDisplay),

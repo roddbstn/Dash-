@@ -9,8 +9,8 @@ class DashButton extends StatefulWidget {
   final double borderRadius;
   final EdgeInsets padding;
   final double? width;
-  final double height;
   final Widget? icon;
+  final BoxBorder? border;
 
   const DashButton({
     super.key,
@@ -18,11 +18,11 @@ class DashButton extends StatefulWidget {
     required this.text,
     this.backgroundColor = AppColors.primary,
     this.textColor = Colors.white,
-    this.borderRadius = 16,
-    this.padding = const EdgeInsets.symmetric(vertical: 18),
+    this.borderRadius = 12,
+    this.padding = const EdgeInsets.symmetric(vertical: 14),
     this.width = double.infinity,
-    this.height = 56,
     this.icon,
+    this.border,
   });
 
   @override
@@ -46,15 +46,15 @@ class _DashButtonState extends State<DashButton> with SingleTickerProviderStateM
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           width: widget.width,
-          height: widget.height,
           decoration: BoxDecoration(
-            color: widget.onTap == null 
+            color: widget.onTap == null
                 ? const Color(0xFFDBE0E5)
-                : (_isPressed 
-                    ? Color.lerp(widget.backgroundColor, Colors.black, 0.1) 
-                    : widget.backgroundColor),
+                : _isPressed
+                    ? Color.lerp(widget.backgroundColor, Colors.black, 0.08)!
+                    : widget.backgroundColor,
             borderRadius: BorderRadius.circular(widget.borderRadius),
-            boxShadow: (_isPressed || widget.onTap == null) ? [] : [
+            border: widget.border,
+            boxShadow: widget.onTap == null ? [] : [
               BoxShadow(
                 color: widget.backgroundColor.withValues(alpha: 0.1),
                 blurRadius: 12,
@@ -62,8 +62,8 @@ class _DashButtonState extends State<DashButton> with SingleTickerProviderStateM
               ),
             ],
           ),
-
-          child: Center(
+          child: Padding(
+            padding: widget.padding,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

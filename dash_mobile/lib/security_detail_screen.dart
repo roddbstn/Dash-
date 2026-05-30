@@ -354,7 +354,7 @@ class _SecurityDetailScreenState extends State<SecurityDetailScreen> {
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   _AccessRow(
-                    subject: '상담원이 링크를 공유한 상사',
+                    subject: '공유 메모 링크를 공유받은 타 상담원',
                     icon: Icons.supervisor_account_outlined,
                     canAccess: true,
                     reason: '공유 링크 안에 열쇠가 포함되어 있어 브라우저에서 복호화 가능',

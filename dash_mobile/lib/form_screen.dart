@@ -26,6 +26,8 @@ class FormScreen extends StatefulWidget {
   final void Function(String shareToken, String encryptionKey)? onSharedDbReady;
   final String? userName;
   final bool isSharedDb;
+  final bool isViewOnly;
+  final String? viewTitle;
 
   const FormScreen({
     super.key,
@@ -38,6 +40,8 @@ class FormScreen extends StatefulWidget {
     this.onSharedDbReady,
     this.userName,
     this.isSharedDb = false,
+    this.isViewOnly = false,
+    this.viewTitle,
   });
 
   @override
@@ -69,6 +73,7 @@ class _FormScreenState extends State<FormScreen> {
   bool _isManualTravelTime = false;
   bool _isLoading = false;
   bool _showDateTimeError = false;
+  late bool _isViewOnly;
   Map<String, dynamic>? _currentDraft;
   // 공유받은 DB를 열었을 때, 아무것도 수정하지 않은 상태의 지문(fingerprint)
   String? _sharedDraftFingerprint;
@@ -76,8 +81,9 @@ class _FormScreenState extends State<FormScreen> {
   @override
   void initState() {
     super.initState();
+    _isViewOnly = widget.isViewOnly;
     AnalyticsService.screenForm();
-    _travelTimeController.text = ""; 
+    _travelTimeController.text = "";
     if (widget.draftId != null) {
       _loadDraftData();
     }
@@ -175,135 +181,144 @@ class _FormScreenState extends State<FormScreen> {
   void _handleSave() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
-    final drafts = await StorageService.getDrafts();
-    
-    List<String> finalTargets = _selectedTargets.where((t) => t != '기타').toList();
-    if (_selectedTargets.contains('기타') && _otherTargetController.text.isNotEmpty) {
-      finalTargets.add(_otherTargetController.text);
-    }
-    final targetValue = finalTargets.join(', ');
+    try {
+      final drafts = await StorageService.getDrafts();
 
-    // [Security] 키는 SecureStorage keyMap에서 조회
-    // 없으면 vault에서 복구 시도 → 그래도 없으면 새로 생성 (기존 공유링크 무효화됨)
-    final String? existingShareToken = _currentDraft?['share_token'];
-    String? encryptionKey = await StorageService.getKeyFromMap(existingShareToken);
-    if (encryptionKey == null && existingShareToken != null) {
-      final pin = await StorageService.getPin();
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (pin != null && uid != null) {
-        final vaultMap = await VaultService.decryptVault(pin, uid);
-        encryptionKey = vaultMap?[existingShareToken] as String?;
-        if (encryptionKey != null) {
-          await StorageService.saveKeyToMap(existingShareToken, encryptionKey);
-          debugPrint('🔑 sync: vault에서 키 복구 성공 ($existingShareToken)');
+      List<String> finalTargets = _selectedTargets.where((t) => t != '기타').toList();
+      if (_selectedTargets.contains('기타') && _otherTargetController.text.isNotEmpty) {
+        finalTargets.add(_otherTargetController.text);
+      }
+      final targetValue = finalTargets.join(', ');
+
+      // [Security] 키는 SecureStorage keyMap에서 조회
+      // 없으면 vault에서 복구 시도 → 그래도 없으면 새로 생성 (기존 공유링크 무효화됨)
+      final String? existingShareToken = _currentDraft?['share_token'];
+      String? encryptionKey = await StorageService.getKeyFromMap(existingShareToken);
+      if (encryptionKey == null && existingShareToken != null) {
+        final pin = await StorageService.getPin();
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (pin != null && uid != null) {
+          final vaultMap = await VaultService.decryptVault(pin, uid);
+          encryptionKey = vaultMap?[existingShareToken] as String?;
+          if (encryptionKey != null) {
+            await StorageService.saveKeyToMap(existingShareToken, encryptionKey);
+            debugPrint('🔑 sync: vault에서 키 복구 성공 ($existingShareToken)');
+          }
         }
       }
-    }
-    if (encryptionKey == null) {
-      final random = math.Random.secure();
-      final values = List<int>.generate(16, (i) => random.nextInt(256));
-      encryptionKey = base64Url.encode(values).replaceAll('=', '');
-    }
+      if (encryptionKey == null) {
+        final random = math.Random.secure();
+        final values = List<int>.generate(16, (i) => random.nextInt(256));
+        encryptionKey = base64Url.encode(values).replaceAll('=', '');
+      }
 
-    String? dateTimeString;
-    if (_startDate != null && _endDate != null) {
-      final bool isSameDay = _startDate!.year == _endDate!.year && _startDate!.month == _endDate!.month && _startDate!.day == _endDate!.day;
-      final days = ['월', '화', '수', '목', '금', '토', '일'];
-      final startFormatted = "${_startDate!.month}.${_startDate!.day} (${days[_startDate!.weekday - 1]}) ${DateFormat('HH:mm').format(_startDate!)}";
-      if (isSameDay) {
-        dateTimeString = "$startFormatted ~ ${DateFormat('HH:mm').format(_endDate!)}";
+      String? dateTimeString;
+      if (_startDate != null && _endDate != null) {
+        final bool isSameDay = _startDate!.year == _endDate!.year && _startDate!.month == _endDate!.month && _startDate!.day == _endDate!.day;
+        final days = ['월', '화', '수', '목', '금', '토', '일'];
+        final startFormatted = "${_startDate!.month}.${_startDate!.day} (${days[_startDate!.weekday - 1]}) ${DateFormat('HH:mm').format(_startDate!)}";
+        if (isSameDay) {
+          dateTimeString = "$startFormatted ~ ${DateFormat('HH:mm').format(_endDate!)}";
+        } else {
+          final endFormatted = "${_endDate!.month}.${_endDate!.day} (${days[_endDate!.weekday - 1]}) ${DateFormat('HH:mm').format(_endDate!)}";
+          dateTimeString = "$startFormatted ~ $endFormatted";
+        }
+      }
+
+      final draftData = {
+        'id': widget.draftId ?? DateTime.now().millisecondsSinceEpoch,
+        'caseName': widget.caseName,
+        'dong': widget.dong,
+        'is_shared_db': widget.isSharedDb,
+        'target': targetValue,
+        'provision_type': _selectedProvisionType,
+        'method': _selectedMethod,
+        'service_type': _selectedServiceType,
+        'service_category': _selectedServiceCategory,
+        'service_name': _selectedService,
+        'location': _selectedLocation == '기타' ? _otherLocationController.text : _selectedLocation,
+        'datetime': dateTimeString,
+        'startTime': _startDate?.toIso8601String(),
+        'endTime': _endDate?.toIso8601String(),
+        'serviceDescription': _serviceController.text,
+        'agentOpinion': _opinionController.text,
+        'serviceCount': _serviceCountController.text.isEmpty ? '1' : _serviceCountController.text,
+        'travelTime': _travelTime,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      final key = encrypt.Key.fromUtf8(encryptionKey.padRight(32).substring(0, 32));
+      final iv = encrypt.IV.fromLength(16);
+      final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
+      final encrypted = encrypter.encrypt(jsonEncode(draftData), iv: iv);
+      final encryptedBlob = "${iv.base64}:${encrypted.base64}";
+
+      final int targetId = (widget.draftId ?? draftData['id']) as int;
+      final index = drafts.indexWhere((d) => d['id'].toString() == targetId.toString());
+      if (index != -1) {
+        drafts[index] = draftData;
       } else {
-        final endFormatted = "${_endDate!.month}.${_endDate!.day} (${days[_endDate!.weekday - 1]}) ${DateFormat('HH:mm').format(_endDate!)}";
-        dateTimeString = "$startFormatted ~ $endFormatted";
+        drafts.add(draftData);
+      }
+
+      await StorageService.saveDrafts(drafts);
+
+      final String targetFullList = finalTargets.isNotEmpty ? finalTargets.join(', ') : '-';
+
+      final userId = await StorageService.getUserId();
+      final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+
+      // PIN은 확장프로그램에서만 요구, 앱에서는 불필요
+      String? pin = await StorageService.getPin();
+
+      final serverDraftData = {
+        'case_id': widget.caseId,
+        'case_name': widget.caseName,
+        'dong': widget.dong,
+        'user_id': userId,
+        'user_email': userEmail,
+        'user_name': widget.userName,
+        'target': targetFullList,
+        'provision_type': _selectedProvisionType,
+        'method': _selectedMethod,
+        'service_type': _selectedServiceType,
+        'service_category': _selectedServiceCategory,
+        'service_name': _selectedService,
+        'location': _selectedLocation == '기타' ? _otherLocationController.text : _selectedLocation,
+        'start_time': _startDate?.toIso8601String(),
+        'end_time': _endDate?.toIso8601String(),
+        'service_count': int.tryParse(_serviceCountController.text) ?? 1,
+        'travel_time': _travelTime,
+        'service_description': '',
+        'agent_opinion': '',
+        'encrypted_blob': encryptedBlob,
+        'share_token': _currentDraft?['share_token'],
+        'is_shared_db': widget.isSharedDb,
+        'share_key': widget.isSharedDb ? encryptionKey : null,
+      };
+
+      // 로컬 저장 완료 → 즉시 홈으로 전환, 서버 동기화는 백그라운드에서 진행
+      if (mounted) Navigator.pop(context, true);
+
+      // [Background] 서버 동기화 (화면 전환 후 실행)
+      _syncRecordInBackground(
+        userId: userId,
+        pin: pin,
+        targetId: targetId,
+        serverDraftData: serverDraftData,
+        encryptionKey: encryptionKey,
+        provisionType: _selectedProvisionType,
+        targetFullList: targetFullList,
+        hasServiceDescription: _serviceController.text.isNotEmpty,
+        hasAgentOpinion: _opinionController.text.isNotEmpty,
+      );
+    } catch (e, stack) {
+      CrashService.recordError(e, stack, reason: 'handleSave');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showToast('저장 중 오류가 발생했습니다. 다시 시도해주세요.');
       }
     }
-
-    final draftData = {
-      'id': widget.draftId ?? DateTime.now().millisecondsSinceEpoch,
-      'caseName': widget.caseName,
-      'dong': widget.dong,
-      'is_shared_db': widget.isSharedDb,
-      'target': targetValue,
-      'provision_type': _selectedProvisionType,
-      'method': _selectedMethod,
-      'service_type': _selectedServiceType,
-      'service_category': _selectedServiceCategory,
-      'service_name': _selectedService,
-      'location': _selectedLocation == '기타' ? _otherLocationController.text : _selectedLocation,
-      'datetime': dateTimeString,
-      'startTime': _startDate?.toIso8601String(),
-      'endTime': _endDate?.toIso8601String(),
-      'serviceDescription': _serviceController.text,
-      'agentOpinion': _opinionController.text,
-      'serviceCount': _serviceCountController.text.isEmpty ? '1' : _serviceCountController.text,
-      'travelTime': _travelTime,
-      'updatedAt': DateTime.now().toIso8601String(),
-    };
-
-    final key = encrypt.Key.fromUtf8(encryptionKey.padRight(32).substring(0, 32));
-    final iv = encrypt.IV.fromLength(16);
-    final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
-    final encrypted = encrypter.encrypt(jsonEncode(draftData), iv: iv);
-    final encryptedBlob = "${iv.base64}:${encrypted.base64}";
-
-    final int targetId = (widget.draftId ?? draftData['id']) as int;
-    final index = drafts.indexWhere((d) => d['id'].toString() == targetId.toString());
-    if (index != -1) {
-      drafts[index] = draftData;
-    } else {
-      drafts.add(draftData);
-    }
-
-    await StorageService.saveDrafts(drafts);
-
-    final String targetFullList = finalTargets.isNotEmpty ? finalTargets.join(', ') : '-';
-
-    final userId = await StorageService.getUserId();
-    final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
-
-    // PIN은 확장프로그램에서만 요구, 앱에서는 불필요
-    String? pin = await StorageService.getPin();
-
-    final serverDraftData = {
-      'case_id': widget.caseId,
-      'case_name': widget.caseName,
-      'dong': widget.dong,
-      'user_id': userId,
-      'user_email': userEmail,
-      'user_name': widget.userName,
-      'target': targetFullList,
-      'provision_type': _selectedProvisionType,
-      'method': _selectedMethod,
-      'service_type': _selectedServiceType,
-      'service_category': _selectedServiceCategory,
-      'service_name': _selectedService,
-      'location': _selectedLocation == '기타' ? _otherLocationController.text : _selectedLocation,
-      'start_time': _startDate?.toIso8601String(),
-      'end_time': _endDate?.toIso8601String(),
-      'service_count': int.tryParse(_serviceCountController.text) ?? 1,
-      'travel_time': _travelTime,
-      'service_description': '',
-      'agent_opinion': '',
-      'encrypted_blob': encryptedBlob,
-      'share_token': _currentDraft?['share_token'],
-      'is_shared_db': widget.isSharedDb,
-    };
-
-    // 로컬 저장 완료 → 즉시 홈으로 전환, 서버 동기화는 백그라운드에서 진행
-    if (mounted) Navigator.pop(context, true);
-
-    // [Background] 서버 동기화 (화면 전환 후 실행)
-    _syncRecordInBackground(
-      userId: userId,
-      pin: pin,
-      targetId: targetId,
-      serverDraftData: serverDraftData,
-      encryptionKey: encryptionKey,
-      provisionType: _selectedProvisionType,
-      targetFullList: targetFullList,
-      hasServiceDescription: _serviceController.text.isNotEmpty,
-      hasAgentOpinion: _opinionController.text.isNotEmpty,
-    );
   }
 
   Future<void> _syncRecordInBackground({
@@ -548,7 +563,7 @@ class _FormScreenState extends State<FormScreen> {
                         },
                         child: const Text('완료',
                             style: TextStyle(
-                                color: AppColors.primary,
+                                color: Color(0xFF111111),
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15)),
                       ),
@@ -690,8 +705,7 @@ class _FormScreenState extends State<FormScreen> {
                       _copyShareLink(); 
                     }, 
                     text: '링크 복사하기', 
-                    backgroundColor: AppColors.primary, 
-                    height: 54
+                    backgroundColor: AppColors.primary,
                   ),
                 if (!isOffline) const SizedBox(height: 12),
                 SizedBox(
@@ -811,26 +825,32 @@ class _FormScreenState extends State<FormScreen> {
           backgroundColor: AppColors.bg,
           elevation: 0,
           scrolledUnderElevation: 0,
-          title: widget.isSharedDb
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text('공유', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                    ),
-                  ],
-                )
-              : Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          title: _isViewOnly
+              ? Text(widget.viewTitle ?? '나의 DB', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
+              : widget.isSharedDb
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text('공유', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                        ),
+                      ],
+                    )
+                  : Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           centerTitle: true,
           actions: [
-            if (widget.draftId != null) IconButton(icon: const Icon(Icons.ios_share, size: 24), onPressed: _copyShareLink),
+            if (_isViewOnly && widget.draftId != null)
+              TextButton(
+                onPressed: () => setState(() => _isViewOnly = false),
+                child: const Text('수정', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.primary)),
+              ),
           ],
         ),
         body: _isLoading
@@ -842,12 +862,15 @@ class _FormScreenState extends State<FormScreen> {
                     child: SingleChildScrollView(
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                      child: _buildFormSections(),
+                      child: IgnorePointer(
+                        ignoring: _isViewOnly,
+                        child: _buildFormSections(),
+                      ),
                     ),
                   ),
                 ],
               ),
-        bottomNavigationBar: _buildSaveBar(),
+        bottomNavigationBar: _isViewOnly ? null : _buildSaveBar(),
       ),
     );
   }
@@ -915,7 +938,10 @@ class _FormScreenState extends State<FormScreen> {
           children: ['피해아동', '사례관리대상자', '가족구성원', '가족전체', '시설', '기타'].map((t) => _buildChip(t, _selectedTargets.contains(t), (val) {
             setState(() {
               if (_selectedTargets.contains(val)) {
-                _selectedTargets.remove(val);
+                // 마지막 하나는 해제 불가 (대상자 필수)
+                if (_selectedTargets.length > 1) {
+                  _selectedTargets.remove(val);
+                }
               } else {
                 _selectedTargets.add(val);
               }
@@ -983,13 +1009,17 @@ class _FormScreenState extends State<FormScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              _startDate == null ? '일시 선택' : "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}",
+              _startDate == null
+                  ? '일시 선택'
+                  : _endDate == null
+                      ? DateFormat('MM.dd HH:mm').format(_startDate!)
+                      : "${DateFormat('MM.dd HH:mm').format(_startDate!)} ~ ${DateFormat('MM.dd HH:mm').format(_endDate!)}",
               style: TextStyle(color: _startDate == null ? const Color(0xFF8B95A1) : AppColors.textMain),
             ),
           ),
         ),
       ),
-      _buildSection(label: '서비스 제공횟수', child: Row(children: [SizedBox(width: 40, child: TextField(controller: _serviceCountController, textAlign: TextAlign.center)), const Text('회')])),
+      _buildSection(label: '서비스 제공횟수', child: Row(children: [SizedBox(width: 40, child: TextField(controller: _serviceCountController, textAlign: TextAlign.center, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)])), const Text('회')])),
       _buildSection(
         label: '이동소요시간',
         child: Column(
@@ -1013,12 +1043,15 @@ class _FormScreenState extends State<FormScreen> {
                       controller: _travelTimeController,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
-                      inputFormatters: [LengthLimitingTextInputFormatter(7)],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)],
                       decoration: const InputDecoration(
                         hintText: '0',
                         hintStyle: TextStyle(color: Color(0xFF8B95A1)),
                       ),
-                      onChanged: (v) => setState(() => _travelTime = int.tryParse(v) ?? 0),
+                      onChanged: (v) {
+                        final parsed = int.tryParse(v) ?? 0;
+                        setState(() => _travelTime = parsed > 999 ? 999 : parsed);
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1079,7 +1112,6 @@ class _FormScreenState extends State<FormScreen> {
                   },
             text: '저장',
             backgroundColor: AppColors.primary,
-            height: 56,
           ),
         ),
       ),
@@ -1135,7 +1167,7 @@ class _FormScreenState extends State<FormScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.black.withValues(alpha: 0.05))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textSub)),

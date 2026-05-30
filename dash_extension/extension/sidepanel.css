@@ -2,8 +2,8 @@
    Dash Extension — Design System (Mobile App 연동)
    Color Tokens from theme.dart:
      primary: #1A56DB  |  primaryLight: #E8F3FF
-     bg: #FAFAF8       |  card: #FFFFFF
-     textMain: #222222  |  textSub: #4E5968
+     bg: #FAFAF8       |  card: #FAFAFA
+     textMain: #111111  |  textSub: #4E5968
      border: #E5E8EB    |  danger: #FF4D4F
    ============================================== */
 
@@ -12,8 +12,8 @@
     --primary-light: #E8F3FF;
     --primary-hover: #1446B8;
     --bg: #FAFAF8;
-    --card: #FFFFFF;
-    --text-main: #222222;
+    --card: #FAFAFA;
+    --text-main: #111111;
     --text-sub: #4E5968;
     --text-hint: #ADB5BD;
     --border: #E5E8EB;
@@ -101,7 +101,7 @@ body {
   user-select: none;
   -webkit-appearance: none;
   appearance: none;
-  background-color: WHITE;
+  background-color: #FAFAFA;
   background-image: none;
   border: 1px solid #747775;
   -webkit-border-radius: 4px;
@@ -399,7 +399,7 @@ body {
 .counselor-tag {
     flex-shrink: 0;
     padding: 4px 10px;
-    background: #ffffff;
+    background: #FAFAFA;
     border: 1.5px solid #DDE1E7;
     border-radius: 100px;
     font-size: 11px;
@@ -1136,7 +1136,10 @@ body {
 /* ===== PIN Help Modal (Forgot PIN) ===== */
 .pin-help-overlay {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background: rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
@@ -1230,7 +1233,7 @@ body {
 /* ── 메인 탭 바 (대기 중 / 이전 기록) ───────────────────────── */
 .main-tab-bar {
     display: flex;
-    background: #fff;
+    background: #FAFAFA;
     border-bottom: 1.5px solid var(--border);
     padding: 0 16px;
     gap: 0;

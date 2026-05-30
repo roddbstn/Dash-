@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/widgets/home_widgets.dart';
+import 'package:dash_mobile/widgets/dash_button.dart';
 import 'package:dash_mobile/user_guide_screen.dart';
 
 class HomeTab extends StatelessWidget {
@@ -20,7 +21,6 @@ class HomeTab extends StatelessWidget {
     int? draftId,
   }) onGoToForm;
   final Future<void> Function(int draftId) onDeleteMyDraft;
-  final VoidCallback onImportFromLink;
   const HomeTab({
     super.key,
     this.isLoading = false,
@@ -33,96 +33,98 @@ class HomeTab extends StatelessWidget {
     required this.onShowCaseSelection,
     required this.onGoToForm,
     required this.onDeleteMyDraft,
-    required this.onImportFromLink,
   });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isTablet = constraints.maxWidth > 650;
+        final bool isTablet = constraints.maxWidth > kTabletBreakpoint;
 
         if (isTablet) {
-          return RefreshIndicator(
-            onRefresh: onRefresh,
-            color: AppColors.primary,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
-                child: Column(
-                  children: [
-                    _buildGuideAndCta(context),
-                    const SizedBox(height: 20),
-                    _buildDbList(
-                        context, isPad: true, padWidth: constraints.maxWidth - 40),
-                    const SizedBox(height: 100),
-                  ],
+          return SafeArea(
+            top: false,
+            child: RefreshIndicator(
+              onRefresh: onRefresh,
+              color: AppColors.primary,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
+                  child: Column(
+                    children: [
+                      _buildGuideAndCta(context),
+                      const SizedBox(height: 20),
+                      _buildDbList(
+                          context, isPad: true, padWidth: constraints.maxWidth - 40),
+                      const SizedBox(height: 100),
+                    ],
+                  ),
                 ),
               ),
             ),
           );
         }
 
-        // 모바일: 상단 배경 + 드래그 가능한 DB 시트
+        // 모바일: 드래그 가능한 DB 시트
         return Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                color: const Color(0xFFF5F6F8),
-                padding: const EdgeInsets.fromLTRB(20, 15, 20, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildGreetingHeader(),
-                    const SizedBox(height: 28),
-                    _buildPcGuideBanner(context),
-                    const SizedBox(height: 20),
-                    _buildCtaCard(),
-                  ],
-                ),
-              ),
-            ),
-            DraggableScrollableSheet(
-              initialChildSize: 0.50,
-              minChildSize: 0.38,
-              maxChildSize: 0.91,
-              snap: true,
-              snapSizes: const [0.38, 0.50, 0.91],
-              builder: (context, scrollController) {
-                return Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0x18000000),
-                        blurRadius: 24,
-                        spreadRadius: 0,
-                        offset: Offset(0, -6),
-                      ),
-                    ],
-                  ),
-                  child: RefreshIndicator(
-                    onRefresh: onRefresh,
-                    color: AppColors.primary,
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                        child: _buildDbList(context, isPad: false),
+                children: [
+                  Positioned.fill(
+                    child: Container(
+                      color: const Color(0xFFF5F6F8),
+                      padding: const EdgeInsets.fromLTRB(20, 15, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildGreetingHeader(),
+                          const SizedBox(height: 28),
+                          _buildPcGuideBanner(context),
+                          const SizedBox(height: 20),
+                          _buildCtaCard(),
+                        ],
                       ),
                     ),
                   ),
-                );
-              },
-            ),
-          ],
-        );
+                  DraggableScrollableSheet(
+                    initialChildSize: 0.55,
+                    minChildSize: 0.38,
+                    maxChildSize: 0.92,
+                    snap: true,
+                    snapSizes: const [0.38, 0.55, 0.92],
+                    builder: (context, scrollController) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(12),
+                            topRight: Radius.circular(12),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 12,
+                              spreadRadius: 0,
+                              offset: const Offset(0, -4),
+                            ),
+                          ],
+                        ),
+                        child: RefreshIndicator(
+                          onRefresh: onRefresh,
+                          color: AppColors.primary,
+                          child: SingleChildScrollView(
+                            controller: scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                              child: _buildDbList(context, isPad: false),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              );
       },
     );
   }
@@ -135,26 +137,10 @@ class HomeTab extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Image.asset('assets/icons/logo_transparent.png', width: 36, height: 36),
-            const Spacer(),
-            IconButton(
-              onPressed: onImportFromLink,
-              icon: const Icon(Icons.add_link, size: 24),
-              color: const Color(0xFF8B95A1),
-              tooltip: '공유 링크로 DB 가져오기',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
         RichText(
           text: TextSpan(
             style: const TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
               color: Color(0xFF222222),
@@ -169,50 +155,38 @@ class HomeTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        if (isLoading)
-          Container(
-            width: 130,
-            height: 14,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE9ECEF),
-              borderRadius: BorderRadius.circular(7),
-            ),
-          )
-        else
-          Text(
-            '기입할 DB가 $totalCount개 있어요',
-            style: const TextStyle(fontSize: 15, color: Color(0xFF888888)),
-          ),
+        SizedBox(
+          height: 20,
+          child: isLoading
+              ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    width: 130,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE9ECEF),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                  ),
+                )
+              : Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '기입할 DB가 $totalCount개 있어요',
+                    style: const TextStyle(fontSize: 15, color: Color(0xFF888888)),
+                  ),
+                ),
+        ),
       ],
     );
   }
 
   // ── CTA 버튼 카드 ────────────────────────────────────────────────
   Widget _buildCtaCard() {
-    return ScaleTap(
+    return DashButton(
       onTap: onShowCaseSelection,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'DB 작성하기',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
+      text: 'DB 작성하러 가기',
+      backgroundColor: AppColors.primary,
     );
   }
 
@@ -417,48 +391,20 @@ class HomeTab extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'DB 목록',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF222222)),
-            ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 20),
             _buildSegmentControl(
               personalDrafts.length,
               sharedDbDrafts.length,
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 20),
             if (isMyDb) ...[
-              // 개인 DB
+              // 개인 DB — 미완료(Draft) / 진행 중(Synced·Reviewed) 섹션 분리
               if (isLoading && personalDrafts.isEmpty)
                 const _DraftSkeletonList()
               else if (personalDrafts.isEmpty)
                 _buildEmptyHint('사례를 선택해 DB를 만들어주세요')
               else
-                Column(
-                  children: [
-                    ...personalDrafts.asMap().entries.map<Widget>((entry) {
-                      final idx = entry.key;
-                      final d = entry.value;
-                      final foundCase =
-                          cases.cast<Map<String, dynamic>?>().firstWhere(
-                                (c) =>
-                                    c?['realName'] == d['caseName'] ||
-                                    c?['maskedName'] == d['caseName'],
-                                orElse: () => null,
-                              );
-                      final dong =
-                          foundCase != null ? foundCase['dong'] : '미지정';
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _buildDraftCardInBox(context, d, dong,
-                            index: idx),
-                      );
-                    }),
-                  ],
-                ),
+                _buildGroupedPersonalDrafts(context, personalDrafts),
             ] else ...[
               // 공유할 DB
               if (sharedDbDrafts.isEmpty)
@@ -493,15 +439,104 @@ class HomeTab extends StatelessWidget {
     );
   }
 
+  // ── 나의 DB: 미완료 / 진행 중 그룹 렌더링 ──────────────────────────
+  Widget _buildGroupedPersonalDrafts(
+      BuildContext context, List<dynamic> personalDrafts) {
+    // Draft = 로컬 저장만 된 상태(미완료), 그 외(Synced·Reviewed) = 서버 동기화 완료(진행 중)
+    final pending = personalDrafts
+        .where((d) => (d['status'] ?? 'Draft') == 'Draft')
+        .toList();
+    final synced = personalDrafts
+        .where((d) => (d['status'] ?? 'Draft') != 'Draft')
+        .toList();
+
+    // 두 그룹이 모두 존재하는 경우에만 섹션 헤더 표시
+    final showHeaders = pending.isNotEmpty && synced.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (pending.isNotEmpty) ...[
+          if (showHeaders) _buildStatusSectionHeader('미완료', pending.length),
+          ...pending.asMap().entries.map<Widget>((entry) {
+            final d = entry.value;
+            final dong = _findDong(d);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildDraftCardInBox(context, d, dong, index: entry.key),
+            );
+          }),
+          if (showHeaders) const SizedBox(height: 8),
+        ],
+        if (synced.isNotEmpty) ...[
+          if (showHeaders) _buildStatusSectionHeader('진행 중', synced.length),
+          ...synced.asMap().entries.map<Widget>((entry) {
+            final d = entry.value;
+            final dong = _findDong(d);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildDraftCardInBox(context, d, dong, index: entry.key),
+            );
+          }),
+        ],
+      ],
+    );
+  }
+
+  String _findDong(dynamic d) {
+    final foundCase = cases.cast<Map<String, dynamic>?>().firstWhere(
+          (c) =>
+              c?['realName'] == d['caseName'] ||
+              c?['maskedName'] == d['caseName'],
+          orElse: () => null,
+        );
+    return foundCase != null ? foundCase['dong'] : '미지정';
+  }
+
+  Widget _buildStatusSectionHeader(String label, int count) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF444444),
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F2F5),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF888888),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── 세그먼트 탭 컨트롤 ────────────────────────────────────────────
   Widget _buildSegmentControl(int myCount, int sharedCount) {
     final isFirst = dbTabController.index == 0;
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF5F6F8),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
       ),
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(5),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final pillWidth = constraints.maxWidth / 2;
@@ -519,7 +554,7 @@ class HomeTab extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.07),
@@ -556,8 +591,8 @@ class HomeTab extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 13,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+              fontSize: 14,
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
               color: isActive ? const Color(0xFF222222) : const Color(0xFF888888),
             ),
           ),
@@ -603,13 +638,11 @@ class HomeTab extends StatelessWidget {
             : null);
     final counselorName = counselor?['name']?.toString();
 
-    final bool allowShare = d['is_shared_db'] == true || d['is_shared_db'] == 1;
     return SwipeableDraftCard(
       key: ValueKey(d['id']),
       d: d,
       index: index,
       isLast: true,
-      allowShare: allowShare,
       counselorName: counselorName,
       onTap: () => onGoToForm(
         foundCase?['realName'] ?? d['caseName'],
@@ -730,7 +763,7 @@ class _DraftSkeletonCardState extends State<_DraftSkeletonCard>
           height: 112,
           decoration: BoxDecoration(
             color: base,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.all(16),
           child: Column(

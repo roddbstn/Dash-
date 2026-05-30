@@ -465,7 +465,7 @@ class _MockupDbButton extends StatelessWidget {
       ),
       child: const Center(
         child: Text(
-          'DB 작성하기',
+          'DB 작성하러 가기',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -1028,7 +1028,7 @@ class _MockupCtaAndModal extends StatelessWidget {
           ),
           child: const Center(
             child: Text(
-              'DB 작성하기',
+              'DB 작성하러 가기',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,

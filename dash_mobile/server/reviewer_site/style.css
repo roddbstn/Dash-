@@ -39,7 +39,10 @@ body {
     z-index: 1;
     max-width: 640px;
     margin: 0 auto;
-    padding-bottom: 40px;
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
 }
 
 .landing-header {
@@ -418,6 +421,23 @@ body {
     flex-direction: column;
     gap: 8px;
 }
+
+.btn-open-app {
+    display: block;
+    width: 100%;
+    background: #1a56db;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 15px 20px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+
+.btn-open-app:active { background: #1548c0; }
 
 .btn-store {
     display: flex;

@@ -196,6 +196,10 @@ class StorageService {
   static const String _saltKey = 'dash_user_salt';
   static const _secureStorage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock,
+      synchronizable: false,
+    ),
   );
 
   // 기존 SharedPreferences PIN → Secure Storage 1회 마이그레이션
@@ -229,11 +233,17 @@ class StorageService {
   }
 
   static Future<String?> getSalt() async {
-    // SecureStorage 우선, 없으면 SharedPreferences 레거시 폴백
+    // SecureStorage 우선
     final secure = await _secureStorage.read(key: _saltKey);
     if (secure != null) return secure;
+    // 레거시 SharedPreferences 폴백 — 읽는 즉시 SecureStorage로 마이그레이션 후 평문 삭제
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_saltKey);
+    final legacy = prefs.getString(_saltKey);
+    if (legacy != null) {
+      await _secureStorage.write(key: _saltKey, value: legacy);
+      await prefs.remove(_saltKey);
+    }
+    return legacy;
   }
 
   static Future<void> saveSalt(String salt) async {
