@@ -58,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen>
   // 로딩 / 네트워크 상태
   bool _isLoadingInitial = true;
   bool _serverReachable = true;
+  bool _extensionLoggedIn = true; // 로딩 전엔 true로 두어 배너 깜빡임 방지
   bool _hasPromptedVaultRecovery = false;
 
   String? _userName;
@@ -776,7 +777,10 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final serverUser = await ApiService.fetchUser(user.uid);
       if (serverUser != null && mounted) {
-        setState(() => _userName = serverUser['name']);
+        setState(() {
+          _userName = serverUser['name'];
+          _extensionLoggedIn = serverUser['extension_logged_in_at'] != null;
+        });
       }
     } catch (e) {
       debugPrint('Error fetching profile: $e');
@@ -1177,6 +1181,7 @@ class _HomeScreenState extends State<HomeScreen>
       }),
       onCasesChanged: (cases) => setState(() => _cases = cases),
       onShowToast: _showToast,
+      extensionLoggedIn: _extensionLoggedIn,
     );
   }
 

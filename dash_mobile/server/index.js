@@ -867,6 +867,20 @@ app.get('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
   }
 });
 
+// [Extension] 확장프로그램 최초 로그인 기록
+app.post('/api/users/extension-login', verifyFirebaseAuth, async (req, res) => {
+  const uid = req.firebaseUser.uid;
+  try {
+    await queryWithTimeout(
+      `UPDATE dash_users SET extension_logged_in_at = COALESCE(extension_logged_in_at, NOW()) WHERE id = ?`,
+      [uid]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: safeError(err) });
+  }
+});
+
 app.post('/api/users/update_profile', verifyFirebaseAuth, async (req, res) => {
   const { id, name, email } = req.body;
   console.log(`\n👤 [PROFILE UPDATE] User: ${id}, New Name: ${name}, Email: ${email}`);

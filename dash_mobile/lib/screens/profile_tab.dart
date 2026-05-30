@@ -30,6 +30,7 @@ class ProfileTab extends StatefulWidget {
   final void Function(List<dynamic> cases) onCasesChanged;
   final List<dynamic> counselors;
   final void Function(String message) onShowToast;
+  final bool extensionLoggedIn;
 
   const ProfileTab({
     super.key,
@@ -45,6 +46,7 @@ class ProfileTab extends StatefulWidget {
     required this.onResetComplete,
     required this.onCasesChanged,
     required this.onShowToast,
+    this.extensionLoggedIn = true,
   });
 
   @override
@@ -58,6 +60,55 @@ class _ProfileTabState extends State<ProfileTab> {
   void initState() {
     super.initState();
     _isProfileLoading = widget.isProfileLoading;
+  }
+
+  void _showExtensionGuide(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5E8EB),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text('PC에서 30초만에 설치하기',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+            const SizedBox(height: 20),
+            _GuideStep(
+              number: '1',
+              text: 'PC에서 Chrome 또는 Edge 브라우저를 열어주세요.',
+            ),
+            const SizedBox(height: 16),
+            _GuideStep(
+              number: '2',
+              text: 'Chrome 웹 스토어에서 "DASH" 를 검색하거나,\n주소창에 chrome.google.com/webstore 를 입력하세요.',
+            ),
+            const SizedBox(height: 16),
+            _GuideStep(
+              number: '3',
+              text: 'DASH 확장프로그램을 설치하고,\n같은 계정으로 로그인하면 이 안내가 사라져요.',
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showEditNameDialog() {
@@ -886,7 +937,7 @@ class _ProfileTabState extends State<ProfileTab> {
         '알림 설정',
         style: TextStyle(
           color: AppColors.textMain,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
           fontSize: 15,
         ),
       ),
@@ -963,6 +1014,11 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
           ),
           const SizedBox(height: 20),
+          // 확장프로그램 미설치 배너
+          if (!widget.extensionLoggedIn) ...[
+            _ExtensionBanner(onTap: () => _showExtensionGuide(context)),
+            const SizedBox(height: 16),
+          ],
           // 통계 카드
           Container(
             width: double.infinity,
@@ -1123,6 +1179,105 @@ class _ProfileTabState extends State<ProfileTab> {
 }
 }
 
+
+// ── 확장프로그램 미설치 배너 ────────────────────────────────────────
+class _ExtensionBanner extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ExtensionBanner({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E8EB)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '아직 확장프로그램을 설치하지 않았어요',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF222222),
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: const [
+                      Text(
+                        '30초만에 PC에 설치하는 방법',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF1A56DB),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(Icons.arrow_forward, size: 14, color: Color(0xFF1A56DB)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4FF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.extension_outlined, size: 20, color: Color(0xFF1A56DB)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 설치 가이드 스텝 ────────────────────────────────────────────────
+class _GuideStep extends StatelessWidget {
+  final String number;
+  final String text;
+  const _GuideStep({required this.number, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24, height: 24,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          alignment: Alignment.center,
+          child: Text(number,
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text,
+              style: const TextStyle(
+                  fontSize: 14, color: Color(0xFF4E5968), height: 1.6)),
+        ),
+      ],
+    );
+  }
+}
 
 class _StatItem extends StatelessWidget {
   final String label;

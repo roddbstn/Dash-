@@ -116,6 +116,16 @@ async function handleGoogleLogin(googleToken) {
     chrome.storage.local.set({ dashUser: currentUser });
     chrome.storage.session.set({ cachedOAuthToken: idToken });
 
+    // 확장프로그램 최초 로그인 기록 (모바일 프로필 배너 해제용)
+    try {
+        await fetch(`${API_BASE}/users/extension-login`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${idToken}` },
+        });
+    } catch (e) {
+        // 실패해도 로그인 흐름에 영향 없음
+    }
+
     await checkPinAndProceed();
 }
 
