@@ -424,6 +424,8 @@ pool.query("ALTER TABLE dash_users ADD COLUMN login_count INT DEFAULT 0")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] login_count 추가 실패:', err.message); });
 pool.query("ALTER TABLE dash_users ADD COLUMN total_records_created INT DEFAULT 0")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] total_records_created 추가 실패:', err.message); });
+pool.query("ALTER TABLE dash_users ADD COLUMN extension_logged_in_at DATETIME DEFAULT NULL")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] extension_logged_in_at 추가 실패:', err.message); });
 
 // Phase 3-B: Vault 접근 Rate Limiting (메모리 기반, 서버 재시작 시 초기화)
 const vaultAttempts = new Map(); // uid → { count, windowStart }
@@ -1737,7 +1739,7 @@ app.get('/api/records/share/:token', async (req, res) => {
 app.put('/api/records/:id/review', verifyFirebaseAuth, async (req, res) => {
   const { id } = req.params;
   const updateData = req.body;
-  const requesterUid = req.user.uid;
+  const requesterUid = req.firebaseUser?.uid;
   console.log(`\n✨ [REVIEW COMPLETED] Record ID: ${id} by uid:${requesterUid}`);
 
   const ALLOWED_UPDATE_FIELDS = [
