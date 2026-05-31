@@ -1206,6 +1206,7 @@ class _ExtensionBanner extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 30),
           ],
         ),
       ),
