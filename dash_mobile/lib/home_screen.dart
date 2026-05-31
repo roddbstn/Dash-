@@ -901,6 +901,18 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _drafts = drafts);
   }
 
+  // ── 공유할 DB 스와이프 → 링크 클립보드 복사 ─────────────────────────
+  void _copyShareLink(dynamic d) {
+    final token = d['share_token']?.toString();
+    if (token == null || token.isEmpty) {
+      _showToast('아직 서버에 동기화되지 않은 DB입니다.');
+      return;
+    }
+    final url = '${ApiService.serverUrl}/?token=$token';
+    Clipboard.setData(ClipboardData(text: url));
+    _showToast('링크가 복사되었습니다.');
+  }
+
   // ── 공유할 DB 즉시 공유 다이얼로그 (URL은 sync 완료 후 채워짐) ───────
   void _showShareDialogWithFuture(Future<String> urlFuture) {
     showModalBottomSheet(
@@ -1138,6 +1150,7 @@ class _HomeScreenState extends State<HomeScreen>
         onShowCaseSelection: _showCaseSelectionModal,
         onGoToForm: _goToForm,
         onDeleteMyDraft: (draftId) async => _deleteDraft(draftId),
+        onShareDraft: (d) => _copyShareLink(d),
       );
     }
     if (_currentIndex == 1) {

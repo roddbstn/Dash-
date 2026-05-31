@@ -21,6 +21,7 @@ class HomeTab extends StatelessWidget {
     int? draftId,
   }) onGoToForm;
   final Future<void> Function(int draftId) onDeleteMyDraft;
+  final void Function(dynamic d)? onShareDraft;
   const HomeTab({
     super.key,
     this.isLoading = false,
@@ -33,6 +34,7 @@ class HomeTab extends StatelessWidget {
     required this.onShowCaseSelection,
     required this.onGoToForm,
     required this.onDeleteMyDraft,
+    this.onShareDraft,
   });
 
   @override
@@ -427,7 +429,7 @@ class HomeTab extends StatelessWidget {
                       padding: EdgeInsets.only(
                           bottom: idx == sharedDbDrafts.length - 1 ? 0 : 8),
                       child: _buildDraftCardInBox(context, d, dong,
-                          index: idx),
+                          index: idx, isShared: true),
                     );
                   }).toList(),
                 ),
@@ -617,9 +619,9 @@ class HomeTab extends StatelessWidget {
     );
   }
 
-  // ── 나의 DB 카드 ─────────────────────────────────────────────────
+  // ── 나의 DB / 공유할 DB 카드 ─────────────────────────────────────
   Widget _buildDraftCardInBox(BuildContext context, dynamic d, String dong,
-      {int index = 0}) {
+      {int index = 0, bool isShared = false}) {
     final foundCase = cases.cast<Map<String, dynamic>?>().firstWhere(
           (c) =>
               c?['realName'] == d['caseName'] ||
@@ -659,6 +661,7 @@ class HomeTab extends StatelessWidget {
         }
         return false;
       },
+      onShare: isShared && onShareDraft != null ? () => onShareDraft!(d) : null,
     );
   }
 

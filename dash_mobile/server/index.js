@@ -895,7 +895,7 @@ app.post('/api/users/update_profile', verifyFirebaseAuth, async (req, res) => {
     res.json({ message: 'Profile updated' });
   } catch (err) {
     console.error('❌ Profile Update Error:', err);
-    res.status(500).json({ error: err.message || err.toString() });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -919,7 +919,7 @@ app.post('/api/users/fcm_token', verifyFirebaseAuth, async (req, res) => {
     res.json({ message: 'FCM token saved' });
   } catch (err) {
     console.error('❌ FCM Token Save Error:', err);
-    res.status(500).json({ error: err.message || err.toString() });
+    res.status(500).json({ error: safeError(err) });
   }
 });
 
@@ -1043,7 +1043,20 @@ app.put('/api/counselors/reorder', verifyFirebaseAuth, async (req, res) => {
 // [Mobile] 1. 새로운 사례(Case) 생성
 app.post('/api/cases', verifyFirebaseAuth, async (req, res) => {
   const { id, user_id, case_name, dong, target_system_code, user_name, counselor_id } = req.body;
-  console.log(`\n📦 [NEW CASE] 아동명: ${case_name}, 동: ${dong} (ID: ${id})`);
+
+  // 입력 길이 검증
+  if (case_name != null && String(case_name).length > 255) {
+    return res.status(400).json({ error: '사례명이 너무 깁니다.' });
+  }
+  if (dong != null && String(dong).length > 100) {
+    return res.status(400).json({ error: '동 이름이 너무 깁니다.' });
+  }
+  if (user_name != null && String(user_name).length > 100) {
+    return res.status(400).json({ error: '상담원 이름이 너무 깁니다.' });
+  }
+
+  // 아동명은 PII — 로그에서 제외
+  console.log(`\n📦 [NEW CASE] 동: ${dong} (ID: ${id})`);
 
   try {
     // 1. 해당 사용자 아이디가 dash_users에 없으면 자동으로 생성 (이메일 기반 폴백 포함)
@@ -1116,9 +1129,12 @@ app.post('/api/records', verifyFirebaseAuth, async (req, res) => {
   console.log(`\n========================================`);
   console.log(`📝 [NEW RECORD RECEIVED]`);
   console.log(`----------------------------------------`);
+  const maskedEmail = user_email
+    ? user_email.substring(0, 3) + '***' + user_email.substring(user_email.indexOf('@'))
+    : '-';
   console.log(`🆔 사례ID      : ${case_id}`);
   console.log(`👤 유저ID      : ${user_id || '-'}`);
-  console.log(`📧 이메일      : ${user_email || '-'}`);
+  console.log(`📧 이메일      : ${maskedEmail}`);
 
   try {
     let resolvedUserId = user_id;
@@ -1279,23 +1295,24 @@ app.delete('/api/records/id/:id', verifyFirebaseAuth, async (req, res) => {
 });
 
 // [Mobile] PIN 리셋 전용 — 해당 사용자의 서버 레코드 전체 삭제
+// UID 기준 삭제: email JOIN 방식은 Firebase에서 이메일이 변경될 경우 레코드 누락 위험
 app.delete('/api/records/user/all', verifyFirebaseAuth, async (req, res) => {
-  const email = req.firebaseUser?.email;
-  if (!email) return res.status(400).json({ error: 'email required' });
+  const uid = req.firebaseUser?.uid;
+  const email = req.firebaseUser?.email; // broadcastEvent 호환성용
+  if (!uid) return res.status(400).json({ error: 'uid required' });
   const { confirmation } = req.body;
   if (confirmation !== 'CONFIRM_RESET') {
     return res.status(400).json({ error: 'PIN 초기화 확인이 필요합니다.' });
   }
-  console.log(`\n🔑 [PIN RESET] Deleting all records for: ${email}`);
+  console.log(`\n🔑 [PIN RESET] Deleting all records for UID: ${uid.substring(0, 8)}...`);
   try {
     const [result] = await queryWithTimeout(
       `DELETE r FROM service_drafts r
        JOIN cases c ON r.case_id = c.id
-       JOIN dash_users u ON c.user_id = u.id
-       WHERE u.email = ?`,
-      [email]
+       WHERE c.user_id = ?`,
+      [uid]
     );
-    console.log(`✅ [PIN RESET] Deleted ${result.affectedRows} records for ${email}`);
+    console.log(`✅ [PIN RESET] Deleted ${result.affectedRows} records`);
     broadcastEvent('record_deleted', { user_email: email, reason: 'pin_reset' });
     res.json({ message: 'All records deleted', deleted_count: result.affectedRows });
   } catch (err) {

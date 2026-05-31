@@ -171,6 +171,8 @@ class SwipeableDraftCard extends StatefulWidget {
   final int index;
   final bool isLast;
   final String? counselorName;
+  /// 오른쪽 스와이프 → 공유 콜백 (제공 시 오른쪽 스와이프 활성화)
+  final VoidCallback? onShare;
 
   const SwipeableDraftCard({
     super.key,
@@ -180,6 +182,7 @@ class SwipeableDraftCard extends StatefulWidget {
     this.index = 0,
     this.isLast = true,
     this.counselorName,
+    this.onShare,
   });
 
   @override
@@ -216,12 +219,25 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
     setState(() {
       _dragOffset += details.primaryDelta!;
-      if (_dragOffset > 0) _dragOffset = 0; // 오른쪽 스와이프 차단
+      // 오른쪽 스와이프: onShare 있을 때만 허용
+      if (_dragOffset > 0 && widget.onShare == null) _dragOffset = 0;
+      if (_dragOffset > _maxSwipe * 1.2) _dragOffset = _maxSwipe * 1.2;
       if (_dragOffset < -_maxSwipe * 1.2) _dragOffset = -_maxSwipe * 1.2;
     });
   }
 
   void _onHorizontalDragEnd(DragEndDetails details) async {
+    // 오른쪽 스와이프 → 공유
+    if (_dragOffset > _maxSwipe * 0.4 && widget.onShare != null) {
+      setState(() => _dragOffset = 0);
+      widget.onShare!();
+      return;
+    }
+    if (_dragOffset > 0) {
+      setState(() => _dragOffset = 0);
+      return;
+    }
+    // 왼쪽 스와이프 → 삭제
     if (_dragOffset < -_maxSwipe * 0.7) {
       _controller.forward(from: _dragOffset / -_maxSwipe);
       _dragOffset = -_maxSwipe;
@@ -261,6 +277,31 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                   borderRadius: BorderRadius.circular(11.2),
                   child: Stack(
                     children: [
+                  // 공유 배경 (오른쪽 스와이프 — 파란색, 왼쪽 정렬)
+                  if (offset > 0 && widget.onShare != null)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _dragOffset = 0);
+                              widget.onShare!();
+                            },
+                            child: Container(
+                              width: _maxSwipe,
+                              height: double.infinity,
+                              alignment: Alignment.center,
+                              child: const Icon(Icons.ios_share_rounded, color: Colors.white, size: 26),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   // 삭제 배경 (왼쪽 스와이프 — 빨간색, 오른쪽 정렬)
                   if (offset <= 0)
                     Positioned.fill(
@@ -506,7 +547,7 @@ class _PressableProfileMenuItemState extends State<PressableProfileMenuItem> {
                 widget.title,
                 style: TextStyle(
                   color: widget.isDanger ? AppColors.danger : AppColors.textMain,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   fontSize: 15,
                 ),
               ),
