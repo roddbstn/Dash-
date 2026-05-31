@@ -122,32 +122,6 @@ class ExtensionGuideScreen extends StatelessWidget {
               onAction: () => _openStore(context),
             ),
             const SizedBox(height: 20),
-
-            // 안내 메시지
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: const [
-                  Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF1A56DB)),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '설치 후 로그인하면 프로필 화면의 안내가 자동으로 사라져요.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF3B5BDB),
-                        height: 1.5,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
