@@ -67,6 +67,7 @@ btnGoogleLogin.addEventListener('click', async () => {
 
 function performLogout() {
     currentUser = null;
+    currentOAuthToken = null;
     selectedRecordId = null;
     records = [];
     vaultKeys = {};
@@ -404,7 +405,16 @@ function renderHistory() {
                 const startPart = `${start.getMonth() + 1}.${start.getDate()} (${startDay})`;
                 const startT = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
                 const endT = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
-                dateTimeStr = `${startPart} ${startT} ~ ${endT}`;
+                const isSameDay = start.getFullYear() === end.getFullYear() &&
+                                  start.getMonth() === end.getMonth() &&
+                                  start.getDate() === end.getDate();
+                if (isSameDay) {
+                    dateTimeStr = `${startPart} ${startT} ~ ${endT}`;
+                } else {
+                    const endDay = dayNames[end.getDay()];
+                    const endPart = `${end.getMonth() + 1}.${end.getDate()} (${endDay})`;
+                    dateTimeStr = `${startPart} ${startT} ~ ${endPart} ${endT}`;
+                }
             }
 
             const card = document.createElement('div');
@@ -863,10 +873,20 @@ function renderSharedByMe() {
         if (record.start_time && record.end_time) {
             const start = new Date(record.start_time.replace(' ', 'T'));
             const end = new Date(record.end_time.replace(' ', 'T'));
-            const dayName = dayNames[start.getDay()];
+            const startDay = dayNames[start.getDay()];
+            const startPart = `${start.getMonth()+1}.${start.getDate()} (${startDay})`;
             const startTime = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
             const endTime = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
-            dateTimeStr = `${start.getMonth()+1}.${start.getDate()} (${dayName}) ${startTime} ~ ${endTime}`;
+            const isSameDay = start.getFullYear() === end.getFullYear() &&
+                              start.getMonth() === end.getMonth() &&
+                              start.getDate() === end.getDate();
+            if (isSameDay) {
+                dateTimeStr = `${startPart} ${startTime} ~ ${endTime}`;
+            } else {
+                const endDay = dayNames[end.getDay()];
+                const endPart = `${end.getMonth()+1}.${end.getDate()} (${endDay})`;
+                dateTimeStr = `${startPart} ${startTime} ~ ${endPart} ${endTime}`;
+            }
         }
 
         const sharedDropdownId = `shared-dropdown-${record.id}`;
