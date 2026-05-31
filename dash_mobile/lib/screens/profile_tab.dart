@@ -1155,7 +1155,7 @@ class _ExtensionBanner extends StatelessWidget {
           color: const Color(0xFFEEF3FC),
           borderRadius: BorderRadius.circular(12),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -1163,7 +1163,7 @@ class _ExtensionBanner extends StatelessWidget {
               child: RichText(
                 text: const TextSpan(
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF111111),
                     letterSpacing: -0.3,
