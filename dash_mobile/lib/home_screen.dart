@@ -188,7 +188,9 @@ class _HomeScreenState extends State<HomeScreen>
   // ── 데이터 로딩 및 서버 동기화 ─────────────────────────────────
 
   Future<void> _loadData() async {
-    if (FirebaseAuth.instance.currentUser == null) return;
+    // 로드 시작 시점의 UID를 고정 — 이후 유저가 바뀌면 모든 쓰기 차단
+    final String? loadUid = FirebaseAuth.instance.currentUser?.uid;
+    if (loadUid == null) return;
 
     if (_isLoadingData) {
       _pendingLoadData = true;
@@ -262,19 +264,22 @@ class _HomeScreenState extends State<HomeScreen>
       }
     }
 
-    if (mounted) {
-      setState(() {
-        _drafts = localDrafts;
-        _cases = cases;
-        _counselors = counselors;
-        _keyMap = keyMap;
-        if (_selectedCounselorId == null && counselors.isNotEmpty) {
-          _selectedCounselorId = counselors[0]['id']?.toString();
-        }
-        // 로컬 캐시가 있으면 즉시 표시, 없으면 서버 응답까지 스켈레톤 유지
-        if (localDrafts.isNotEmpty) _isLoadingInitial = false;
-      });
+    // UID 가드: 로컬 데이터 로딩 완료 전에 다른 유저로 전환됐으면 즉시 중단
+    if (!mounted || FirebaseAuth.instance.currentUser?.uid != loadUid) {
+      _isLoadingData = false;
+      return;
     }
+    setState(() {
+      _drafts = localDrafts;
+      _cases = cases;
+      _counselors = counselors;
+      _keyMap = keyMap;
+      if (_selectedCounselorId == null && counselors.isNotEmpty) {
+        _selectedCounselorId = counselors[0]['id']?.toString();
+      }
+      // 로컬 캐시가 있으면 즉시 표시, 없으면 서버 응답까지 스켈레톤 유지
+      if (localDrafts.isNotEmpty) _isLoadingInitial = false;
+    });
 
     // Background Sync for offline drafts
     try {
@@ -344,6 +349,12 @@ class _HomeScreenState extends State<HomeScreen>
       }
 
       localDrafts = await StorageService.getDrafts();
+
+      // UID 가드: 서버 응답 수신 후 merge 시작 전, 계정 전환 여부 재확인
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != loadUid) {
+        _isLoadingData = false;
+        return;
+      }
 
       if (serverRecords != null &&
           (serverRecords.isNotEmpty || localDrafts.isNotEmpty)) {
@@ -524,15 +535,21 @@ class _HomeScreenState extends State<HomeScreen>
           }
         }
 
-        if (mounted) {
-          setState(() {
-            _drafts = updatedDrafts;
-            _keyMap = keyMap;
-            _isLoadingInitial = false; // 서버 응답 후 스켈레톤 해제
-          });
-          await StorageService.saveDrafts(updatedDrafts);
-          _checkAndPromptVaultRecovery(keyMap, updatedDrafts);
+        // UID 가드: 서버 동기화 완료 전에 다른 유저로 전환됐으면 데이터 저장 차단
+        if (!mounted || FirebaseAuth.instance.currentUser?.uid != loadUid) {
+          _isLoadingData = false;
+          return;
         }
+        setState(() {
+          _drafts = updatedDrafts;
+          _keyMap = keyMap;
+          _isLoadingInitial = false; // 서버 응답 후 스켈레톤 해제
+        });
+        await StorageService.saveDrafts(updatedDrafts);
+        _checkAndPromptVaultRecovery(keyMap, updatedDrafts);
+      } else if (serverRecords != null && mounted && _isLoadingInitial) {
+        // 신규 유저: 빈 배열 응답이어도 스켈레톤 해제
+        setState(() => _isLoadingInitial = false);
       }
     } catch (e) {
       debugPrint('Sync failed: $e');
@@ -763,6 +780,12 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _fetchUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
+    // 로컬 캐시로 먼저 extensionLoggedIn 복원 (오프라인 대비)
+    final prefs = await SharedPreferences.getInstance();
+    final cachedExtLoggedIn = prefs.getBool('extension_logged_in') ?? true;
+    if (mounted) setState(() => _extensionLoggedIn = cachedExtLoggedIn);
+
     if (_userName == null) {
       final localNickname = await StorageService.getUserNickname();
       if (mounted) {
@@ -777,13 +800,16 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final serverUser = await ApiService.fetchUser(user.uid);
       if (serverUser != null && mounted) {
+        final extLoggedIn = serverUser['extension_logged_in_at'] != null;
+        await prefs.setBool('extension_logged_in', extLoggedIn);
         setState(() {
           _userName = serverUser['name'];
-          _extensionLoggedIn = serverUser['extension_logged_in_at'] != null;
+          _extensionLoggedIn = extLoggedIn;
         });
       }
     } catch (e) {
       debugPrint('Error fetching profile: $e');
+      // 서버 실패 시 캐시값 유지 (이미 setState로 반영됨)
     }
   }
 
