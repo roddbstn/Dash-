@@ -909,11 +909,14 @@ app.get('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
 // [Extension] 확장프로그램 최초 로그인 기록
 app.post('/api/users/extension-login', verifyFirebaseAuth, async (req, res) => {
   const uid = req.firebaseUser.uid;
+  const email = req.firebaseUser.email;
   try {
     await queryWithTimeout(
       `UPDATE dash_users SET extension_logged_in_at = COALESCE(extension_logged_in_at, NOW()) WHERE id = ?`,
       [uid]
     );
+    // 모바일 앱에 실시간으로 배너 해제 알림
+    broadcastEvent('extension_login', { user_email: email });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: safeError(err) });

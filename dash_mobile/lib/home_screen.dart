@@ -176,7 +176,13 @@ class _HomeScreenState extends State<HomeScreen>
         (event) {
           final String? ev = event['event'];
           debugPrint('🔔 Server Event Received: $ev');
-          if (ev != 'connected' && mounted) _loadData();
+          if (!mounted) return;
+          if (ev == 'extension_login') {
+            // 확장프로그램 로그인 감지 → 프로필만 갱신 (배너 즉시 해제)
+            _fetchUserProfile();
+          } else if (ev != 'connected') {
+            _loadData();
+          }
         },
         onDone: () => _eventSub = null,
         onError: (_) => _eventSub = null,
