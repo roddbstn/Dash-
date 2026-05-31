@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dash_mobile/theme.dart';
@@ -1179,7 +1180,7 @@ class _ExtensionBanner extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            // 두 아이콘 겹침 장식
+            // 두 아이콘 겹침 장식 (대각선 나란히 배열)
             SizedBox(
               width: 56,
               height: 56,
@@ -1187,33 +1188,39 @@ class _ExtensionBanner extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Positioned(
-                    left: -24,
-                    top: -6,
+                    left: -28,
+                    top: -16,
                     child: Opacity(
                       opacity: 0.32,
-                      child: Image.asset(
-                        'assets/icons/logo_transparent.png',
-                        width: 68,
-                        height: 68,
+                      child: Transform.rotate(
+                        angle: 30 * pi / 180,
+                        child: Image.asset(
+                          'assets/icons/logo_transparent.png',
+                          width: 68,
+                          height: 68,
+                        ),
                       ),
                     ),
                   ),
                   Positioned(
-                    left: -4,
-                    bottom: -6,
+                    left: 12,
+                    bottom: -16,
                     child: Opacity(
                       opacity: 0.32,
-                      child: const Icon(
-                        Icons.extension,
-                        size: 68,
-                        color: Color(0xFF1A56DB),
+                      child: Transform.rotate(
+                        angle: 30 * pi / 180,
+                        child: const Icon(
+                          Icons.extension,
+                          size: 68,
+                          color: Color(0xFF1A56DB),
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 20),
             const Icon(
               Icons.chevron_right,
               size: 24,
