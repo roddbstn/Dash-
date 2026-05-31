@@ -1180,7 +1180,7 @@ class _ExtensionBanner extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            // 두 아이콘 겹침 장식 (대각선 나란히 배열)
+            // 확장프로그램 단일 아이콘 장식 (왼쪽 및 아래로 치우침)
             SizedBox(
               width: 56,
               height: 56,
@@ -1188,23 +1188,8 @@ class _ExtensionBanner extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Positioned(
-                    left: -28,
-                    top: -16,
-                    child: Opacity(
-                      opacity: 0.32,
-                      child: Transform.rotate(
-                        angle: 30 * pi / 180,
-                        child: Image.asset(
-                          'assets/icons/logo_transparent.png',
-                          width: 68,
-                          height: 68,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 12,
-                    bottom: -16,
+                    left: -8,
+                    bottom: -24,
                     child: Opacity(
                       opacity: 0.32,
                       child: Transform.rotate(
