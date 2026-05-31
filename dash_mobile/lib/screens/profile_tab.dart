@@ -1163,24 +1163,25 @@ class _ExtensionBanner extends StatelessWidget {
               child: RichText(
                 text: const TextSpan(
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF111111),
                     letterSpacing: -0.3,
                     height: 1.35,
                   ),
                   children: [
-                    TextSpan(text: 'DASH 확장프로그램\n'),
+                    TextSpan(text: 'DASH '),
                     TextSpan(
-                      text: '아직 설치하지 않으셨네요!',
+                      text: '확장프로그램\n',
                       style: TextStyle(color: Color(0xFF1A56DB)),
                     ),
+                    TextSpan(text: '아직 설치하지 않으셨네요!'),
                   ],
                 ),
               ),
             ),
             const SizedBox(width: 16),
-            // 확장프로그램 단일 아이콘 장식 (왼쪽 및 아래로 치우침)
+            // 확장프로그램 단일 아이콘 장식 (오른쪽 및 높이 가운데 배치)
             SizedBox(
               width: 56,
               height: 56,
@@ -1188,8 +1189,8 @@ class _ExtensionBanner extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Positioned(
-                    left: -8,
-                    bottom: -24,
+                    left: 8,
+                    top: -6,
                     child: Opacity(
                       opacity: 0.32,
                       child: Transform.rotate(
@@ -1204,12 +1205,6 @@ class _ExtensionBanner extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: 20),
-            const Icon(
-              Icons.chevron_right,
-              size: 24,
-              color: Color(0xFF8B95A1),
             ),
           ],
         ),
