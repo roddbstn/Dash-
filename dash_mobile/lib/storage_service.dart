@@ -100,16 +100,6 @@ class StorageService {
   // authStateChanges 리스너가 정상 로그아웃을 원격 계정삭제로 오해하지 않도록 사용
   static bool intentionalLogout = false;
 
-  // 로그아웃 시 인증 세션만 초기화 (사례·드래프트·PIN·Salt는 보존)
-  // - PIN/Salt: 재로그인 후에도 보관함이 그대로 유지되어야 하므로 삭제하지 않음
-  // - cases/drafts: 재로그인 시 서버 동기화로 최신 상태를 복원하므로 유지
-  static Future<void> clearSessionDataForLogout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_nicknameKey);
-    // PIN(SecureStorage·SharedPreferences 모두)과 Salt는 재로그인 후에도 Vault 복구를 위해 유지
-    // _saltKey, _secureStorage PIN, _casesKey, _draftsKey 등은 유지
-  }
-
   // [Security] Encryption Key Map — SecureStorage에 보관 ({ share_token: encryption_key })
   static const String _keyMapKey = 'dash_key_map';
 

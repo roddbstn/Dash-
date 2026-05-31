@@ -200,7 +200,7 @@ class _StepCard extends StatelessWidget {
                 child: Text(
                   'STEP $step',
                   style: const TextStyle(
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
                     letterSpacing: 0.3,
@@ -256,13 +256,13 @@ class _StepCard extends StatelessWidget {
                       children: [
                         const Text(
                           '💡 ',
-                          style: TextStyle(fontSize: 11),
+                          style: TextStyle(fontSize: 12),
                         ),
                         Expanded(
                           child: Text(
                             tip!,
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: Color(0xFF6B7280),
                               height: 1.5,
                               letterSpacing: -0.1,
@@ -572,7 +572,7 @@ class _MockupDbCardState extends State<_MockupDbCard>
                       const Text(
                         '대상: 피해아동  |  방문',
                         style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: Color(0xFF8B95A1),
                             fontWeight: FontWeight.w500,
                             height: 1.5),
@@ -580,7 +580,7 @@ class _MockupDbCardState extends State<_MockupDbCard>
                       const Text(
                         '4.14 (화) 11:47 ~ 12:47',
                         style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: Color(0xFF8B95A1),
                             fontWeight: FontWeight.w500,
                             height: 1.5),

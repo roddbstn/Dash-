@@ -19,6 +19,7 @@ let pinAuthenticated = false; // PIN 인증 성공 여부 (vault가 빈 {}이어
 let lastVaultRefreshTime = 0; // refreshVaultKeys 마지막 호출 시각 (rate limit 보호)
 let pinFailCount = 0;        // PIN 연속 실패 횟수
 let pinLockUntil = 0;        // 잠금 해제 시각 (Date.now() 기준)
+let _vaultRefreshInProgress = false; // refreshVaultKeys 동시 실행 방지
 
 // ==============================================
 // 2.5. PIN 인증 로직
@@ -168,11 +169,14 @@ async function getShareKeyForToken(token) {
     }
 }
 
-// Vault 갱신: fetchRecords 호출 시 새로 추가된 공유 DB 키를 반영 (5분 throttle)
+// Vault 갱신: fetchRecords 호출 시 새로 추가된 공유 DB 키를 반영 (30초 throttle)
 async function refreshVaultKeys() {
     if (!pinAuthenticated || !currentUser?.uid) return;
     const THROTTLE_MS = 30 * 1000; // 30초
     if (Date.now() - lastVaultRefreshTime < THROTTLE_MS) return;
+    // 동시 호출 방지: 이미 실행 중이면 즉시 반환 (throttle과 별도로 async race 방어)
+    if (_vaultRefreshInProgress) return;
+    _vaultRefreshInProgress = true;
     try {
         const session = await new Promise(resolve => {
             chrome.storage.session.get(['cachedDerivedKey'], result => resolve(result));
@@ -213,6 +217,8 @@ async function refreshVaultKeys() {
         console.log('[refreshVaultKeys] vault 갱신 완료, 토큰 수:', Object.keys(merged).length);
     } catch (e) {
         console.warn('[refreshVaultKeys] 갱신 실패 (무시):', e);
+    } finally {
+        _vaultRefreshInProgress = false;
     }
 }
 

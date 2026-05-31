@@ -268,24 +268,6 @@ void main() {
     });
   });
 
-  // ── clearSessionDataForLogout ───────────────────────────────────────────────
-
-  group('StorageService — clearSessionDataForLogout', () {
-    test('닉네임 삭제, cases/drafts/counselors 유지', () async {
-      await StorageService.saveUserNickname('로그인유저');
-      await StorageService.saveCases([{'id': 'c1'}]);
-      await StorageService.saveDrafts([{'draftId': 'd1'}]);
-      await StorageService.saveCounselors([{'id': 'co1'}]);
-
-      await StorageService.clearSessionDataForLogout();
-
-      expect(await StorageService.getUserNickname(), isNull);
-      expect(await StorageService.getCases(), isNotEmpty); // 보존
-      expect(await StorageService.getDrafts(), isNotEmpty); // 보존
-      expect(await StorageService.getCounselors(), isNotEmpty); // 보존
-    });
-  });
-
   // ── clearSessionData ───────────────────────────────────────────────────────
 
   group('StorageService — clearSessionData', () {

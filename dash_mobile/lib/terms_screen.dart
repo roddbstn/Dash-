@@ -242,7 +242,7 @@ class _Section extends StatelessWidget {
                 child: Text(
                   number,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: AppColors.primary,
                   ),

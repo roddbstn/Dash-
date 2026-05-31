@@ -74,6 +74,8 @@ function performLogout() {
     chrome.storage.local.remove(['dashUser']);
     chrome.storage.session.remove(['cachedVaultKeys', 'cachedOAuthToken', 'cachedDerivedKey']);
     pinInput = '';
+    pinFailCount = 0;
+    pinLockUntil = 0;
 
     // 버튼 상태 초기화
     btnGoogleLogin.disabled = false;

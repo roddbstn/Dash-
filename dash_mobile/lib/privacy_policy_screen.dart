@@ -470,7 +470,7 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
                     child: Text(
                       h,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF374151),
                         letterSpacing: -0.1,
@@ -493,7 +493,7 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
                       child: Text(
                         cell,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: Color(0xFF6B7280),
                           height: 1.5,
                           letterSpacing: -0.1,
@@ -579,7 +579,7 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
                 child: Text(
                   h,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF9A3412),
                     letterSpacing: -0.1,
@@ -609,7 +609,7 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
           child: Text(
             cell,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               color: Color(0xFF6B7280),
               height: 1.5,
               letterSpacing: -0.1,
@@ -713,7 +713,7 @@ class _Section extends StatelessWidget {
                 child: Text(
                   number,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: AppColors.primary,
                   ),

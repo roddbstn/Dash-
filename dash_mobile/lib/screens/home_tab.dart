@@ -222,7 +222,7 @@ class HomeTab extends StatelessWidget {
                       '이용 안내',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -519,7 +519,7 @@ class HomeTab extends StatelessWidget {
             child: Text(
               '$count',
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF888888),
               ),

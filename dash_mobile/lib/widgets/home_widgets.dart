@@ -469,7 +469,7 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                                     softWrap: false,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       color: AppColors.textMain,
                                     ),

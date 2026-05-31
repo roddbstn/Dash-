@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dash_mobile/theme.dart';
@@ -7,6 +8,7 @@ import 'package:dash_mobile/api_service.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/privacy_policy_screen.dart';
 import 'package:dash_mobile/user_guide_screen.dart';
+import 'package:dash_mobile/extension_guide_screen.dart';
 import 'package:dash_mobile/security_detail_screen.dart';
 import 'package:dash_mobile/terms_screen.dart';
 import 'package:dash_mobile/widgets/home_widgets.dart';
@@ -63,51 +65,9 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   void _showExtensionGuide(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5E8EB),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text('PC에서 30초만에 설치하기',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-            const SizedBox(height: 20),
-            _GuideStep(
-              number: '1',
-              text: 'PC에서 Chrome 또는 Edge 브라우저를 열어주세요.',
-            ),
-            const SizedBox(height: 16),
-            _GuideStep(
-              number: '2',
-              text: 'Chrome 웹 스토어에서 "DASH" 를 검색하거나,\n주소창에 chrome.google.com/webstore 를 입력하세요.',
-            ),
-            const SizedBox(height: 16),
-            _GuideStep(
-              number: '3',
-              text: 'DASH 확장프로그램을 설치하고,\n같은 계정으로 로그인하면 이 안내가 사라져요.',
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ExtensionGuideScreen()),
     );
   }
 
@@ -1129,8 +1089,8 @@ class _ProfileTabState extends State<ProfileTab> {
                       if (confirmed == true) {
                         // 정상 로그아웃 플래그 설정 → authStateChanges 리스너가 cases/PIN 삭제하지 않음
                         StorageService.intentionalLogout = true;
-                        // 로그아웃 시 사례·드래프트·PIN은 유지 (재로그인 후 서버 동기화로 복원)
-                        await StorageService.clearSessionDataForLogout();
+                        // 로그아웃 시 사례·드래프트·PIN·Salt 등 모든 로컬 개인정보 데이터를 완전 파괴 (개인정보 보호법 준수 및 다중 계정 충돌 방지)
+                        await StorageService.clearSessionData();
                         // disconnect()는 네트워크 요청이라 hang할 수 있으므로 타임아웃 처리
                         await GoogleSignIn()
                             .disconnect()
@@ -1200,100 +1160,69 @@ class _ExtensionBanner extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // "이용 안내" 뱃지와 동일한 스타일의 라벨
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(4),
+              child: RichText(
+                text: const TextSpan(
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111111),
+                    letterSpacing: -0.3,
+                    height: 1.35,
+                  ),
+                  children: [
+                    TextSpan(text: 'DASH 확장프로그램\n'),
+                    TextSpan(
+                      text: '아직 설치하지 않으셨네요!',
+                      style: TextStyle(color: Color(0xFF1A56DB)),
                     ),
-                    child: const Text(
-                      '확장프로그램',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // 두 아이콘 겹침 장식
+            SizedBox(
+              width: 56,
+              height: 56,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: 0,
+                    top: 4,
+                    child: Opacity(
+                      opacity: 0.32,
+                      child: Transform.rotate(
+                        angle: 30 * pi / 180,
+                        child: Image.asset(
+                          'assets/icons/logo_transparent.png',
+                          width: 34,
+                          height: 34,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF111111),
-                        letterSpacing: -0.3,
-                        height: 1.35,
-                      ),
-                      children: [
-                        TextSpan(text: '아직 설치하지\n'),
-                        TextSpan(
-                          text: '않았어요',
-                          style: TextStyle(color: Color(0xFF1A56DB)),
+                  Positioned(
+                    right: 0,
+                    bottom: 4,
+                    child: Opacity(
+                      opacity: 0.32,
+                      child: Transform.rotate(
+                        angle: 30 * pi / 180,
+                        child: const Icon(
+                          Icons.extension,
+                          size: 34,
+                          color: Color(0xFF1A56DB),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 16),
-            // "이용 안내" 뱃지와 동일한 스타일의 "보러가기" 버튼
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                '보러가기',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
           ],
         ),
       ),
-    );
-  }
-}
-
-// ── 설치 가이드 스텝 ────────────────────────────────────────────────
-class _GuideStep extends StatelessWidget {
-  final String number;
-  final String text;
-  const _GuideStep({required this.number, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 24, height: 24,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          alignment: Alignment.center,
-          child: Text(number,
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(text,
-              style: const TextStyle(
-                  fontSize: 14, color: Color(0xFF4E5968), height: 1.6)),
-        ),
-      ],
     );
   }
 }
