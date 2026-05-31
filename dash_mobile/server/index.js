@@ -121,12 +121,25 @@ app.get('/', async (req, res, next) => {
 app.use(express.static(path.join(__dirname, 'reviewer_site'))); // Serve static files
 
 // ── API Rate Limiting ──────────────────────────────────────────────────────────
-// 글로벌: 15분당 300회 (정상 사용 기준 넉넉히)
+// JWT 페이로드를 검증 없이 디코딩해 UID 추출 (rate limit 키 용도로만 사용 — 실제 검증은 verifyFirebaseAuth에서 수행)
+function extractUidFromToken(req) {
+  try {
+    const rawToken = req.headers['authorization']?.split(' ')[1] || req.query.token;
+    if (rawToken?.startsWith('eyJ')) {
+      const payload = JSON.parse(Buffer.from(rawToken.split('.')[1], 'base64url').toString());
+      if (payload.user_id) return `uid:${payload.user_id}`;
+    }
+  } catch {}
+  return req.ip;
+}
+
+// 글로벌: 15분당 300회 (UID 기반 — 동일 IP에 여러 유저가 있어도 각자 독립적으로 카운트)
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: extractUidFromToken,
   message: { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
   skip: (req) => req.path === '/health', // 헬스체크는 제외
 });
@@ -215,6 +228,17 @@ async function verifyFirebaseAuth(req, res, next) {
     }
 
     req.firebaseUser = decoded;
+
+    // 신규 유저 자동 DB 등록 (non-blocking) — 앱 최초 로그인 시 프로필 404 방지
+    const uid  = decoded.uid || decoded.user_id;
+    const email = decoded.email;
+    const name  = decoded.name;
+    if (uid && email) {
+      ensureUserExists(uid, email, name).catch(e =>
+        console.warn(`⚠️  [AUTH] ensureUserExists 실패: ${e.message}`)
+      );
+    }
+
     next();
   } catch (err) {
     console.warn(`⚠️  [AUTH] 유효하지 않은 토큰: ${err.message}`);
@@ -860,6 +884,19 @@ app.get('/api/users/:id', verifyFirebaseAuth, async (req, res) => {
     if (users.length > 0) {
       res.json(users[0]);
     } else {
+      // Firebase 인증은 됐으나 DB에 없는 신규 유저 → 자동 생성 후 반환
+      const uid   = req.firebaseUser?.uid || req.firebaseUser?.user_id || id;
+      const email = req.firebaseUser?.email;
+      const name  = req.firebaseUser?.name;
+      if (uid && email) {
+        try {
+          await ensureUserExists(uid, email, name);
+          const [created] = await queryWithTimeout('SELECT * FROM dash_users WHERE id = ?', [uid]);
+          if (created.length > 0) return res.json(created[0]);
+        } catch (autoErr) {
+          console.warn(`⚠️  [USER] 자동 생성 실패 (uid=${uid}): ${autoErr.message}`);
+        }
+      }
       res.status(404).json({ error: 'User not found' });
     }
   } catch (err) {
