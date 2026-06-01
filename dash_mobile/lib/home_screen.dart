@@ -553,8 +553,8 @@ class _HomeScreenState extends State<HomeScreen>
         });
         await StorageService.saveDrafts(updatedDrafts);
         _checkAndPromptVaultRecovery(keyMap, updatedDrafts);
-      } else if (serverRecords != null && mounted && _isLoadingInitial) {
-        // 신규 유저: 빈 배열 응답이어도 스켈레톤 해제
+      } else if (mounted && _isLoadingInitial) {
+        // 신규 유저 or 서버 null 응답(오류/타임아웃): 스켈레톤 해제
         setState(() => _isLoadingInitial = false);
       }
     } catch (e) {
