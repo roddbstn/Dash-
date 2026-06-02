@@ -4,8 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
-import 'package:dash_mobile/consent_screen.dart';
-import 'package:dash_mobile/home_screen.dart';
 import 'package:dash_mobile/widgets/dash_button.dart';
 
 
@@ -79,37 +77,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await FirebaseAuth.instance.signInWithCredential(credential);
       AnalyticsService.loginSuccess();
       AnalyticsService.onboardingComplete();
-
-      // StreamBuilder 재빌드에만 의존하지 않고 명시적으로 화면 전환
-      // (일부 phone 기기에서 authStateChanges가 즉시 트리거되지 않는 경우 대응)
-      if (mounted) {
-        final p = await SharedPreferences.getInstance();
-        final currentUid = FirebaseAuth.instance.currentUser?.uid;
-        final perUserConsent = currentUid != null
-            ? (p.getBool('consent_done_$currentUid') ?? false)
-            : false;
-        final legacyConsent = (p.getBool('consent_v1_completed') ?? false) &&
-            currentUid != null &&
-            currentUid == p.getString('consent_user_uid');
-        final consentValid = perUserConsent || legacyConsent;
-        if (consentValid) {
-          // 동의 완료된 사용자 → 재로그인이든 신규든 홈으로 바로
-          // (닉네임/PIN 설정은 ConsentScreen → NicknameScreen 플로우에서만 진행)
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
-              (route) => false,
-            );
-          }
-        } else {
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const ConsentScreen()),
-              (route) => false,
-            );
-          }
-        }
-      }
     } catch (e) {
       AnalyticsService.loginFailure(e.toString());
       if (mounted) {
@@ -221,7 +188,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     )
                   else
                     DashButton(
-                      text: '구글 계정으로 시작하기',
+                      text: 'Google로 시작하기',
                       onTap: _isLoading ? null : _signInWithGoogle,
                       backgroundColor: const Color(0xFFF8FAFC),
                       textColor: const Color(0xFF222222),
