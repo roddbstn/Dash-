@@ -953,21 +953,44 @@ class _MockupCtaAndModal extends StatelessWidget {
                       style: TextStyle(fontSize: 10, color: Color(0xFF8B95A1)),
                     ),
                     const SizedBox(height: 8),
-                    // 내 사례 chip (선택됨)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: const Text(
-                        '내 사례',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                    // 상담원 필터 chips
+                    Row(
+                      children: [
+                        // 내 사례 chip (선택됨)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          child: const Text(
+                            '내 사례',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        // 동료 상담원 chip (미선택)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(color: const Color(0xFFDDE1E7)),
+                          ),
+                          child: const Text(
+                            '오은영 대리님',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF4E5968),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
