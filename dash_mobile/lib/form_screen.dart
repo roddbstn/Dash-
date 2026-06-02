@@ -831,7 +831,7 @@ class _FormScreenState extends State<FormScreen> {
                   ? Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text(widget.draftId == null ? 'DB 작성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -843,7 +843,7 @@ class _FormScreenState extends State<FormScreen> {
                         ),
                       ],
                     )
-                  : Text(widget.draftId == null ? 'DB 생성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  : Text(widget.draftId == null ? 'DB 작성' : 'DB 수정', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           centerTitle: true,
           actions: [
             if (_isViewOnly && widget.draftId != null)

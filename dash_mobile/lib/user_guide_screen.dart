@@ -75,8 +75,8 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
             _StepCard(
               stepLabel: '1',
               icon: Icons.edit_note_outlined,
-              title: 'DB 작성하기',
-              description: 'DB 작성하기를 클릭하여 상담원님의 사례를\n등록해주세요.',
+              title: '사례 선택',
+              description: '내 사례 또는 동료 상담원의 사례를 선택해요.',
               mockup: const _MockupCtaAndModal(),
             ),
             _StepConnector(),
@@ -93,8 +93,8 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
             _StepCard(
               stepLabel: '3',
               icon: Icons.person_add_outlined,
-              title: '상담 기록 작성',
-              description: '사례를 선택한 뒤, 시스템에 기입하듯이 DB를 작성해보세요.',
+              title: 'DB 작성',
+              description: '시스템에 기입하듯이 DB를 작성해요.',
               tip: '아동 이름은 마스킹되어 외부에 노출되지 않아요.',
               mockup: const _MockupDbCreation(),
             ),
@@ -109,6 +109,10 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
             ),
             _StepConnector(),
 
+            // 확장프로그램 배너 (Step 4-2 바로 위)
+            _GuideExtensionBanner(),
+            const SizedBox(height: 16),
+
             _StepCard(
               stepLabel: '4-2',
               icon: Icons.computer_outlined,
@@ -116,11 +120,6 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
               description: '확장프로그램에서 바로 자동기입하세요.',
               mockup: const _MockupAutoFillAnimation(),
             ),
-
-            const SizedBox(height: 24),
-
-            // 하단 확장프로그램 배너
-            _GuideExtensionBanner(),
 
             const SizedBox(height: 28),
           ],
@@ -1453,7 +1452,7 @@ class _GuideExtTab extends StatelessWidget {
   }
 }
 
-// ── Step 4-1 목업: 공유 슬라이드 + 푸시 알림 ─────────────────────────────────
+// ── Step 4-1 목업: 공유 슬라이드 + 그라데이션 화살표 + 푸시 알림 ────────────
 class _MockupShareAndNotif extends StatelessWidget {
   const _MockupShareAndNotif();
 
@@ -1462,9 +1461,34 @@ class _MockupShareAndNotif extends StatelessWidget {
     return Column(
       children: [
         const _MockupDbCard(),
-        const SizedBox(height: 12),
+        const _GradientArrow(),
         const _MockupNotification(),
       ],
+    );
+  }
+}
+
+class _GradientArrow extends StatelessWidget {
+  const _GradientArrow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Center(
+        child: ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A56DB), Color(0xFF7BA7F7)],
+          ).createShader(bounds),
+          child: const Icon(
+            Icons.keyboard_double_arrow_down_rounded,
+            size: 32,
+            color: Colors.white,
+          ),
+        ),
+      ),
     );
   }
 }
