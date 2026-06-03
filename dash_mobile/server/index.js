@@ -1525,9 +1525,9 @@ app.get('/api/shared-records/:token/key', verifyFirebaseAuth, async (req, res) =
       return res.status(404).json({ error: 'key_not_found' });
     }
 
-    // 클레임 등록 + 키 삭제 (1회용)
+    // 클레임 등록 (키는 save-to-my-db 완료 후 소각 — 저장 전 재오픈 시 재복호화 가능)
     await queryWithTimeout(
-      `UPDATE service_drafts SET claimed_by = ?, claimed_at = NOW(), share_key = NULL WHERE share_token = ?`,
+      `UPDATE service_drafts SET claimed_by = ?, claimed_at = NOW() WHERE share_token = ?`,
       [uid, token]
     );
 
@@ -1594,10 +1594,39 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
     }
     console.log(`[SAVE-TO-MY-DB] step3 ok: targetCaseId=${targetCaseId}`);
 
-    // 4. 원본 draft에 리뷰어 편집 내용 반영 (내용이 전달된 경우)
-    const finalDesc = (service_description !== undefined && service_description !== null) ? service_description : orig.service_description;
-    const finalOpinion = (agent_opinion !== undefined && agent_opinion !== null) ? agent_opinion : orig.agent_opinion;
+    // 4. 서버 사이드 복호화: share_key가 있으면 encrypted_blob을 서버에서 직접 복호화
+    // (모바일 앱의 클라이언트 복호화는 key fetch 타이밍/실패로 빈값이 올 수 있어 신뢰 불가)
+    let serverDecryptedDesc = null;
+    let serverDecryptedOpinion = null;
+    if (orig.encrypted_blob && orig.share_key) {
+      try {
+        const blobParts = orig.encrypted_blob.split(':');
+        if (blobParts.length === 2) {
+          const iv = Buffer.from(blobParts[0], 'base64');
+          const ciphertext = Buffer.from(blobParts[1], 'base64');
+          // Flutter/Extension과 동일한 키 생성: padEnd(32, ' ').slice(0, 32) → UTF-8 bytes
+          const keyStr = orig.share_key.padEnd(32, ' ').slice(0, 32);
+          const keyBytes = Buffer.from(keyStr, 'utf8');
+          const decipher = crypto.createDecipheriv('aes-256-cbc', keyBytes, iv);
+          const decryptedBuf = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+          const data = JSON.parse(decryptedBuf.toString('utf8'));
+          serverDecryptedDesc = data.serviceDescription || data.service_description || null;
+          serverDecryptedOpinion = data.agentOpinion || data.agent_opinion || null;
+          console.log(`[SAVE-TO-MY-DB] step4-server-decrypt ok: desc_len=${serverDecryptedDesc?.length}`);
+        }
+      } catch (e) {
+        console.warn(`[SAVE-TO-MY-DB] step4-server-decrypt failed: ${e.message}`);
+      }
+    }
+
+    // 클라이언트가 비어있지 않은 평문을 전달한 경우에만 우선 반영 (빈 문자열은 복호화 실패로 간주)
+    const clientSentContent = service_description !== undefined && service_description !== null && service_description !== '';
+    // 우선순위: 서버 복호화 > 클라이언트 평문 > 원본 DB 값
+    const finalDesc = serverDecryptedDesc ?? (clientSentContent ? service_description : orig.service_description);
+    const finalOpinion = serverDecryptedOpinion ?? ((agent_opinion !== undefined && agent_opinion !== null && agent_opinion !== '') ? agent_opinion : orig.agent_opinion);
     const finalBlob = (encrypted_blob !== undefined && encrypted_blob !== null) ? encrypted_blob : orig.encrypted_blob;
+    // 서버 복호화 성공 또는 앱이 평문 전달 → 사본은 항상 평문+blob=null로 저장
+    const copyBlob = (serverDecryptedDesc !== null || clientSentContent) ? null : finalBlob;
 
     if (service_description !== undefined || agent_opinion !== undefined || encrypted_blob !== undefined) {
       let updateOrigQuery = 'UPDATE service_drafts SET service_description = ?, agent_opinion = ?, updated_at = NOW()';
@@ -1624,7 +1653,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
           service_description = ?, agent_opinion = ?, encrypted_blob = ?,
           injected_by_name = ?, status = 'Synced', updated_at = NOW()
          WHERE id = ?`,
-        [finalDesc, finalOpinion, finalBlob, orig.owner_name, existingCopy[0].id]
+        [finalDesc, finalOpinion, copyBlob, orig.owner_name, existingCopy[0].id]
       );
       console.log(`[SAVE-TO-MY-DB] step4 ok (updated existing copy): id=${existingCopy[0].id}`);
     } else {
@@ -1638,7 +1667,7 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
         [
           targetCaseId, orig.provision_type, orig.method, orig.service_type, orig.service_category,
           orig.service_name, orig.location, orig.start_time, orig.end_time, orig.service_count,
-          orig.travel_time, finalDesc, finalOpinion, finalBlob,
+          orig.travel_time, finalDesc, finalOpinion, copyBlob,
           orig.target, newToken, orig.owner_name
         ]
       );
@@ -1659,6 +1688,13 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
       [token, requesterUid]
     );
     console.log(`[SAVE-TO-MY-DB] step5-1 ok: share_viewers dismissed for requester`);
+
+    // 5-2. 클레임된 E2EE 키 소각 (save-to-my-db 완료 시점에 삭제 — 저장 전 재오픈 허용)
+    await queryWithTimeout(
+      `UPDATE service_drafts SET share_key = NULL WHERE share_token = ?`,
+      [token]
+    );
+    console.log(`[SAVE-TO-MY-DB] step5-2 ok: share_key deleted`);
 
     // 6. 원본 소유자에게 FCM Push
     if (fcmInitialized) {
