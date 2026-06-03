@@ -51,17 +51,18 @@ class _NicknameScreenState extends State<NicknameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
         backgroundColor: AppColors.bg,
-        appBar: AppBar(
-          backgroundColor: AppColors.bg,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          automaticallyImplyLeading: false,
-        ),
-        body: Padding(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        automaticallyImplyLeading: false,
+      ),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
@@ -74,7 +75,8 @@ class _NicknameScreenState extends State<NicknameScreen> {
             ],
           ),
         ),
-        bottomNavigationBar: _isLoading
+      ),
+      bottomNavigationBar: _isLoading
           ? null
           : Container(
               decoration: BoxDecoration(
@@ -98,7 +100,6 @@ class _NicknameScreenState extends State<NicknameScreen> {
                 ),
               ),
             ),
-      ),
     );
   }
 
