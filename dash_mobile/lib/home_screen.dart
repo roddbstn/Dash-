@@ -86,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen>
     AnalyticsService.screenHome();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) AnalyticsService.setUser(uid);
-    _loadData();
+    _loadData();깃허브에
     _initRealtime();
     _setupFCM();
     _fetchUserProfile();

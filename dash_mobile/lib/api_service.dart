@@ -469,6 +469,7 @@ class ApiService {
     int backoffSeconds = 2;
     const int maxBackoff = 60;
 
+    bool isFirstConnect = true;
     while (true) {
       final client = http.Client();
       try {
@@ -476,17 +477,23 @@ class ApiService {
         request.headers['Accept'] = 'text/event-stream';
         request.headers['Cache-Control'] = 'no-cache';
         request.headers['Connection'] = 'keep-alive';
-        // 로그인 직후 토큰이 아직 준비 안 됐으면 최대 3초 대기
+        // 재연결 시에는 항상 새 토큰 발급 (만료 토큰 무한 루프 방지)
         String? token;
         for (int i = 0; i < 3 && token == null; i++) {
-          token = await FirebaseAuth.instance.currentUser?.getIdToken();
+          token = await FirebaseAuth.instance.currentUser?.getIdToken(!isFirstConnect);
           if (token == null) await Future.delayed(const Duration(seconds: 1));
         }
-        if (token != null) request.headers['Authorization'] = 'Bearer $token';
+        if (token == null) {
+          client.close();
+          await Future.delayed(const Duration(seconds: 2));
+          continue;
+        }
+        request.headers['Authorization'] = 'Bearer $token';
 
         final response = await client.send(request).timeout(const Duration(seconds: 15));
         if (response.statusCode == 200) {
           backoffSeconds = 2; // Reset on success
+          isFirstConnect = false; // 이후 재연결 시에는 항상 토큰 강제 갱신
           await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
             if (line.startsWith('data: ')) {
               final jsonStr = line.substring(6).trim();
@@ -554,11 +561,21 @@ class ApiService {
   }
 
   // [DeepLink] 공유받은 DB를 내 계정에 저장
-  static Future<bool> saveSharedToMyDb(String token) async {
+  // [E2EE] 암호화된 공유 레코드는 앱에서 복호화된 내용(serviceDescription, agentOpinion)을
+  // 함께 전달해야 서버에 평문으로 저장됨 — 신규 share_token에 키가 없어 복호화 불가 문제 해결
+  static Future<bool> saveSharedToMyDb(
+    String token, {
+    String? serviceDescription,
+    String? agentOpinion,
+  }) async {
+    final body = <String, dynamic>{};
+    if (serviceDescription != null) body['service_description'] = serviceDescription;
+    if (agentOpinion != null) body['agent_opinion'] = agentOpinion;
+
     final response = await http.post(
       Uri.parse('$baseUrl/records/save-to-my-db/$token'),
       headers: await _authHeaders(),
-      body: jsonEncode({}),
+      body: jsonEncode(body),
     ).timeout(const Duration(seconds: 15));
     if (response.statusCode == 200) {
       debugPrint('✅ Shared DB saved to my account');

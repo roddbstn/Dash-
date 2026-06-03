@@ -357,14 +357,14 @@ class _SecurityDetailScreenState extends State<SecurityDetailScreen> {
                     subject: '공유 링크를 받은 타 상담원',
                     icon: Icons.supervisor_account_outlined,
                     canAccess: true,
-                    reason: 'DASH 앱 로그인 후 서버에서 열쇠 수령 → 복호화 가능\n(72시간 이내, 선착순 1명)',
+                    reason: 'DASH 앱 로그인 후 서버에서 열쇠 수령 → 복호화 가능\n(72시간 이내 선착순 1명, 원본 삭제 시 즉시 파기)',
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   _AccessRow(
                     subject: 'DASH 운영진 · 서버 관리자',
                     icon: Icons.business_outlined,
                     canAccess: false,
-                    reason: '평상시 열쇠 없음. 단, 공유 링크 활성화 시 72시간 이내 임시 열쇠 보관 (수신자 수령 즉시 삭제)',
+                    reason: '평상시 열쇠 없음. 단, 공유 활성화 시 72시간 내 임시 열쇠 보관 (수신자 수령 또는 원본 삭제 시 즉시 삭제)',
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   _AccessRow(

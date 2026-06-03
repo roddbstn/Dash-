@@ -121,24 +121,21 @@ void main() {
 
   // ── 에러 상태 ─────────────────────────────────────────────────────────────
   group('SharedDbPreviewScreen — 에러 상태', () {
-    testWidgets('fetchSharedRecord 404 → 에러 메시지 표시', (tester) async {
+    testWidgets('fetchSharedRecord 404 → 에러 화면 표시', (tester) async {
       await http.runWithClient(() async {
         await _pumpScreen(
             tester, const SharedDbPreviewScreen(token: 'not_found'));
         await tester.pumpAndSettle();
-        expect(
-            find.text('존재하지 않거나 만료된 공유 링크입니다.'), findsOneWidget);
+        expect(find.text('연결할 수 없는 링크예요'), findsOneWidget);
       }, _mockClient404);
     });
 
     testWidgets('네트워크 예외 → 에러 화면 표시 (API가 예외를 catch → null 반환)', (tester) async {
-      // ApiService.fetchSharedRecord 내부에서 예외를 catch하고 null 반환하므로
-      // 404 응답과 동일한 에러 메시지('존재하지 않거나 만료된 공유 링크입니다.')가 표시됨.
       await http.runWithClient(() async {
         await _pumpScreen(
             tester, const SharedDbPreviewScreen(token: 'test_token'));
         await tester.pumpAndSettle();
-        expect(find.text('존재하지 않거나 만료된 공유 링크입니다.'), findsOneWidget);
+        expect(find.text('연결할 수 없는 링크예요'), findsOneWidget);
       }, _mockClientException);
     });
 
