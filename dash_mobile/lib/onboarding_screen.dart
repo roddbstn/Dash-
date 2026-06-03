@@ -70,12 +70,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         idToken: idToken,
       );
 
-      // onboarding 완료 플래그를 먼저 저장 → authStateChanges 스트림 발동 후
-      // _PreLoginRouter가 LoginScreen 대신 올바른 화면으로 라우팅되도록 보장
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // signInWithCredential 성공 후에 플래그 저장 — 로그인 전에 저장하면
+      // Firebase가 null을 emit하는 타이밍에 _PreLoginRouter가 온보딩 3페이지(로그인 화면)를 표시
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('onboarding_v1_completed', true);
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
       AnalyticsService.loginSuccess();
       AnalyticsService.onboardingComplete();
     } catch (e) {

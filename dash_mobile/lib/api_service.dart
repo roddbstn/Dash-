@@ -258,7 +258,7 @@ class ApiService {
     final response = await http.get(
       Uri.parse('$baseUrl/users/$userId'),
       headers: await _authGetHeaders(),
-    );
+    ).timeout(const Duration(seconds: 15));
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
