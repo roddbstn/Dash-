@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/vault_service.dart';
+import 'package:dash_mobile/widgets/dash_loading.dart';
 
 class PinSetupScreen extends StatefulWidget {
   const PinSetupScreen({super.key});
@@ -42,7 +43,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
       await _syncPinToVault(pin);
     } catch (_) {}
     if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/home');
+      // '/' 대신 '/home'으로 직접 이동 — StreamBuilder 재구독 시 auth null emit으로
+      // onboarding 화면이 깜빡이거나 고착되는 문제 방지
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
     }
   }
 
@@ -81,12 +84,11 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           backgroundColor: AppColors.bg,
           elevation: 0,
           scrolledUnderElevation: 0,
-          automaticallyImplyLeading: false,
+          // push로 진입(닉네임→PIN)이면 canPop=true → 뒤로가기 자동 표시
+          // 재설치 플로우(_PostLoginRouter에서 위젯으로 렌더)면 canPop=false → 버튼 없음
         ),
         body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              )
+            ? const DashLoadingOverlay()
             : Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(

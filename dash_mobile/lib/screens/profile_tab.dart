@@ -32,7 +32,6 @@ class ProfileTab extends StatefulWidget {
   final void Function(List<dynamic> cases) onCasesChanged;
   final List<dynamic> counselors;
   final void Function(String message) onShowToast;
-  final bool extensionLoggedIn;
 
   const ProfileTab({
     super.key,
@@ -48,7 +47,6 @@ class ProfileTab extends StatefulWidget {
     required this.onResetComplete,
     required this.onCasesChanged,
     required this.onShowToast,
-    this.extensionLoggedIn = true,
   });
 
   @override
@@ -335,6 +333,7 @@ class _ProfileTabState extends State<ProfileTab> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    final navigator = Navigator.of(context);
     final uid = user.uid;
     final email = user.email;
     try {
@@ -361,20 +360,18 @@ class _ProfileTabState extends State<ProfileTab> {
       await GoogleSignIn().disconnect().catchError((_) => null);
       await GoogleSignIn().signOut().catchError((_) => null);
       await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        widget.onShowToast('계정이 정상적으로 탈퇴되었습니다.');
-        Navigator.of(context).pushNamedAndRemoveUntil('/onboarding', (route) => false);
-      }
+
+      widget.onShowToast('계정이 정상적으로 탈퇴되었습니다.');
+      navigator.pushNamedAndRemoveUntil('/', (route) => false);
     } catch (e) {
       debugPrint('❌ Account deletion error: $e');
       await StorageService.clearAllData();
       await GoogleSignIn().disconnect().catchError((_) => null);
       await GoogleSignIn().signOut().catchError((_) => null);
       await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        widget.onShowToast('탈퇴 및 로그아웃이 완료되었습니다.');
-        Navigator.of(context).pushNamedAndRemoveUntil('/onboarding', (route) => false);
-      }
+
+      widget.onShowToast('탈퇴 및 로그아웃이 완료되었습니다.');
+      navigator.pushNamedAndRemoveUntil('/', (route) => false);
     }
   }
 
@@ -416,116 +413,214 @@ class _ProfileTabState extends State<ProfileTab> {
       context: context,
       builder: (ctx) {
         bool showPin = false;
+        bool showTooltip = false;
         return StatefulBuilder(
           builder: (context, setStateSB) {
-            return AlertDialog(
+            return Dialog(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              contentPadding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 0),
-              actionsPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-              actionsAlignment: MainAxisAlignment.spaceBetween,
-              title: const Text(
-                '보안 PIN 설정',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  const Text(
-                    '현재 설정된 보안 PIN 번호입니다.',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSub),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        showPin ? pin : '****',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 4,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 타이틀 + ⓘ 버튼
+                        Row(
+                          children: [
+                            const Text(
+                              '보안 PIN 설정',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                            ),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () => setStateSB(() => showTooltip = !showTooltip),
+                              child: Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0xFFADB5BD),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'i',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFADB5BD),
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      IconButton(
-                        onPressed: () => setStateSB(() => showPin = !showPin),
-                        icon: Icon(
-                          showPin ? Icons.visibility_off : Icons.visibility,
-                          color: AppColors.primary,
+                        const SizedBox(height: 20),
+                        const Text(
+                          '현재 설정된 보안 PIN 번호입니다.',
+                          style: TextStyle(fontSize: 14, color: AppColors.textSub),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(height: 1, color: AppColors.border),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _showPinChangeDialog(pin);
-                    },
-                    child: const Text(
-                      'PIN 변경하기',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        decoration: TextDecoration.none,
-                      ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              showPin ? pin : '****',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 4,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => setStateSB(() => showPin = !showPin),
+                              icon: Icon(
+                                showPin ? Icons.visibility_off : Icons.visibility,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(height: 1, color: AppColors.border),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _showPinChangeDialog(pin);
+                          },
+                          child: const Text(
+                            'PIN 변경하기',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _showPinResetWarningDialog();
+                          },
+                          child: const Text(
+                            'PIN 초기화하기',
+                            style: TextStyle(
+                              color: Color(0xFFADB5BD),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text(
+                              '닫기',
+                              style: TextStyle(
+                                color: AppColors.textMain,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _showPinResetWarningDialog();
-                    },
-                    child: const Text(
-                      'PIN 초기화하기',
-                      style: TextStyle(
-                        color: Color(0xFFADB5BD),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        decoration: TextDecoration.none,
+                  // 툴팁 오버레이
+                  if (showTooltip)
+                    Positioned(
+                      right: 12,
+                      top: 50,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          // 말풍선 꼬리 (위쪽 오른쪽 방향)
+                          Positioned(
+                            top: -5,
+                            right: 6,
+                            child: Transform.rotate(
+                              angle: pi / 4,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF2A2A2A),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // 툴팁 본체
+                          Container(
+                            width: 218,
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2A2A2A),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  '확장프로그램과의 연동 과정에서 보안을 지키기 위해 PIN을 설정해야 해요',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                    height: 1.55,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const SecurityDetailScreen(),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text(
+                                      '→ 왜 설정하나요?',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF93C5FD),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
                 ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SecurityDetailScreen()),
-                    );
-                  },
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                  child: const Text(
-                    '→ 왜 설정하나요?',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    '닫기',
-                    style: TextStyle(
-                      color: AppColors.textMain,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
             );
           },
         );
@@ -585,7 +680,7 @@ class _ProfileTabState extends State<ProfileTab> {
                             }
                           }
                           await StorageService.savePin(val);
-                          if (mounted) {
+                          if (ctx.mounted) {
                             Navigator.pop(ctx);
                             widget.onShowToast('PIN이 변경되었습니다');
                           }
@@ -974,11 +1069,9 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
           ),
           const SizedBox(height: 20),
-          // 확장프로그램 미설치 배너
-          if (!widget.extensionLoggedIn) ...[
-            _ExtensionBanner(onTap: () => _showExtensionGuide(context)),
-            const SizedBox(height: 16),
-          ],
+          // 확장프로그램 안내 배너
+          _ExtensionBanner(onTap: () => _showExtensionGuide(context)),
+          const SizedBox(height: 16),
           // 통계 카드
           Container(
             width: double.infinity,
@@ -1085,28 +1178,30 @@ class _ProfileTabState extends State<ProfileTab> {
                     icon: Icons.logout,
                     title: '로그아웃',
                     onTap: () async {
+                      final navigator = Navigator.of(context);
                       final confirmed = await _showLogoutConfirmationDialog();
                       if (confirmed == true) {
                         // 정상 로그아웃 플래그 설정 → authStateChanges 리스너가 cases/PIN 삭제하지 않음
                         StorageService.intentionalLogout = true;
                         // 로그아웃 시 사례·드래프트·PIN·Salt 등 모든 로컬 개인정보 데이터를 완전 파괴 (개인정보 보호법 준수 및 다중 계정 충돌 방지)
                         await StorageService.clearSessionData();
-                        // disconnect()는 네트워크 요청이라 hang할 수 있으므로 타임아웃 처리
-                        await GoogleSignIn()
-                            .disconnect()
-                            .timeout(
-                              const Duration(seconds: 3),
-                              onTimeout: () => null,
-                            )
-                            .catchError((_) => null);
-                        await GoogleSignIn().signOut().catchError((_) => null);
-                        await FirebaseAuth.instance.signOut();
-                        if (mounted) {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            '/onboarding',
-                            (route) => false,
-                          );
-                        }
+                        // 먼저 네비게이션 → 새 StreamBuilder가 authStateChanges()를 구독
+                        // 그 후 signOut → null 이벤트가 이미 구독된 StreamBuilder에 전달됨
+                        // (순서 반전 시 이벤트가 구독 전 방출되어 splash에 고착되는 레이스 컨디션 발생)
+                        navigator.pushNamedAndRemoveUntil('/', (route) => false);
+                        // 프레임 렌더링 후 signOut 실행 (StreamBuilder 구독 완료 보장)
+                        WidgetsBinding.instance.addPostFrameCallback((_) async {
+                          // disconnect()는 네트워크 요청이라 hang할 수 있으므로 타임아웃 처리
+                          await GoogleSignIn()
+                              .disconnect()
+                              .timeout(
+                                const Duration(seconds: 3),
+                                onTimeout: () => null,
+                              )
+                              .catchError((_) => null);
+                          await GoogleSignIn().signOut().catchError((_) => null);
+                          await FirebaseAuth.instance.signOut();
+                        });
                       }
                     },
                     isDanger: false,
@@ -1124,7 +1219,6 @@ class _ProfileTabState extends State<ProfileTab> {
                       final confirmed =
                           await _showDeleteAccountConfirmationDialog();
                       if (confirmed == true && mounted) {
-                        await StorageService.clearAllData();
                         if (mounted) await _deleteAccount();
                       }
                     },
@@ -1175,7 +1269,7 @@ class _ExtensionBanner extends StatelessWidget {
                       text: '확장프로그램\n',
                       style: TextStyle(color: Color(0xFF1A56DB)),
                     ),
-                    TextSpan(text: '아직 설치하지 않으셨네요!'),
+                    TextSpan(text: '아직 설치하지 않으셨나요?'),
                   ],
                 ),
               ),

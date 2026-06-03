@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/analytics_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dash_mobile/extension_guide_screen.dart';
 
 class UserGuideScreen extends StatefulWidget {
   const UserGuideScreen({super.key});
@@ -103,8 +104,8 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
             _StepCard(
               stepLabel: '4-1',
               icon: Icons.share_outlined,
-              title: '동행하셨다면?',
-              description: '상담 내용을 모바일 DB로 작성하여 링크를 공유하세요.',
+              title: '동행하신다면?',
+              description: '상담 내용만 작성하지 않고 DB 자체를 만들어 사례 담당자의 일을 덜어줘요.',
               mockup: const _MockupShareAndNotif(),
             ),
             _StepConnector(),
@@ -538,7 +539,7 @@ class _MockupNotification extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'OOO 상담원님이 DB를 저장했어요.',
+                  '오은영 대리님이 DB를 저장했어요.',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1141,11 +1142,11 @@ class _MockupDbCreation extends StatelessWidget {
             ),
             child: const Row(
               children: [
-                Icon(Icons.arrow_back_ios_new, size: 12, color: Color(0xFF8B95A1)),
+                Icon(Icons.arrow_back_rounded, size: 14, color: Color(0xFF8B95A1)),
                 Expanded(
                   child: Center(
                     child: Text(
-                      'DB 추가',
+                      'DB 작성',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
                     ),
                   ),
@@ -1860,13 +1861,13 @@ class _NcadsFieldAnimated extends StatelessWidget {
 class _GuideExtensionBanner extends StatelessWidget {
   _GuideExtensionBanner();
 
-  static const _storeUrl =
-      'https://chromewebstore.google.com/detail/dpncpmegjlgknkagcfjdaccbgmjncdef?utm_source=item-share-cb';
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => launchUrl(Uri.parse(_storeUrl), mode: LaunchMode.externalApplication),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ExtensionGuideScreen()),
+      ),
       child: Container(
         width: double.infinity,
         decoration: BoxDecoration(

@@ -97,7 +97,8 @@ class ExtensionGuideScreen extends StatelessWidget {
               icon: const Icon(Icons.extension, size: 18, color: Color(0xFF1A56DB)),
               steps: const [
                 'PC에서 Chrome 브라우저를 열어주세요.',
-                '아래 버튼을 눌러 Chrome 웹 스토어로 이동하세요.',
+                'Chrome 웹 스토어로 이동하세요.',
+                '\'Dash\'를 검색해주세요.',
                 '\'Chrome에 추가\' 버튼을 눌러 설치하세요.',
                 '설치 후 확장프로그램 아이콘을 클릭하고\n같은 계정으로 로그인하세요.',
               ],

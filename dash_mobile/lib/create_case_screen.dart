@@ -4,6 +4,7 @@ import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/api_service.dart';
 import 'package:dash_mobile/widgets/dash_button.dart';
+import 'package:dash_mobile/widgets/dash_loading.dart';
 import 'package:dash_mobile/analytics_service.dart';
 
 // ── 행 데이터 모델 ──────────────────────────────────────────────────────────
@@ -273,7 +274,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
           ),
         ),
         body: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+            ? const DashLoadingOverlay()
             : Column(
                 children: [
                   // ── 헤더 라벨 ──────────────────────────────────────────
@@ -323,19 +324,22 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildResetButton(),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: DashButton(
-                            onTap: _validCount > 0 ? _handleConfirm : null,
-                            text: '$_validCount개 추가',
-                            backgroundColor: AppColors.primary,
+                    child: SizedBox(
+                      height: 52,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildResetButton(),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: DashButton(
+                              onTap: _validCount > 0 ? _handleConfirm : null,
+                              text: '$_validCount개 추가',
+                              backgroundColor: AppColors.primary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

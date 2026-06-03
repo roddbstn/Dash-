@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/vault_service.dart';
+import 'package:dash_mobile/widgets/dash_loading.dart';
 
 class VaultRecoveryScreen extends StatefulWidget {
   /// 복구 완료 후 호출될 콜백 (홈 화면 데이터 리로드용)
@@ -174,9 +175,7 @@ class _VaultRecoveryScreenState extends State<VaultRecoveryScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: AppColors.primary),
-                      )
+                    ? const Center(child: DashLoadingIndicator(size: 48))
                     : SizedBox(
                         width: double.infinity,
                         height: 56,

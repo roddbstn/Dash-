@@ -94,34 +94,95 @@ class HomeTab extends StatelessWidget {
                     snap: true,
                     snapSizes: const [0.38, 0.55, 0.92],
                     builder: (context, scrollController) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(12),
-                            topRight: Radius.circular(12),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 12,
-                              spreadRadius: 0,
-                              offset: const Offset(0, -4),
+                      return AnimatedBuilder(
+                        animation: dbTabController,
+                        builder: (context, _) {
+                          final isMyDb = dbTabController.index == 0;
+                          bool isSharedDb(d) => d['is_shared_db'] == true || d['is_shared_db'] == 1;
+                          final personalDrafts = pendingDrafts.where((d) => !isSharedDb(d)).toList();
+                          final sharedDbDrafts = pendingDrafts.where((d) => isSharedDb(d)).toList();
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(12),
+                                topRight: Radius.circular(12),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 12,
+                                  spreadRadius: 0,
+                                  offset: const Offset(0, -4),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: RefreshIndicator(
-                          onRefresh: onRefresh,
-                          color: AppColors.primary,
-                          child: SingleChildScrollView(
-                            controller: scrollController,
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                              child: _buildDbList(context, isPad: false),
+                            child: Column(
+                              children: [
+                                // 탭 헤더 위 패딩 영역만 sheet 드래그에 연결
+                                SingleChildScrollView(
+                                  controller: scrollController,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                                    child: Column(
+                                      children: [
+                                        const SizedBox(height: 20),
+                                        _buildSegmentControl(personalDrafts.length, sharedDbDrafts.length),
+                                        const SizedBox(height: 16),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // DB 카드 목록: 독립 스크롤 (sheet 크기와 무관)
+                                Expanded(
+                                  child: RefreshIndicator(
+                                    onRefresh: onRefresh,
+                                    color: AppColors.primary,
+                                    child: SingleChildScrollView(
+                                      physics: const AlwaysScrollableScrollPhysics(),
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (isMyDb) ...[
+                                              if (isLoading && personalDrafts.isEmpty)
+                                                const _DraftSkeletonList()
+                                              else if (personalDrafts.isEmpty)
+                                                _buildEmptyHint('사례를 선택해 DB를 만들어주세요')
+                                              else
+                                                _buildGroupedPersonalDrafts(context, personalDrafts),
+                                            ] else ...[
+                                              if (sharedDbDrafts.isEmpty)
+                                                _buildEmptyHint('동행자 사례 DB를 만들어 공유해보세요')
+                                              else
+                                                Column(
+                                                  children: sharedDbDrafts.asMap().entries.map<Widget>((entry) {
+                                                    final idx = entry.key;
+                                                    final d = entry.value;
+                                                    final foundCase = cases.cast<Map<String, dynamic>?>().firstWhere(
+                                                      (c) => c?['realName'] == d['caseName'] || c?['maskedName'] == d['caseName'],
+                                                      orElse: () => null,
+                                                    );
+                                                    final dong = foundCase != null ? foundCase['dong'] : '미지정';
+                                                    return Padding(
+                                                      padding: EdgeInsets.only(bottom: idx == sharedDbDrafts.length - 1 ? 0 : 8),
+                                                      child: _buildDraftCardInBox(context, d, dong, index: idx, isShared: true),
+                                                    );
+                                                  }).toList(),
+                                                ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -238,11 +299,12 @@ class HomeTab extends StatelessWidget {
                         height: 1.35,
                       ),
                       children: [
-                        TextSpan(text: 'PC에서 DB\n'),
+                        TextSpan(text: 'PC에서 내 DB\n'),
                         TextSpan(
-                          text: '확인하려면?',
+                          text: '자동기입',
                           style: TextStyle(color: Color(0xFF1A56DB)),
                         ),
+                        TextSpan(text: '하려면?'),
                       ],
                     ),
                   ),
@@ -610,7 +672,7 @@ class HomeTab extends StatelessWidget {
         child: Text(
           message,
           style: const TextStyle(
-            fontSize: 14,
+            fontSize: 15,
             color: Color(0xFFADB5BD),
             fontWeight: FontWeight.w400,
           ),
@@ -662,6 +724,7 @@ class HomeTab extends StatelessWidget {
         return false;
       },
       onShare: isShared && onShareDraft != null ? () => onShareDraft!(d) : null,
+      savedByName: isShared ? d['saved_by_name']?.toString() : null,
     );
   }
 

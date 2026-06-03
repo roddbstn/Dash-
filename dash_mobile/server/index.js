@@ -416,6 +416,9 @@ pool.query("ALTER TABLE service_drafts ADD COLUMN claimed_by VARCHAR(36) DEFAULT
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] claimed_by 추가 실패:', err.message); });
 pool.query("ALTER TABLE service_drafts ADD COLUMN claimed_at DATETIME DEFAULT NULL")
   .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] claimed_at 추가 실패:', err.message); });
+// Phase 5-C: 공유 DB 저장자 이름 (공유자 앱의 카드 UI 표시용)
+pool.query("ALTER TABLE service_drafts ADD COLUMN saved_by_name VARCHAR(100) DEFAULT NULL")
+  .catch(err => { if (err.code !== 'ER_DUP_FIELDNAME') console.error('[migration] saved_by_name 추가 실패:', err.message); });
 
 // Phase 4: 유저 활동 추적 컬럼 추가 (KPI 대시보드용)
 pool.query("ALTER TABLE dash_users ADD COLUMN last_login_at DATETIME DEFAULT NULL")
@@ -1681,6 +1684,13 @@ app.post('/api/records/save-to-my-db/:token', verifyFirebaseAuth, async (req, re
       [orig.owner_user_id, orig.case_name, token, notifyMsg]
     );
     console.log(`[SAVE-TO-MY-DB] step5 ok`);
+
+    // 5-0. 원본 Draft에 저장자 이름 기록 (공유자 앱의 DB 카드에 '저장함' 표시용)
+    await queryWithTimeout(
+      'UPDATE service_drafts SET saved_by_name = ? WHERE share_token = ?',
+      [requesterName, token]
+    );
+    console.log(`[SAVE-TO-MY-DB] step5-0 ok: saved_by_name=${requesterName}`);
 
     // 5-1. 저장 완료 → 리뷰어의 share_viewers dismissed_at 설정 (공유받은 DB 목록에서 숨김)
     await queryWithTimeout(

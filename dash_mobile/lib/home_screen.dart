@@ -58,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen>
   // 로딩 / 네트워크 상태
   bool _isLoadingInitial = true;
   bool _serverReachable = true;
-  bool _extensionLoggedIn = true; // 로딩 전엔 true로 두어 배너 깜빡임 방지
   bool _hasPromptedVaultRecovery = false;
 
   String? _userName;
@@ -234,47 +233,12 @@ class _HomeScreenState extends State<HomeScreen>
       }
     }
 
-    // 서버에서 상담원 목록 동기화
-    if (userId != null) {
-      final serverCounselors = await ApiService.fetchCounselors(userId);
-      if (serverCounselors != null && serverCounselors.isNotEmpty) {
-        counselors = serverCounselors.map<Map<String, dynamic>>((c) => {
-              'id': c['id'],
-              'name': c['name'],
-              'isSelf': c['is_self'] == 1 || c['is_self'] == true,
-              'sortOrder': c['sort_order'] ?? 0,
-            }).toList();
-        await StorageService.saveCounselors(counselors);
-      }
-    }
-
-    // 서버에서 사례 목록 동기화
-    {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        final serverCases = await ApiService.fetchCases(uid);
-        if (serverCases != null) {
-          cases = serverCases
-              .map<Map<String, dynamic>>((c) => {
-                    'id': c['id'],
-                    'maskedName': c['case_name'],
-                    'realName': c['case_name'],
-                    'dong': c['dong'] ?? '',
-                    'targetSystem':
-                        c['target_system_code'] ?? 'NCADS_v2',
-                    'counselorId': c['counselor_id']?.toString(),
-                  })
-              .toList();
-          await StorageService.saveCases(cases);
-        }
-      }
-    }
-
     // UID 가드: 로컬 데이터 로딩 완료 전에 다른 유저로 전환됐으면 즉시 중단
     if (!mounted || FirebaseAuth.instance.currentUser?.uid != loadUid) {
       _isLoadingData = false;
       return;
     }
+    // 로컬 캐시 즉시 표시 (서버 응답 기다리지 않음)
     setState(() {
       _drafts = localDrafts;
       _cases = cases;
@@ -283,7 +247,6 @@ class _HomeScreenState extends State<HomeScreen>
       if (_selectedCounselorId == null && counselors.isNotEmpty) {
         _selectedCounselorId = counselors[0]['id']?.toString();
       }
-      // 로컬 캐시가 있으면 즉시 표시, 없으면 서버 응답까지 스켈레톤 유지
       if (localDrafts.isNotEmpty) _isLoadingInitial = false;
     });
 
@@ -329,19 +292,45 @@ class _HomeScreenState extends State<HomeScreen>
       debugPrint('Background Sync Error: $e');
     }
 
-    // 서버에서 최신 상태 가져오기 (records + notifications 병렬 요청)
+    // 서버에서 최신 상태 가져오기 (상담원·사례·DB·알림 4개 병렬 요청)
     try {
-      final String? uid = FirebaseAuth.instance.currentUser?.uid;
       final results = await Future.wait([
+        ApiService.fetchCounselors(loadUid),
+        ApiService.fetchCases(loadUid),
         ApiService.fetchRecords(),
-        if (uid != null)
-          ApiService.fetchNotifications(uid)
-        else
-          Future.value(<dynamic>[]),
+        ApiService.fetchNotifications(loadUid),
       ]);
 
-      final List? serverRecords = results[0];
-      final List serverNotifs = results[1] ?? [];
+      final List? serverCounselors = results[0];
+      final List? serverCasesRaw = results[1];
+      final List? serverRecords = results[2];
+      final List serverNotifs = results[3] ?? [];
+
+      // 상담원 처리
+      if (serverCounselors != null && serverCounselors.isNotEmpty) {
+        counselors = serverCounselors.map<Map<String, dynamic>>((c) => {
+              'id': c['id'],
+              'name': c['name'],
+              'isSelf': c['is_self'] == 1 || c['is_self'] == true,
+              'sortOrder': c['sort_order'] ?? 0,
+            }).toList();
+        await StorageService.saveCounselors(counselors);
+      }
+
+      // 사례 처리
+      if (serverCasesRaw != null) {
+        cases = serverCasesRaw
+            .map<Map<String, dynamic>>((c) => {
+                  'id': c['id'],
+                  'maskedName': c['case_name'],
+                  'realName': c['case_name'],
+                  'dong': c['dong'] ?? '',
+                  'targetSystem': c['target_system_code'] ?? 'NCADS_v2',
+                  'counselorId': c['counselor_id']?.toString(),
+                })
+            .toList();
+        await StorageService.saveCases(cases);
+      }
 
       if (mounted) {
         setState(() {
@@ -351,6 +340,11 @@ class _HomeScreenState extends State<HomeScreen>
             AnalyticsService.offlineBannerShown();
           }
           _notifications = serverNotifs;
+          _counselors = counselors;
+          _cases = cases;
+          if (_selectedCounselorId == null && counselors.isNotEmpty) {
+            _selectedCounselorId = counselors[0]['id']?.toString();
+          }
         });
       }
 
@@ -477,6 +471,7 @@ class _HomeScreenState extends State<HomeScreen>
                   : (local['travelTime'] ?? s['travel_time']),
               'injected_by_name': s['injected_by_name'],
               'author_name': s['author_name'],
+              'saved_by_name': s['saved_by_name'],
             });
           } else {
             // 로컬에 없는데 서버에만 있는 경우 (재설치 등)
@@ -513,6 +508,7 @@ class _HomeScreenState extends State<HomeScreen>
               'is_shared_db': s['is_shared_db'] == true || s['is_shared_db'] == 1,
               'injected_by_name': s['injected_by_name'],
               'author_name': s['author_name'],
+              'saved_by_name': s['saved_by_name'],
             });
           }
         }
@@ -787,11 +783,6 @@ class _HomeScreenState extends State<HomeScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // 로컬 캐시로 먼저 extensionLoggedIn 복원 (오프라인 대비)
-    final prefs = await SharedPreferences.getInstance();
-    final cachedExtLoggedIn = prefs.getBool('extension_logged_in') ?? true;
-    if (mounted) setState(() => _extensionLoggedIn = cachedExtLoggedIn);
-
     if (_userName == null) {
       final localNickname = await StorageService.getUserNickname();
       if (mounted) {
@@ -806,16 +797,12 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final serverUser = await ApiService.fetchUser(user.uid);
       if (serverUser != null && mounted) {
-        final extLoggedIn = serverUser['extension_logged_in_at'] != null;
-        await prefs.setBool('extension_logged_in', extLoggedIn);
         setState(() {
           _userName = serverUser['name'];
-          _extensionLoggedIn = extLoggedIn;
         });
       }
     } catch (e) {
       debugPrint('Error fetching profile: $e');
-      // 서버 실패 시 캐시값 유지 (이미 setState로 반영됨)
     }
   }
 
@@ -892,9 +879,13 @@ class _HomeScreenState extends State<HomeScreen>
       Navigator.pop(context);
     }
 
-    // 공유할 DB 저장 시 즉시 공유 dialog 표시 (URL은 sync 완료 후 채워짐)
+    // 공유할 DB 저장 시 sync 완료 후 공유 dialog 표시 (버튼 즉시 노출)
     if (result == true && isShared && urlCompleter != null && mounted) {
-      _showShareDialogWithFuture(urlCompleter.future);
+      final url = await urlCompleter.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => '',
+      );
+      if (mounted) _showShareDialog(url);
     }
   }
 
@@ -945,8 +936,8 @@ class _HomeScreenState extends State<HomeScreen>
     _showToast('링크가 복사되었습니다.');
   }
 
-  // ── 공유할 DB 즉시 공유 다이얼로그 (URL은 sync 완료 후 채워짐) ───────
-  void _showShareDialogWithFuture(Future<String> urlFuture) {
+  // ── 공유할 DB 공유 다이얼로그 (URL 준비 완료 후 호출, 버튼 즉시 표시) ───
+  void _showShareDialog(String url) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -957,82 +948,76 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: FutureBuilder<String>(
-          future: urlFuture,
-          builder: (context, snapshot) {
-            final url = snapshot.data;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    const Spacer(),
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDDE1E7),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
+                const Spacer(),
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDDE1E7),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => Navigator.pop(ctx),
-                          child: const Text(
-                            '나중에',
-                            style: TextStyle(fontSize: 14, color: Color(0xFF868E96), fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 24),
-                const Text('방금 저장한 DB 공유하기', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-                const SizedBox(height: 6),
-                const Text('링크를 복사해 사례 담당자에게 전달하세요.', style: TextStyle(fontSize: 14, color: Color(0xFF868E96))),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: url == null
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                          ),
-                        )
-                      : ElevatedButton(
-                          onPressed: () async {
-                            await Clipboard.setData(ClipboardData(text: url));
-                            AnalyticsService.linkCopied();
-                            if (ctx.mounted) Navigator.pop(ctx);
-                            _showToast('링크가 복사되었습니다.');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.ios_share_rounded, size: 20),
-                              SizedBox(width: 8),
-                              Text('링크 복사', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                            ],
-                          ),
-                        ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: const Text(
+                        '나중에',
+                        style: TextStyle(fontSize: 14, color: Color(0xFF868E96), fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ),
                 ),
               ],
-            );
-          },
+            ),
+            const SizedBox(height: 24),
+            const Text('방금 저장한 DB 공유하기', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+            const SizedBox(height: 6),
+            const Text('링크를 복사해 사례 담당자에게 전달하세요.', style: TextStyle(fontSize: 14, color: Color(0xFF868E96))),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: url.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Text('링크 생성에 실패했습니다. 잠시 후 다시 시도해주세요.', style: TextStyle(fontSize: 14, color: Color(0xFF868E96))),
+                      ),
+                    )
+                  : ElevatedButton(
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: url));
+                        AnalyticsService.linkCopied();
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        _showToast('링크가 복사되었습니다.');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.ios_share_rounded, size: 20),
+                          SizedBox(width: 8),
+                          Text('링크 복사', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -1226,7 +1211,6 @@ class _HomeScreenState extends State<HomeScreen>
       }),
       onCasesChanged: (cases) => setState(() => _cases = cases),
       onShowToast: _showToast,
-      extensionLoggedIn: _extensionLoggedIn,
     );
   }
 

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dash_mobile/theme.dart';
+import 'package:dash_mobile/widgets/dash_loading.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:intl/intl.dart';
 import 'package:dash_mobile/widgets/provision_date_time_picker.dart';
@@ -799,7 +800,7 @@ class _FormScreenState extends State<FormScreen> {
         child: Material(
           color: AppColors.bg,
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const DashLoadingOverlay()
               : Column(
                   children: [
                     _buildCaseInfoHeader(isReviewed: isReviewed, showBackButton: true),
@@ -854,7 +855,7 @@ class _FormScreenState extends State<FormScreen> {
           ],
         ),
         body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const DashLoadingOverlay()
             : Column(
                 children: [
                   _buildCaseInfoHeader(isReviewed: isReviewed, showBackButton: false),

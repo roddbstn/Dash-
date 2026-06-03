@@ -351,8 +351,8 @@ class _SecurityFlowDiagram extends StatelessWidget {
               Expanded(
                 child: _FlowNode(
                   icon: Icons.account_balance,
-                  label: '공식 시스템',
-                  sublabel: '기관 서버\n(NCADS)',
+                  label: '보장원 시스템',
+                  sublabel: '',
                   color: const Color(0xFF059669),
                   canSee: true,
                 ),
@@ -720,7 +720,7 @@ class _Page2Illustration extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final h = (constraints.maxHeight * 0.65).clamp(180.0, 240.0);
+        final h = (constraints.maxHeight * 0.72).clamp(200.0, 290.0);
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -739,68 +739,366 @@ class _Page2Illustration extends StatelessWidget {
   }
 }
 
-class _BrowserWithDashPanel extends StatelessWidget {
+class _BrowserWithDashPanel extends StatefulWidget {
   const _BrowserWithDashPanel();
   @override
+  State<_BrowserWithDashPanel> createState() => _BrowserWithDashPanelState();
+}
+
+class _BrowserWithDashPanelState extends State<_BrowserWithDashPanel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  static const _fields = [
+    ('제공구분', '제공'),
+    ('제공방법', '방문'),
+    ('서비스유형', '아보전서비스'),
+    ('제공서비스', '아동 안전점검'),
+    ('제공일시', '5.12 16:09~17:09'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4000),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.09), blurRadius: 10, offset: const Offset(0, 3))],
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(9),
-        child: Column(
-          children: [
-            // 브라우저 크롬바
-            Container(
-              height: 22,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              color: const Color(0xFFF3F4F6),
-              child: Row(
-                children: [
-                  ...List.generate(3, (i) => Container(
-                    width: 6, height: 6, margin: const EdgeInsets.only(right: 3),
-                    decoration: BoxDecoration(
-                      color: [const Color(0xFFEF4444), const Color(0xFFF59E0B), const Color(0xFF10B981)][i],
-                      shape: BoxShape.circle,
-                    ),
-                  )),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Container(
-                      height: 13,
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(3), border: Border.all(color: const Color(0xFFD1D5DB))),
-                      child: const Center(child: Text('ncads.go.kr', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280)))),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
-            ),
-            // 메인 콘텐츠: NCADS 폼 + Dash 사이드패널
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Container(
-                      color: const Color(0xFFEEEEEE),
-                      child: const SingleChildScrollView(
-                        physics: NeverScrollableScrollPhysics(),
-                        child: _NCAdSFormMockup(),
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        final t = _ctrl.value;
+        // 0.0~0.15: 대기, 0.15~0.28: 버튼 클릭, 0.28~0.75: 필드 순차 기입, 0.75~1.0: 완료
+        final buttonPressed = t >= 0.15 && t < 0.28;
+        final fillRatio = t < 0.28 ? 0.0 : t > 0.75 ? 1.0 : (t - 0.28) / (0.75 - 0.28);
+        final filledCount = (fillRatio * _fields.length).floor();
+        final allDone = t >= 0.75;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.09), blurRadius: 10, offset: const Offset(0, 3))],
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: Column(
+              children: [
+                // 브라우저 크롬바
+                Container(
+                  height: 22,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  color: const Color(0xFFF3F4F6),
+                  child: Row(
+                    children: [
+                      ...List.generate(3, (i) => Container(
+                        width: 6, height: 6, margin: const EdgeInsets.only(right: 3),
+                        decoration: BoxDecoration(
+                          color: [const Color(0xFFEF4444), const Color(0xFFF59E0B), const Color(0xFF10B981)][i],
+                          shape: BoxShape.circle,
+                        ),
+                      )),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Container(
+                          height: 13,
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(3), border: Border.all(color: const Color(0xFFD1D5DB))),
+                          child: const Center(child: Text('ncads.go.kr', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280)))),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                    ],
                   ),
-                  Container(width: 1, color: const Color(0xFFD1D5DB)),
-                  const SizedBox(width: 112, child: _DashSidePanelMockup()),
-                ],
+                ),
+                // 메인 콘텐츠: NCADS 폼 + Dash 사이드패널
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // NCADS 폼 (좌측) — 필드 순차 기입 애니메이션
+                      Expanded(
+                        child: Container(
+                          color: const Color(0xFFEEEEEE),
+                          child: SingleChildScrollView(
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border.all(color: const Color(0xFFD1D5DB)),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                padding: const EdgeInsets.all(7),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(children: [
+                                      Container(width: 3, height: 14, decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(1.5))),
+                                      const SizedBox(width: 5),
+                                      const Text('서비스 제공 내용 (프로토타입)', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                                    ]),
+                                    const SizedBox(height: 5),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                      color: const Color(0xFFF3F4F6),
+                                      child: const Text('▶ 제공정보', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    ..._fields.asMap().entries.map((e) {
+                                      final filled = e.key < filledCount;
+                                      final isActive = e.key == filledCount && t >= 0.28 && !allDone;
+                                      return _OnboardingNcadsField(
+                                        label: e.value.$1,
+                                        value: e.value.$2,
+                                        filled: filled,
+                                        active: isActive,
+                                      );
+                                    }),
+                                    const SizedBox(height: 3),
+                                    AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      width: double.infinity,
+                                      height: 22,
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: allDone ? const Color(0xFFF0F4FF) : Colors.white,
+                                        border: Border.all(
+                                          color: allDone ? const Color(0xFFBDD0FF) : const Color(0xFFD1D5DB),
+                                        ),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      child: Text(
+                                        allDone ? '아동의 전반적인 상태를 확인하고...' : '자세한 내용을 입력하세요.',
+                                        style: TextStyle(
+                                          fontSize: 6,
+                                          color: allDone ? const Color(0xFF3B5BDB) : const Color(0xFFD1D5DB),
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                          decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(3)),
+                                          child: const Text('저장', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: Colors.white)),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                          decoration: BoxDecoration(color: const Color(0xFF9CA3AF), borderRadius: BorderRadius.circular(3)),
+                                          child: const Text('닫기', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: Colors.white)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(width: 1, color: const Color(0xFFD1D5DB)),
+                      // Dash 사이드패널 (우측) — 버튼 상태 애니메이션
+                      SizedBox(
+                        width: 112,
+                        child: _OnboardingDashPanel(
+                          buttonPressed: buttonPressed,
+                          allDone: allDone,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _OnboardingNcadsField extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool filled;
+  final bool active;
+  const _OnboardingNcadsField({required this.label, required this.value, required this.filled, required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFFFFFBEB) : filled ? const Color(0xFFF0F4FF) : const Color(0xFFF9FAFB),
+          border: Border.all(
+            color: active ? const Color(0xFFFBBF24) : filled ? const Color(0xFFBDD0FF) : const Color(0xFFE5E7EB),
+          ),
+          borderRadius: BorderRadius.circular(2),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 58,
+              child: Text(label, style: const TextStyle(fontSize: 5.5, color: Color(0xFF9CA3AF))),
+            ),
+            Expanded(
+              child: Text(
+                filled || active ? value : '',
+                style: TextStyle(
+                  fontSize: 6,
+                  color: filled ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
+                  fontWeight: filled ? FontWeight.w500 : FontWeight.normal,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OnboardingDashPanel extends StatelessWidget {
+  final bool buttonPressed;
+  final bool allDone;
+  const _OnboardingDashPanel({required this.buttonPressed, required this.allDone});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFF8F9FA),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 헤더
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+            ),
+            child: Row(
+              children: [
+                Image.asset('assets/icons/logo.png', width: 10, height: 10),
+                const SizedBox(width: 3),
+                const Text('Dash', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                const Spacer(),
+                const Icon(Icons.close, size: 8, color: Color(0xFF9CA3AF)),
+              ],
+            ),
+          ),
+          // 유저 프로필
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+            color: Colors.white,
+            child: Row(
+              children: [
+                const Text('강윤수님', style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                const Spacer(),
+                const Icon(Icons.refresh, size: 10, color: Color(0xFF6B7280)),
+              ],
+            ),
+          ),
+          // 탭
+          Container(
+            color: Colors.white,
+            child: Row(
+              children: [
+                _DashPanelTab(label: '나의 DB', badge: '1', active: true),
+                _DashPanelTab(label: '공유할 DB', badge: '1', active: false),
+                _DashPanelTab(label: '이전 기록', active: false),
+              ],
+            ),
+          ),
+          // 선택 버튼
+          Padding(
+            padding: const EdgeInsets.fromLTRB(7, 4, 7, 2),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text('○  선택', style: TextStyle(fontSize: 6, color: Color(0xFF6B7280))),
+            ),
+          ),
+          // DB 카드
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('이O주 아동 사례', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Color(0xFF111827), letterSpacing: -0.2), overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 3),
+                      Wrap(spacing: 3, children: [
+                        _PanelTag(label: '이O주'),
+                        _PanelTag(label: '나의DB', isPrimary: true),
+                      ]),
+                      const SizedBox(height: 2),
+                      const Text('from 홍길동 상담원', style: TextStyle(fontSize: 5, color: Color(0xFF9CA3AF))),
+                      const SizedBox(height: 5),
+                      _PanelCardRow(label: '제공방법', value: '방문'),
+                      _PanelCardRow(label: '제공서비스', value: '아동학대대상자 및 가족 지원 → 아동 안전점검 및 상담'),
+                      _PanelCardRow(label: '제공일시', value: '5.11(월) 02:15 - 5.26(화) 03:15'),
+                      const SizedBox(height: 3),
+                      const Align(
+                        alignment: Alignment.centerRight,
+                        child: Text('상세 보기 ▼', style: TextStyle(fontSize: 5.5, color: Color(0xFF6B7280))),
+                      ),
+                      const Divider(height: 8, color: Color(0xFFE5E7EB)),
+                      // DB 삽입 버튼 (클릭 애니메이션)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        decoration: BoxDecoration(
+                          color: buttonPressed
+                              ? const Color(0xFF1D4ED8)
+                              : allDone
+                                  ? const Color(0xFF059669)
+                                  : AppColors.primary,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Center(
+                          child: Text(
+                            allDone ? '✅ 기입 완료' : '⚡ DB 삽입',
+                            style: const TextStyle(fontSize: 6.5, color: Colors.white, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

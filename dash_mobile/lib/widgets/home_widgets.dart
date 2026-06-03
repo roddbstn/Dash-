@@ -173,6 +173,8 @@ class SwipeableDraftCard extends StatefulWidget {
   final String? counselorName;
   /// 오른쪽 스와이프 → 공유 콜백 (제공 시 오른쪽 스와이프 활성화)
   final VoidCallback? onShare;
+  /// 공유 DB를 수령자가 '내 DB로 저장' 클릭 시 설정되는 저장자 이름
+  final String? savedByName;
 
   const SwipeableDraftCard({
     super.key,
@@ -183,6 +185,7 @@ class SwipeableDraftCard extends StatefulWidget {
     this.isLast = true,
     this.counselorName,
     this.onShare,
+    this.savedByName,
   });
 
   @override
@@ -421,9 +424,11 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                             );
                           }
 
-                          // 세로 모드: 텍스트 3행 + 상담원 태그
+                          // 세로 모드: 텍스트 3행 + 상담원/저장됨 태그
                           return Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+                            crossAxisAlignment: (widget.savedByName != null)
+                                ? CrossAxisAlignment.start
+                                : CrossAxisAlignment.center,
                             children: [
                               // 왼쪽: 텍스트 3행
                               Expanded(
@@ -453,27 +458,59 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                                   ],
                                 ),
                               ),
-                              // 오른쪽 태그: 공유할 DB는 "공유" 배지+이름, 개인 DB는 이름만
-                              if (widget.counselorName != null) ...[
+                              // 오른쪽 태그: 저장됨 배지 + 담당 태그
+                              if (widget.savedByName != null || widget.counselorName != null) ...[
                                 const SizedBox(width: 10),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(100),
-                                    border: Border.all(color: const Color(0xFFDDE1E7), width: 1.5),
-                                  ),
-                                  child: Text(
-                                    '${widget.counselorName!} 담당',
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textMain,
-                                    ),
-                                  ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (widget.savedByName != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFD1FAE5),
+                                          borderRadius: BorderRadius.circular(100),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.check_rounded, size: 11, color: Color(0xFF16A34A)),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              '${widget.savedByName}가 저장함',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF16A34A),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    if (widget.savedByName != null && widget.counselorName != null)
+                                      const SizedBox(height: 5),
+                                    if (widget.counselorName != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(100),
+                                          border: Border.all(color: const Color(0xFFDDE1E7), width: 1.5),
+                                        ),
+                                        child: Text(
+                                          '${widget.counselorName!} 담당',
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textMain,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ],
                             ],

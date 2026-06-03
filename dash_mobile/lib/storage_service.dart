@@ -125,7 +125,8 @@ class StorageService {
     await _secureStorage.delete(key: _keyMapKey);
   }
 
-  // 계정 탈퇴 시 PIN·Salt 포함 모든 로컬 데이터 초기화
+  // 로그아웃 시 세션 데이터 초기화 (PIN·Salt·last_logged_in_uid는 유지)
+  // PIN은 기기 Keystore에 저장되며 재로그인 시 그대로 사용됨
   static Future<void> clearSessionData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_casesKey);
@@ -134,17 +135,24 @@ class StorageService {
     await prefs.remove(_pendingSyncKey);
     await prefs.remove(_pendingVaultKeysKey);
     await prefs.remove(_nicknameKey);
+    await prefs.remove('fcm_permission_asked');
+    await clearKeyMap();
+  }
+
+  // PIN·Salt만 명시적으로 삭제 (기기 전환·다른 계정 로그인 시 사용)
+  static Future<void> clearPinAndSalt() async {
+    final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_pinKey);
     await prefs.remove(_saltKey);
     await _secureStorage.delete(key: _pinKey);
     await _secureStorage.delete(key: _saltKey);
-    await clearKeyMap();
   }
 
   // 계정 탈퇴 시 모든 데이터 초기화 (온보딩·동의 플래그 포함)
   static Future<void> clearAllData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     await clearSessionData();
+    await clearPinAndSalt();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('consent_v1_completed');
     await prefs.remove('consent_user_uid');
