@@ -439,6 +439,28 @@ body {
 
 .btn-open-app:active { background: #1548c0; }
 
+.btn-install-ext {
+    display: block;
+    width: 100%;
+    background: #f2f4f6;
+    color: #4e5968;
+    border: none;
+    border-radius: 12px;
+    padding: 15px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+    text-align: center;
+    transition: background 0.15s;
+    box-sizing: border-box;
+}
+
+.btn-install-ext:active { background: #e5e8eb; }
+
+.pc-only { display: none; }
+
 .btn-store {
     display: flex;
     align-items: center;
@@ -555,4 +577,5 @@ body {
 @media (min-width: 641px) {
     .db-card { padding: 32px 28px 36px; }
     .cta-inner { padding: 24px 24px 28px; }
+    .pc-only { display: block; }
 }
