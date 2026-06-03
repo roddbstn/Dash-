@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 32+) 데이터 추출 규칙 (dataExtractionRules)
+  PIN·Salt·암호화 키맵은 FlutterSecureStorage(EncryptedSharedPreferences)에 저장되어 있으며
+  Keystore 키 없이 복원이 불가능하므로 클라우드 백업 및 기기 이전에서 명시적으로 제외합니다.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- EncryptedSharedPreferences 제외 (PIN·Salt·키맵 보관, Keystore 없이 복원 불가) -->
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_shared_prefs__"/>
+        <!-- 일반 SharedPreferences 포함 (온보딩·동의·닉네임 등 비민감 상태) -->
+        <include domain="sharedpref" path="."/>
+    </cloud-backup>
+    <device-transfer>
+        <!-- 기기 이전 시도 EncryptedSharedPreferences 제외 -->
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_shared_prefs__"/>
+        <include domain="sharedpref" path="."/>
+    </device-transfer>
+</data-extraction-rules>

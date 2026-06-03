@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Android Auto Backup 규칙 (Android 12+)
-  - SharedPreferences (dash_user_pin 포함) → 백업 허용 → 앱 재설치 후 PIN 자동 복원
-  - FlutterSecureStorage (Keystore 연동) → 백업 제외 (복원 불가하므로 의미 없음)
+  Android Auto Backup 규칙 (API 23–31용, fullBackupContent)
+  PIN·Salt·암호화 키맵은 FlutterSecureStorage(AndroidKeyStore/EncryptedSharedPreferences)에
+  저장되어 있으므로 이 규칙과 무관하게 백업되지 않습니다.
+  일반 SharedPreferences(온보딩 완료·동의 플래그·닉네임 등)는 재설치 UX를 위해 포함합니다.
 -->
 <full-backup-content>
-    <!-- SharedPreferences 전체 백업 (PIN, 닉네임, 온보딩 상태 등) -->
+    <!-- FlutterSecureStorage의 EncryptedSharedPreferences 제외 (Keystore 키 없이 복원 불가) -->
+    <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_shared_prefs__"/>
+    <!-- 일반 SharedPreferences 포함 (민감 데이터 없음 — PIN/Salt/키맵은 위 Keystore 파일에 있음) -->
     <include domain="sharedpref" path="."/>
 </full-backup-content>

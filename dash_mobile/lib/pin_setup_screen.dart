@@ -66,7 +66,20 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           }
           debugPrint('✅ PinSetupScreen: vault에서 ${restored.length}개 키 복원 완료');
         } else {
-          await VaultService.initEmptyVault(user.uid, newPin, force: true);
+          try {
+            await VaultService.initEmptyVault(user.uid, newPin, force: true);
+          } catch (vaultError) {
+            debugPrint('❌ PinSetupScreen: vault 초기화 실패: $vaultError');
+            // Vault 초기화 실패 시 사용자에게 알림 (PIN은 저장됐으나 서버 연동 실패)
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('보안 Vault 초기화에 실패했습니다. 네트워크를 확인하고 앱을 재시작해 주세요.'),
+                  duration: Duration(seconds: 4),
+                ),
+              );
+            }
+          }
         }
       }
     } catch (e) {

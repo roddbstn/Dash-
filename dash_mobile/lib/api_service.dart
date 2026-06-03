@@ -146,8 +146,8 @@ class ApiService {
     return null;
   }
 
-  /// PIN 리셋 전용 — 서버의 해당 사용자 레코드 전체 삭제
-  static Future<void> deleteAllRecords() async {
+  /// PIN 리셋 전용 — 서버의 해당 사용자 레코드 전체 삭제. 성공 시 true 반환.
+  static Future<bool> deleteAllRecords() async {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/records/user/all'),
@@ -156,11 +156,14 @@ class ApiService {
       ).timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) {
         debugPrint('🗑️ All records deleted from server (PIN reset)');
+        return true;
       } else {
         debugPrint('❌ Failed to delete all records: ${response.body}');
+        return false;
       }
     } catch (e) {
       debugPrint('❌ Error deleting all records: $e');
+      return false;
     }
   }
 

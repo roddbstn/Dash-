@@ -347,12 +347,33 @@ class _ProfileTabState extends State<ProfileTab> {
         }
       }
 
-      // [2] Firebase Auth 계정 삭제 시도
+      // [2] Firebase Auth 계정 삭제 시도 (requires-recent-login 시 재인증 후 재시도)
       try {
         await user.delete();
+        debugPrint('✅ Firebase Auth 계정 삭제 성공');
       } catch (e) {
-        debugPrint('🔒 Firebase Auth delete require re-auth: $e');
-        // 보안상 바로 삭제가 안 될 수 있지만, 서버 데이터는 위에서 지웠으므로 진행
+        debugPrint('🔒 Firebase Auth delete attempt 1 failed: $e');
+        if (e is FirebaseAuthException && e.code == 'requires-recent-login') {
+          try {
+            final googleSignIn = GoogleSignIn();
+            final googleUser = await googleSignIn.signInSilently();
+            if (googleUser != null) {
+              final googleAuth = await googleUser.authentication;
+              final credential = GoogleAuthProvider.credential(
+                accessToken: googleAuth.accessToken,
+                idToken: googleAuth.idToken,
+              );
+              await user.reauthenticateWithCredential(credential);
+              await user.delete();
+              debugPrint('✅ Firebase Auth 계정 삭제 성공 (재인증 후)');
+            } else {
+              debugPrint('⚠️ 재인증용 Google 계정 없음 — 서버 데이터만 삭제 후 진행');
+            }
+          } catch (reauthError) {
+            debugPrint('❌ Firebase Auth 재인증/삭제 실패: $reauthError');
+          }
+        }
+        // 재인증 실패/불필요 시 서버 데이터는 이미 삭제했으므로 계속 진행
       }
 
       // [3] 세션 파괴 및 로컬 데이터 초기화
@@ -953,18 +974,29 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _executePinReset() async {
-    // 1. 세션 데이터만 초기화 (동의·온보딩 플래그는 유지)
-    await StorageService.clearSessionData();
-
-    // 2. PIN 재설정 필요 플래그 저장 (앱 재실행 시 PinSetupScreen으로 강제 이동)
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('pin_setup_required', true);
-
-    // 3. 서버 vault 비우기
+    // 1. 서버 vault/레코드 삭제 확인 후 로컬 데이터 삭제 (서버 실패 시 중단)
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      await ApiService.deleteAllRecords();
+      bool serverDeleted = await ApiService.deleteAllRecords();
+      if (!serverDeleted) {
+        // 1회 재시도
+        await Future.delayed(const Duration(seconds: 1));
+        serverDeleted = await ApiService.deleteAllRecords();
+      }
+      if (!serverDeleted) {
+        if (mounted) {
+          widget.onShowToast('서버 데이터 삭제에 실패했습니다. 네트워크를 확인하고 다시 시도해주세요.');
+        }
+        return;
+      }
     }
+
+    // 2. 세션 데이터만 초기화 (동의·온보딩 플래그는 유지)
+    await StorageService.clearSessionData();
+
+    // 3. PIN 재설정 필요 플래그 저장 (앱 재실행 시 PinSetupScreen으로 강제 이동)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('pin_setup_required', true);
 
     AnalyticsService.pinReset();
     if (!mounted) return;

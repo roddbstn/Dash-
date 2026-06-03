@@ -108,26 +108,23 @@ class VaultService {
   /// PIN 설정 시 keyMap이 비어있어도 salt를 확립하기 위해 빈 Vault를 서버에 초기화합니다.
   /// [force] = true 이면 기존 Vault가 있어도 새 PIN으로 덮어씁니다.
   /// keyMap이 비어있는 상태에서 재설정 시에는 force:true를 사용해야 PIN-Vault 일관성이 보장됩니다.
+  /// 실패 시 예외를 throw — 호출부에서 반드시 try-catch로 처리하세요.
   static Future<void> initEmptyVault(String userId, String pin, {bool force = false}) async {
-    try {
-      // force가 아닐 때만 기존 Vault 보존 (salt 유지 목적)
-      if (!force) {
-        final existing = await ApiService.fetchVault(userId);
-        if (existing != null && existing['encrypted_vault'] != null) return;
-      }
-
-      final salt = _generateSalt();
-      final derivedKey = _deriveKey(pin, salt);
-      final vaultKey = enc.Key(derivedKey);
-      final iv = enc.IV.fromLength(16);
-      final encrypter = enc.Encrypter(enc.AES(vaultKey, mode: enc.AESMode.cbc));
-      // 빈 keyMap을 암호화
-      final encrypted = encrypter.encrypt(jsonEncode({}), iv: iv);
-      await ApiService.saveVault(userId, '${iv.base64}:${encrypted.base64}', salt);
-      debugPrint('✅ VaultService: empty Vault initialized with new salt');
-    } catch (e) {
-      debugPrint('❌ VaultService.initEmptyVault failed: $e');
+    // force가 아닐 때만 기존 Vault 보존 (salt 유지 목적)
+    if (!force) {
+      final existing = await ApiService.fetchVault(userId);
+      if (existing != null && existing['encrypted_vault'] != null) return;
     }
+
+    final salt = _generateSalt();
+    final derivedKey = _deriveKey(pin, salt);
+    final vaultKey = enc.Key(derivedKey);
+    final iv = enc.IV.fromLength(16);
+    final encrypter = enc.Encrypter(enc.AES(vaultKey, mode: enc.AESMode.cbc));
+    // 빈 keyMap을 암호화
+    final encrypted = encrypter.encrypt(jsonEncode({}), iv: iv);
+    await ApiService.saveVault(userId, '${iv.base64}:${encrypted.base64}', salt);
+    debugPrint('✅ VaultService: empty Vault initialized with new salt');
   }
 
   /// Vault 동기화 실패 항목을 큐에 적재합니다.

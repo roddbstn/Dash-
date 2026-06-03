@@ -41,10 +41,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     AnalyticsService.onboardingLoginTapped(_currentPage);
     try {
       final googleSignIn = GoogleSignIn(serverClientId: _serverClientId);
-      // Firebase에서 계정 삭제 후 재가입 등에서 캐시 토큰이 남아있는 경우를 대비해
-      // signOut + disconnect로 완전 초기화하여 계정 선택 모달을 강제 표시
+      // signOut으로 캐시된 현재 사용자 초기화 → 계정 선택 picker 강제 표시
+      // disconnect()는 사용하지 않음: 이미 로그아웃된 상태에서 disconnect()를 호출하면
+      // Android 네이티브에서 null 계정 revokeAccess()가 실패하며 Pigeon 채널을 깨뜨려
+      // 바로 다음 signIn() 호출이 channel-error로 실패함
       await googleSignIn.signOut().catchError((_) {});
-      await googleSignIn.disconnect().catchError((_) {});
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) return;
@@ -79,6 +80,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       AnalyticsService.onboardingComplete();
     } catch (e) {
       AnalyticsService.loginFailure(e.toString());
+      // 로그인 실패 시 onboarding 플래그 복원 — 재시작 후 _PreLoginRouter가 페이지 3에 고착되지 않도록
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('onboarding_v1_completed');
       if (mounted) {
         final errStr = e.toString();
         final bool isSha1Error = errStr.contains('ApiException: 10') ||
