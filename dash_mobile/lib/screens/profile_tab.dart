@@ -1087,7 +1087,10 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
               const SizedBox(width: 6),
               GestureDetector(
-                onTap: _showEditNameDialog,
+                onTap: () {
+                  AnalyticsService.profileMenuTapped('name_edit');
+                  _showEditNameDialog();
+                },
                 child: const Icon(Icons.edit, size: 16, color: Color(0xFF8B95A1)),
               ),
             ],
@@ -1102,7 +1105,10 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
           const SizedBox(height: 20),
           // 확장프로그램 안내 배너
-          _ExtensionBanner(onTap: () => _showExtensionGuide(context)),
+          _ExtensionBanner(onTap: () {
+            AnalyticsService.profileMenuTapped('extension_guide');
+            _showExtensionGuide(context);
+          }),
           const SizedBox(height: 16),
           // 통계 카드
           Container(
@@ -1143,6 +1149,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     icon: Icons.menu_book_outlined,
                     title: '이용 안내',
                     onTap: () {
+                      AnalyticsService.profileMenuTapped('user_guide');
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1161,6 +1168,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     icon: Icons.lock_outline,
                     title: '개인정보처리방침',
                     onTap: () {
+                      AnalyticsService.profileMenuTapped('privacy_policy');
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1179,6 +1187,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     icon: Icons.description_outlined,
                     title: '서비스 약관',
                     onTap: () {
+                      AnalyticsService.profileMenuTapped('terms');
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1197,6 +1206,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     icon: Icons.password_outlined,
                     title: '보안 PIN 확인',
                     onTap: () {
+                      AnalyticsService.profileMenuTapped('pin_management');
                       _showPinManagementDialog();
                     },
                   ),
@@ -1210,6 +1220,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     icon: Icons.logout,
                     title: '로그아웃',
                     onTap: () async {
+                      AnalyticsService.profileMenuTapped('logout');
                       final navigator = Navigator.of(context);
                       final confirmed = await _showLogoutConfirmationDialog();
                       if (confirmed == true) {
@@ -1248,6 +1259,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     icon: Icons.delete_forever_outlined,
                     title: '계정 탈퇴',
                     onTap: () async {
+                      AnalyticsService.profileMenuTapped('delete_account');
                       final confirmed =
                           await _showDeleteAccountConfirmationDialog();
                       if (confirmed == true && mounted) {

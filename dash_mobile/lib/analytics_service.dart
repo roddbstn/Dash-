@@ -175,6 +175,45 @@ class AnalyticsService {
 
   static Future<void> deepLinkReceived() => _log('deeplink_received');
 
+  // ── 홈 화면 ──────────────────────────────────────────────────────
+  static Future<void> homeBannerTapped() => _log('home_banner_tapped');
+  static Future<void> homeCtaTapped() => _log('home_cta_tapped');
+  static Future<void> dbRecordTapped() => _log('db_record_tapped');
+  static Future<void> dbDeleted() => _log('db_deleted');
+  static Future<void> dbShareSwiped() => _log('db_share_swiped');
+
+  // ── 공유 모달 ─────────────────────────────────────────────────────
+  static Future<void> shareModalShareTapped() => _log('share_modal_share_tapped');
+  static Future<void> shareModalLaterTapped() => _log('share_modal_later_tapped');
+
+  // ── DB 유형 선택 ─────────────────────────────────────────────────
+  /// type: 'personal' | 'shared'
+  static Future<void> dbTypeSelected(String type) =>
+      _log('db_type_selected', {'type': type});
+
+  // ── DB 작성/수정 화면 ──────────────────────────────────────────────
+  static Future<void> dbNewSaved() => _log('db_new_saved');
+  static Future<void> dbEditTapped() => _log('db_edit_tapped');
+  static Future<void> dbEditSaved() => _log('db_edit_saved');
+  static Future<void> dbBackTapped() => _log('db_back_tapped');
+
+  // ── 사례 선택 모달 ────────────────────────────────────────────────
+  static Future<void> caseButtonTapped() => _log('case_button_tapped');
+  static Future<void> counselorChipTapped() => _log('counselor_chip_tapped');
+
+  // ── 알림 / DB내역 ────────────────────────────────────────────────
+  static Future<void> notificationDetailTapped() => _log('notification_detail_tapped');
+  static Future<void> dbHistoryDetailTapped() => _log('db_history_detail_tapped');
+
+  // ── 프로필 메뉴 ──────────────────────────────────────────────────
+  /// item: 'extension_guide' | 'user_guide' | 'privacy_policy' | 'terms' |
+  ///        'pin_management' | 'logout' | 'delete_account' | 'name_edit' | 'notification_toggle'
+  static Future<void> profileMenuTapped(String item) =>
+      _log('profile_menu_tapped', {'item': item});
+
+  // ── 확장프로그램 ─────────────────────────────────────────────────
+  static Future<void> extensionDownloadTapped() => _log('extension_download_tapped');
+
   // ── Vault 재시도 (Priority 3 관측성) ────────────────────────────────
   static Future<void> vaultKeyRetried({
     required int successCount,

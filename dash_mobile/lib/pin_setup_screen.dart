@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/storage_service.dart';
 import 'package:dash_mobile/vault_service.dart';
+import 'package:dash_mobile/analytics_service.dart';
 import 'package:dash_mobile/widgets/dash_loading.dart';
 
 class PinSetupScreen extends StatefulWidget {
@@ -36,6 +37,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     final pin = _controller.text;
     try {
       await StorageService.savePin(pin);
+      AnalyticsService.pinSet();
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('pin_setup_required');
       final uid = FirebaseAuth.instance.currentUser?.uid;

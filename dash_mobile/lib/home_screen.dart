@@ -62,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   String? _userName;
   final bool _isProfileLoading = false;
+
   int _currentIndex = 0;
 
   /// 홈에 표시할 나의 DB 목록 (Injected 제외, 공유받은 임시 로컬 드래프트 제외)
@@ -86,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen>
     AnalyticsService.screenHome();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) AnalyticsService.setUser(uid);
-    _loadData();깃허브에
+    _loadData();
     _initRealtime();
     _setupFCM();
     _fetchUserProfile();
@@ -969,7 +970,10 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: GestureDetector(
-                      onTap: () => Navigator.pop(ctx),
+                      onTap: () {
+                        AnalyticsService.shareModalLaterTapped();
+                        Navigator.pop(ctx);
+                      },
                       child: const Text(
                         '나중에',
                         style: TextStyle(fontSize: 14, color: Color(0xFF868E96), fontWeight: FontWeight.w500),
@@ -996,6 +1000,7 @@ class _HomeScreenState extends State<HomeScreen>
                   : ElevatedButton(
                       onPressed: () async {
                         await Clipboard.setData(ClipboardData(text: url));
+                        AnalyticsService.shareModalShareTapped();
                         AnalyticsService.linkCopied();
                         if (ctx.mounted) Navigator.pop(ctx);
                         _showToast('링크가 복사되었습니다.');

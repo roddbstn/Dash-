@@ -3,6 +3,7 @@ import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/widgets/home_widgets.dart';
 import 'package:dash_mobile/widgets/dash_button.dart';
 import 'package:dash_mobile/user_guide_screen.dart';
+import 'package:dash_mobile/analytics_service.dart';
 
 class HomeTab extends StatelessWidget {
   final bool isLoading;
@@ -247,7 +248,10 @@ class HomeTab extends StatelessWidget {
   // ── CTA 버튼 카드 ────────────────────────────────────────────────
   Widget _buildCtaCard() {
     return DashButton(
-      onTap: onShowCaseSelection,
+      onTap: () {
+        AnalyticsService.homeCtaTapped();
+        onShowCaseSelection();
+      },
       text: 'DB 작성하러 가기',
       backgroundColor: AppColors.primary,
     );
@@ -256,10 +260,10 @@ class HomeTab extends StatelessWidget {
   // ── PC 이용 안내 배너 ────────────────────────────────────────────
   Widget _buildPcGuideBanner(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const UserGuideScreen()),
-      ),
+      onTap: () {
+        AnalyticsService.homeBannerTapped();
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const UserGuideScreen()));
+      },
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFFEEF3FC),
@@ -708,22 +712,29 @@ class HomeTab extends StatelessWidget {
       index: index,
       isLast: true,
       counselorName: counselorName,
-      onTap: () => onGoToForm(
-        foundCase?['realName'] ?? d['caseName'],
-        d['caseName'],
-        dong,
-        caseId: foundCase?['id'] ?? d['id'],
-        draftId: d['id'],
-      ),
+      onTap: () {
+        AnalyticsService.dbRecordTapped();
+        onGoToForm(
+          foundCase?['realName'] ?? d['caseName'],
+          d['caseName'],
+          dong,
+          caseId: foundCase?['id'] ?? d['id'],
+          draftId: d['id'],
+        );
+      },
       onDelete: () async {
         final confirmed = await _showDeleteDraftDialog(context);
         if (confirmed) {
+          AnalyticsService.dbDeleted();
           await onDeleteMyDraft(d['id']);
           return true;
         }
         return false;
       },
-      onShare: isShared && onShareDraft != null ? () => onShareDraft!(d) : null,
+      onShare: isShared && onShareDraft != null ? () {
+        AnalyticsService.dbShareSwiped();
+        onShareDraft!(d);
+      } : null,
       savedByName: isShared ? d['saved_by_name']?.toString() : null,
     );
   }

@@ -298,6 +298,12 @@ class _FormScreenState extends State<FormScreen> {
         'share_key': widget.isSharedDb ? encryptionKey : null,
       };
 
+      // 신규/수정 저장 이벤트 구분
+      if (widget.draftId != null) {
+        AnalyticsService.dbEditSaved();
+      } else {
+        AnalyticsService.dbNewSaved();
+      }
       // 로컬 저장 완료 → 즉시 홈으로 전환, 서버 동기화는 백그라운드에서 진행
       if (mounted) Navigator.pop(context, true);
 
@@ -818,7 +824,11 @@ class _FormScreenState extends State<FormScreen> {
       );
     }
 
-    return GestureDetector(
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop && !_isViewOnly) AnalyticsService.dbBackTapped();
+      },
+      child: GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: AppColors.bg,
@@ -849,7 +859,10 @@ class _FormScreenState extends State<FormScreen> {
           actions: [
             if (_isViewOnly && widget.draftId != null)
               TextButton(
-                onPressed: () => setState(() => _isViewOnly = false),
+                onPressed: () {
+                  AnalyticsService.dbEditTapped();
+                  setState(() => _isViewOnly = false);
+                },
                 child: const Text('수정', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.primary)),
               ),
           ],
@@ -873,6 +886,7 @@ class _FormScreenState extends State<FormScreen> {
               ),
         bottomNavigationBar: _isViewOnly ? null : _buildSaveBar(),
       ),
+    ),
     );
   }
 

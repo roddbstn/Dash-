@@ -1,15 +1,17 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
+import 'package:dash_mobile/analytics_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ExtensionGuideScreen extends StatelessWidget {
   const ExtensionGuideScreen({super.key});
 
   static const _chromeStoreUrl =
-      'https://chromewebstore.google.com/detail/dpncpmegjlgknkagcfjdaccbgmjncdef?utm_source=item-share-cb';
+      'https://chromewebstore.google.com/detail/dash/dpncpmegjlgknkagcfjdaccbgmjncdef?authuser=0&hl=ko';
 
   Future<void> _openStore(BuildContext context) async {
+    AnalyticsService.extensionDownloadTapped();
     final uri = Uri.parse(_chromeStoreUrl);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {

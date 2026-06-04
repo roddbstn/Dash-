@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
+import 'package:dash_mobile/analytics_service.dart';
 
 enum DbType { personal, shared }
 
@@ -54,7 +55,10 @@ class _DbTypeSelectionSheet extends StatelessWidget {
             icon: Icons.person_outline_rounded,
             title: '내 DB',
             description: '나만 보는 개인 기록이에요',
-            onTap: () => Navigator.pop(context, DbType.personal),
+            onTap: () {
+              AnalyticsService.dbTypeSelected('personal');
+              Navigator.pop(context, DbType.personal);
+            },
           ),
           const SizedBox(height: 12),
           _TypeCard(
@@ -62,7 +66,10 @@ class _DbTypeSelectionSheet extends StatelessWidget {
             title: '공유할 DB',
             description: '동행자로서 담당자의 DB를 대신 작성하고 공유할 수 있어요',
             accent: true,
-            onTap: () => Navigator.pop(context, DbType.shared),
+            onTap: () {
+              AnalyticsService.dbTypeSelected('shared');
+              Navigator.pop(context, DbType.shared);
+            },
           ),
         ],
       ),

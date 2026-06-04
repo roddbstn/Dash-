@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
 import 'package:dash_mobile/api_service.dart';
+import 'package:dash_mobile/analytics_service.dart';
 import 'package:intl/intl.dart';
 
 /// 알림 메시지에서 이메일 주소를 제거 (백엔드가 이름 전송 시 자동으로 사용됨)
@@ -144,6 +145,7 @@ class NotificationTab extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     debugPrint('🔔 Notification tapped: $notifId');
+                    AnalyticsService.notificationDetailTapped();
                     // 1. 알림 읽음 처리 (서버 및 로컬 즉시 반영)
                     if (notifId != null) {
                       ApiService.markNotificationRead(notifId);

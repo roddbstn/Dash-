@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dash_mobile/theme.dart';
+import 'package:dash_mobile/analytics_service.dart';
 
 class DbHistoryTab extends StatelessWidget {
   final List<dynamic> injectedDrafts;
@@ -218,7 +219,10 @@ class _HistoryCardState extends State<_HistoryCard> {
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: () => setState(() => _expanded = !_expanded),
+                        onTap: () {
+                          if (!_expanded) AnalyticsService.dbHistoryDetailTapped();
+                          setState(() => _expanded = !_expanded);
+                        },
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           color: Colors.transparent,

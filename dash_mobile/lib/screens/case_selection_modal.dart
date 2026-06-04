@@ -198,6 +198,7 @@ class _CaseSelectionSheetContentState
                             selectedCounselorId == c['id']?.toString(),
                         isEditing: false,
                         onTap: () {
+                          AnalyticsService.counselorChipTapped();
                           setState(() {
                             selectedCounselorId = c['id']?.toString();
                           });
@@ -244,6 +245,7 @@ class _CaseSelectionSheetContentState
                           isSelectionMode: false,
                           isEditing: false,
                           onTap: () {
+                                  AnalyticsService.caseButtonTapped();
                                   widget.onGoToForm(
                                     c['realName'],
                                     c['maskedName'],
