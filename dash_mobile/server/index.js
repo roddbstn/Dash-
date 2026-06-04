@@ -570,10 +570,10 @@ function renderShareHtml(token, caseName, authorName, description, serviceType, 
     ${metaBadges ? `<div class="meta-badges">${metaBadges}</div>` : ''}
     <div class="case-name">${safeCaseName}</div>
     <div class="author">${safeAuthorName} 상담원 작성</div>
-    <div class="locked"><span class="lock-icon">🔒</span>앱에서 전체 내용을 확인할 수 있어요</div>
+    <div class="locked"><span class="lock-icon">🔒</span>앱에서 전체 내용을 확인해보세요</div>
     <a class="cta" id="open-app" href="#">앱에서 열기</a>
+    <a class="secondary" href="https://chromewebstore.google.com/detail/dash/dpncpmegjlgknkagcfjdaccbgmjncdef?authuser=0&hl=ko" target="_blank" rel="noopener">확장프로그램 다운받기</a>
     <a class="secondary" id="install-app" href="#" style="display:none;">DASH 앱 설치하기</a>
-    <p class="note">앱을 설치하고 로그인하면<br>내 DB로 바로 저장할 수 있어요.</p>
   </div>
   <script>
     const token = '${safeToken}';
@@ -604,6 +604,12 @@ function renderShareHtml(token, caseName, authorName, description, serviceType, 
         installBtn.style.display = 'block';
         installBtn.href = isAndroid ? playStore : appStore;
       }, 2000);
+    } else {
+      installBtn.style.display = 'block';
+      installBtn.href = 'https://chromewebstore.google.com/detail/dash/dpncpmegjlgknkagcfjdaccbgmjncdef?authuser=0&hl=ko';
+      installBtn.textContent = '확장프로그램 설치하기';
+      installBtn.target = '_blank';
+      installBtn.rel = 'noopener';
     }
   </script>
 </body>

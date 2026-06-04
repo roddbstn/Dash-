@@ -459,7 +459,7 @@ body {
 
 .btn-install-ext:active { background: #e5e8eb; }
 
-.pc-only { display: none; }
+.pc-only { display: block; }
 
 .btn-store {
     display: flex;
