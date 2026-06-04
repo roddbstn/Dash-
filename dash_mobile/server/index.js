@@ -557,7 +557,7 @@ function renderShareHtml(token, caseName, authorName, description, serviceType, 
     .author { font-size: 14px; color: #6b7684; margin-bottom: 8px; }
     .locked { font-size: 13px; color: #adb5bd; margin-bottom: 28px; }
     .lock-icon { font-size: 16px; margin-right: 4px; }
-    .cta { display: block; width: 100%; background: #1a56db; color: #fff; border: none; border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; text-decoration: none; margin-bottom: 12px; }
+    .cta { display: block; width: 100%; background: #1a56db; color: #fff; border: none; border-radius: 14px; padding: 16px; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none; margin-bottom: 12px; }
     .cta:hover { background: #1548c0; }
     .secondary { display: block; width: 100%; background: #f1f3f5; color: #4e5968; border: none; border-radius: 14px; padding: 14px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
     .secondary:hover { background: #e9ecef; }
@@ -572,7 +572,6 @@ function renderShareHtml(token, caseName, authorName, description, serviceType, 
     <div class="author">${safeAuthorName} 상담원 작성</div>
     <div class="locked"><span class="lock-icon">🔒</span>앱에서 전체 내용을 확인해보세요</div>
     <a class="cta" id="open-app" href="#">앱에서 열기</a>
-    <a class="secondary" href="https://chromewebstore.google.com/detail/dash/dpncpmegjlgknkagcfjdaccbgmjncdef?authuser=0&hl=ko" target="_blank" rel="noopener">확장프로그램 다운받기</a>
     <a class="secondary" id="install-app" href="#" style="display:none;">DASH 앱 설치하기</a>
   </div>
   <script>
