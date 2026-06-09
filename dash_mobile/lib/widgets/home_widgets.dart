@@ -475,8 +475,16 @@ class _SwipeableDraftCardState extends State<SwipeableDraftCard>
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            const Icon(Icons.check_rounded, size: 11, color: Color(0xFF16A34A)),
-                                            const SizedBox(width: 3),
+                                            Container(
+                                              width: 14,
+                                              height: 14,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFF16A34A),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(Icons.check_rounded, size: 10, color: Colors.white),
+                                            ),
+                                            const SizedBox(width: 4),
                                             Text(
                                               '${widget.savedByName}가 저장함',
                                               style: const TextStyle(

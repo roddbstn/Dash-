@@ -4,7 +4,9 @@
     "namespace": "android_app",
     "package_name": "com.dash.mobile.yunsoo",
     "sha256_cert_fingerprints": [
-      "D3:3D:FF:CA:D9:87:5F:AB:47:F4:0B:35:37:22:D2:C7:FA:C6:AA:22:BA:E0:E6:0D:50:0D:14:1D:B7:82:51:14"
+      "D3:3D:FF:CA:D9:87:5F:AB:47:F4:0B:35:37:22:D2:C7:FA:C6:AA:22:BA:E0:E6:0D:50:0D:14:1D:B7:82:51:14",
+      "EA:DE:DA:AD:66:B7:51:C1:0D:1E:FE:C2:46:91:32:49:30:11:72:2A:C0:D0:D4:C2:5A:60:31:7E:82:8F:18:8F"
     ]
   }
 }]
+
